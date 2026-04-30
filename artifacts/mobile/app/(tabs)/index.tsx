@@ -22,31 +22,32 @@ import { useColors } from "@/hooks/useColors";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
+function formatChipPrice(price: number, symbol: MarketSymbol, currencyMode: "usd" | "inr"): string {
+  const sym = symbol.type === "indian" ? "₹" : currencyMode === "usd" ? "$" : "₹";
+  if (price >= 1000) {
+    return `${sym}${price.toLocaleString(currencyMode === "usd" ? "en-US" : "en-IN", { maximumFractionDigits: 0 })}`;
+  }
+  if (price >= 1) return `${sym}${price.toFixed(2)}`;
+  return `${sym}${price.toFixed(4)}`;
+}
+
 function SymbolChip({
   symbol,
   isSelected,
-  currentPrice,
+  price,
   currencyMode,
   onPress,
   colors,
 }: {
   symbol: MarketSymbol;
   isSelected: boolean;
-  currentPrice: number;
+  price: number;
   currencyMode: "usd" | "inr";
   onPress: () => void;
   colors: ReturnType<typeof import("@/hooks/useColors").useColors>;
 }) {
   const ticker = symbol.label.replace("/USDT", "").replace("/", "");
-  const priceStr =
-    isSelected && currentPrice > 0
-      ? currentPrice >= 1000
-        ? `${currencyMode === "usd" ? "$" : "₹"}${currentPrice.toLocaleString(
-            currencyMode === "usd" ? "en-US" : "en-IN",
-            { maximumFractionDigits: 0 }
-          )}`
-        : `${currencyMode === "usd" ? "$" : "₹"}${currentPrice.toFixed(2)}`
-      : null;
+  const priceStr = price > 0 ? formatChipPrice(price, symbol, currencyMode) : null;
 
   return (
     <TouchableOpacity
@@ -72,12 +73,14 @@ function SymbolChip({
         <Text
           style={[
             styles.chipPrice,
-            { color: isSelected ? "rgba(255,255,255,0.8)" : colors.mutedForeground },
+            { color: isSelected ? "rgba(255,255,255,0.85)" : colors.mutedForeground },
           ]}
         >
           {priceStr}
         </Text>
-      ) : null}
+      ) : (
+        <Text style={[styles.chipPrice, { color: colors.mutedForeground }]}>...</Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -91,7 +94,7 @@ export default function HomeScreen() {
     marketFilter,
     selectedSymbol,
     setSelectedSymbol,
-    currentPrice,
+    symbolPrices,
     currencyMode,
   } = useTradingContext();
   const [chartExpanded, setChartExpanded] = useState(false);
@@ -175,7 +178,7 @@ export default function HomeScreen() {
             <SymbolChip
               symbol={item}
               isSelected={item.id === selectedSymbol.id}
-              currentPrice={currentPrice}
+              price={symbolPrices[item.id] ?? 0}
               currencyMode={currencyMode}
               onPress={() => setSelectedSymbol(item)}
               colors={colors}

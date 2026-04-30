@@ -32,4 +32,30 @@ router.get("/market/ticker24hr", async (req, res) => {
   }
 });
 
+const COINGECKO_IDS: Record<string, string> = {
+  BTCUSDT: "bitcoin",
+  ETHUSDT: "ethereum",
+  BNBUSDT: "binancecoin",
+  DOGEUSDT: "dogecoin",
+  SOLUSDT: "solana",
+};
+
+router.get("/market/prices", async (req, res) => {
+  try {
+    const ids = Object.values(COINGECKO_IDS).join(",");
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`
+    );
+    const data: Record<string, { usd: number }> = await response.json();
+    const map: Record<string, number> = {};
+    for (const [symbolId, geckoId] of Object.entries(COINGECKO_IDS)) {
+      if (data[geckoId]?.usd) map[symbolId] = data[geckoId].usd;
+    }
+    res.json(map);
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch prices");
+    res.status(502).json({ error: "Failed to fetch prices" });
+  }
+});
+
 export default router;

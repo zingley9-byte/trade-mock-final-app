@@ -83,6 +83,7 @@ interface TradingContextType {
   tradeHistory: TradeHistory[];
   selectedSymbol: MarketSymbol;
   currentPrice: number;
+  symbolPrices: Record<string, number>;
   candles: Candle[];
   timeframe: Timeframe;
   theme: "dark" | "light";
@@ -205,12 +206,41 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [volume24h, setVolume24h] = useState(0);
   const [marketFilter, setMarketFilterState] = useState<"crypto" | "indian">("crypto");
   const [currencyMode, setCurrencyModeState] = useState<"usd" | "inr">("usd");
+  const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>(() => ({
+    ...INDIAN_BASE_PRICES,
+  }));
 
   const wsRef = useRef<WebSocket | null>(null);
   const lastSymbolRef = useRef<string>("");
 
   useEffect(() => {
     loadState();
+  }, []);
+
+  useEffect(() => {
+    if (currentPrice > 0) {
+      setSymbolPrices((prev) => ({ ...prev, [selectedSymbol.id]: currentPrice }));
+    }
+  }, [currentPrice, selectedSymbol.id]);
+
+  useEffect(() => {
+    const CRYPTO_IDS = SYMBOLS.filter((s) => s.type === "crypto").map((s) => s.id);
+    async function fetchAllPrices() {
+      try {
+        const res = await fetch(`${API_BASE}/market/prices`);
+        const map: Record<string, number> = await res.json();
+        setSymbolPrices((prev) => {
+          const next = { ...prev };
+          for (const id of CRYPTO_IDS) {
+            if (map[id] && map[id] > 0) next[id] = map[id];
+          }
+          return next;
+        });
+      } catch {}
+    }
+    fetchAllPrices();
+    const interval = setInterval(fetchAllPrices, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   async function loadState() {
@@ -595,6 +625,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         tradeHistory,
         selectedSymbol,
         currentPrice,
+        symbolPrices,
         candles,
         timeframe,
         theme,
