@@ -13,11 +13,11 @@ import { MarketSymbol, SYMBOLS, useTradingContext } from "@/context/TradingConte
 import { useColors } from "@/hooks/useColors";
 
 export default function SymbolSelector() {
-  const { selectedSymbol, setSelectedSymbol, currentPrice, priceChange24h } =
+  const { selectedSymbol, setSelectedSymbol, currentPrice, priceChange24h, marketFilter } =
     useTradingContext();
   const colors = useColors();
   const [open, setOpen] = useState(false);
-  const [activeType, setActiveType] = useState<"crypto" | "indian">("crypto");
+  const [activeType, setActiveType] = useState<"crypto" | "indian">(marketFilter);
 
   const filtered = SYMBOLS.filter((s) => s.type === activeType);
   const isPositive = priceChange24h >= 0;

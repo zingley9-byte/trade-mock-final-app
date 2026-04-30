@@ -74,8 +74,8 @@ export const SYMBOLS: MarketSymbol[] = [
 export const TIMEFRAMES: Timeframe[] = ["1m", "5m", "15m", "30m", "1h", "1D"];
 export const LEVERAGES = [1, 5, 10, 25, 50, 80, 100];
 
-const INITIAL_BALANCE = 100000;
-const STORAGE_KEY = "trademock_state_v2";
+const INITIAL_BALANCE = 1000000;
+const STORAGE_KEY = "trademock_state_v3";
 
 interface TradingContextType {
   balance: number;
@@ -93,11 +93,15 @@ interface TradingContextType {
   high24h: number;
   low24h: number;
   volume24h: number;
+  marketFilter: "crypto" | "indian";
+  currencyMode: "usd" | "inr";
   setSelectedSymbol: (s: MarketSymbol) => void;
   setTimeframe: (t: Timeframe) => void;
   setTheme: (t: "dark" | "light") => void;
   setChartType: (t: "candle" | "line") => void;
   setLeverage: (l: number) => void;
+  setMarketFilter: (f: "crypto" | "indian") => void;
+  setCurrencyMode: (m: "usd" | "inr") => void;
   openPosition: (params: {
     side: "buy" | "sell";
     quantity: number;
@@ -198,6 +202,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [high24h, setHigh24h] = useState(0);
   const [low24h, setLow24h] = useState(0);
   const [volume24h, setVolume24h] = useState(0);
+  const [marketFilter, setMarketFilterState] = useState<"crypto" | "indian">("crypto");
+  const [currencyMode, setCurrencyModeState] = useState<"usd" | "inr">("usd");
 
   const wsRef = useRef<WebSocket | null>(null);
   const lastSymbolRef = useRef<string>("");
@@ -216,6 +222,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         if (saved.tradeHistory) setTradeHistory(saved.tradeHistory);
         if (saved.theme) { setTheme(saved.theme); Appearance.setColorScheme(saved.theme); }
         if (saved.leverage) setLeverage(saved.leverage);
+        if (saved.marketFilter) setMarketFilterState(saved.marketFilter);
+        if (saved.currencyMode) setCurrencyModeState(saved.currencyMode);
       }
     } catch {}
   }
@@ -225,7 +233,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     newPositions: Position[],
     newHistory: TradeHistory[],
     newTheme: "dark" | "light",
-    newLeverage: number
+    newLeverage: number,
+    newMarketFilter?: "crypto" | "indian",
+    newCurrencyMode?: "usd" | "inr"
   ) {
     try {
       await AsyncStorage.setItem(
@@ -236,6 +246,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
           tradeHistory: newHistory,
           theme: newTheme,
           leverage: newLeverage,
+          marketFilter: newMarketFilter,
+          currencyMode: newCurrencyMode,
         })
       );
     } catch {}
@@ -548,9 +560,29 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const handleSetLeverage = useCallback(
     (l: number) => {
       setLeverage(l);
-      saveState(balance, positions, tradeHistory, theme, l);
+      saveState(balance, positions, tradeHistory, theme, l, marketFilter, currencyMode);
     },
-    [balance, positions, tradeHistory, theme]
+    [balance, positions, tradeHistory, theme, marketFilter, currencyMode]
+  );
+
+  const setMarketFilter = useCallback(
+    (f: "crypto" | "indian") => {
+      setMarketFilterState(f);
+      const firstOfType = SYMBOLS.find((s) => s.type === f);
+      if (firstOfType) {
+        setSelectedSymbol(firstOfType);
+      }
+      saveState(balance, positions, tradeHistory, theme, leverage, f, currencyMode);
+    },
+    [balance, positions, tradeHistory, theme, leverage, currencyMode, setSelectedSymbol]
+  );
+
+  const setCurrencyMode = useCallback(
+    (m: "usd" | "inr") => {
+      setCurrencyModeState(m);
+      saveState(balance, positions, tradeHistory, theme, leverage, marketFilter, m);
+    },
+    [balance, positions, tradeHistory, theme, leverage, marketFilter]
   );
 
   return (
@@ -571,11 +603,15 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         high24h,
         low24h,
         volume24h,
+        marketFilter,
+        currencyMode,
         setSelectedSymbol,
         setTimeframe,
         setTheme: handleSetTheme,
         setChartType,
         setLeverage: handleSetLeverage,
+        setMarketFilter,
+        setCurrencyMode,
         openPosition,
         closePosition,
         getRunningPnL,

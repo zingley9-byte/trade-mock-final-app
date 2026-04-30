@@ -24,7 +24,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Preview**: `/` (root)
 - **Package**: `@workspace/mobile`
 
-#### Features (Phases 1-6 implemented)
+#### Features (Phases 1-6 implemented, UI Phase 4 complete)
 - Candlestick + Line chart with SVG rendering (react-native-svg)
 - Symbols: BTC/USDT, ETH/USDT, BNB/USDT, DOGE/USDT, SOL/USDT (Crypto) + NIFTY50, SENSEX, BANKNIFTY, BANKEX (Indian — simulated)
 - Timeframes: 1m, 5m, 15m, 30m, 1h, 1D

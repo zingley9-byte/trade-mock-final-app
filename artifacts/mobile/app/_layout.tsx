@@ -12,23 +12,13 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { useColorScheme } from "react-native";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { TradingProvider, useTradingContext } from "@/context/TradingContext";
+import { TradingProvider } from "@/context/TradingContext";
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
-
-function ThemedStack() {
-  const { theme } = useTradingContext();
-  return (
-    <Stack screenOptions={{ headerBackTitle: "Back" }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    </Stack>
-  );
-}
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -51,9 +41,11 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <TradingProvider>
-            <GestureHandlerRootView>
+            <GestureHandlerRootView style={{ flex: 1 }}>
               <KeyboardProvider>
-                <ThemedStack />
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                </Stack>
               </KeyboardProvider>
             </GestureHandlerRootView>
           </TradingProvider>

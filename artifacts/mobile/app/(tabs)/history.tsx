@@ -117,15 +117,7 @@ export default function HistoryScreen() {
   }
 
   return (
-    <View
-      style={[
-        styles.root,
-        {
-          backgroundColor: colors.background,
-          paddingTop: Platform.OS === "web" ? 67 : insets.top,
-        },
-      ]}
-    >
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={styles.headerRow}>
         <Text style={[styles.title, { color: colors.foreground }]}>Trade History</Text>
         <View style={[styles.pnlSummary, { backgroundColor: totalPnL >= 0 ? colors.bullBg : colors.bearBg }]}>
@@ -197,7 +189,7 @@ export default function HistoryScreen() {
           renderItem={renderItem}
           contentContainerStyle={{
             paddingHorizontal: 14,
-            paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 90,
+            paddingBottom: Platform.OS === "web" ? 80 : insets.bottom + 90,
           }}
         />
       )}

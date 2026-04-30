@@ -55,8 +55,7 @@ export default function PortfolioScreen() {
     <ScrollView
       style={[styles.root, { backgroundColor: colors.background }]}
       contentContainerStyle={{
-        paddingTop: Platform.OS === "web" ? 67 : insets.top,
-        paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 90,
+        paddingBottom: Platform.OS === "web" ? 80 : insets.bottom + 90,
       }}
     >
       <View style={styles.headerRow}>
