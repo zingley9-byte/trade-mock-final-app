@@ -13,6 +13,8 @@ import { Feather } from "@expo/vector-icons";
 import { LEVERAGES, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 
+const INR_RATE = 83.5;
+
 export default function OrderPanel() {
   const {
     balance,
@@ -24,8 +26,19 @@ export default function OrderPanel() {
     positions,
     closePosition,
     getRunningPnL,
+    currencyMode,
   } = useTradingContext();
   const colors = useColors();
+
+  function formatBalance(amount: number): string {
+    if (currencyMode === "usd") {
+      const usd = amount;
+      if (usd >= 1_000_000) return `$${(usd / 1_000_000).toFixed(2)}M`;
+      if (usd >= 1_000) return `$${usd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+      return `$${usd.toFixed(2)}`;
+    }
+    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  }
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [quantity, setQuantity] = useState("0.01");
@@ -83,7 +96,7 @@ export default function OrderPanel() {
         <View>
           <Text style={[styles.balLabel, { color: colors.mutedForeground }]}>Balance</Text>
           <Text style={[styles.balValue, { color: colors.foreground }]}>
-            ₹{balance.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+            {formatBalance(balance)}
           </Text>
         </View>
         {positions.length > 0 && (
@@ -95,7 +108,7 @@ export default function OrderPanel() {
                 { color: runningPnL >= 0 ? colors.bull : colors.bear },
               ]}
             >
-              {runningPnL >= 0 ? "+" : ""}₹{runningPnL.toFixed(2)}
+              {runningPnL >= 0 ? "+" : ""}{formatBalance(runningPnL)}
             </Text>
           </View>
         )}
@@ -350,7 +363,7 @@ export default function OrderPanel() {
         <View style={styles.summaryRow}>
           <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Margin Required</Text>
           <Text style={[styles.summaryValue, { color: colors.foreground }]}>
-            ₹{margin.toFixed(2)}
+            {formatBalance(margin)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
@@ -445,7 +458,7 @@ export default function OrderPanel() {
                   <View style={{ alignItems: "center" }}>
                     <Text style={[styles.posLabel, { color: colors.mutedForeground }]}>Margin</Text>
                     <Text style={[styles.posValue, { color: colors.foreground }]}>
-                      ₹{pos.margin.toFixed(0)}
+                      {formatBalance(pos.margin)}
                     </Text>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
@@ -456,7 +469,7 @@ export default function OrderPanel() {
                         { color: posPnl >= 0 ? colors.bull : colors.bear },
                       ]}
                     >
-                      {posPnl >= 0 ? "+" : ""}₹{posPnl.toFixed(2)}
+                      {posPnl >= 0 ? "+" : ""}{formatBalance(posPnl)}
                     </Text>
                     <Text
                       style={[

@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 
-const INITIAL_BALANCE = 100000;
+const INITIAL_BALANCE = 1000000;
 
 export default function PortfolioScreen() {
   const colors = useColors();
@@ -28,6 +28,7 @@ export default function PortfolioScreen() {
     closePosition,
     resetAccount,
     tradeHistory,
+    currencyMode,
   } = useTradingContext();
 
   const runningPnL = getRunningPnL();
@@ -40,10 +41,26 @@ export default function PortfolioScreen() {
   const winRate = tradeHistory.length > 0 ? (winTrades / tradeHistory.length) * 100 : 0;
   const totalRealizedPnL = tradeHistory.reduce((s, t) => s + t.pnl, 0);
 
+  const isUSD = currencyMode === "usd";
+  const sym = isUSD ? "$" : "₹";
+
+  function fmt(amount: number, decimals = 2): string {
+    if (isUSD) {
+      if (Math.abs(amount) >= 1_000_000)
+        return `$${(amount / 1_000_000).toFixed(2)}M`;
+      if (Math.abs(amount) >= 1_000)
+        return `$${amount.toLocaleString("en-US", { maximumFractionDigits: decimals })}`;
+      return `$${amount.toFixed(decimals)}`;
+    }
+    if (Math.abs(amount) >= 10_00_000)
+      return `₹${(amount / 10_00_000).toFixed(2)}L`;
+    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: decimals })}`;
+  }
+
   function handleReset() {
     Alert.alert(
       "Reset Account",
-      "This will reset your balance to ₹1,00,000 and clear all history.",
+      `This will reset your balance to ${isUSD ? "$1,000,000" : "₹10,00,000"} and clear all history.`,
       [
         { text: "Cancel", style: "cancel" },
         { text: "Reset", style: "destructive", onPress: resetAccount },
@@ -74,7 +91,7 @@ export default function PortfolioScreen() {
           Total Portfolio Value
         </Text>
         <Text style={[styles.portfolioValue, { color: colors.foreground }]}>
-          ₹{totalValue.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+          {fmt(totalValue)}
         </Text>
         <View style={styles.pnlRow}>
           <Text
@@ -83,7 +100,7 @@ export default function PortfolioScreen() {
               { color: totalPnL >= 0 ? colors.bull : colors.bear },
             ]}
           >
-            {totalPnL >= 0 ? "+" : ""}₹{totalPnL.toFixed(2)}
+            {totalPnL >= 0 ? "+" : ""}{fmt(totalPnL)}
           </Text>
           <View
             style={[
@@ -101,21 +118,21 @@ export default function PortfolioScreen() {
       <View style={styles.statsGrid}>
         <StatCard
           label="Available Balance"
-          value={`₹${balance.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
+          value={fmt(balance, 0)}
           icon="dollar-sign"
           colors={colors}
           iconColor={colors.primary}
         />
         <StatCard
           label="Margin Used"
-          value={`₹${marginUsed.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
+          value={fmt(marginUsed, 0)}
           icon="lock"
           colors={colors}
           iconColor="#f59e0b"
         />
         <StatCard
           label="Running P&L"
-          value={`${runningPnL >= 0 ? "+" : ""}₹${runningPnL.toFixed(2)}`}
+          value={`${runningPnL >= 0 ? "+" : ""}${fmt(runningPnL)}`}
           icon="activity"
           colors={colors}
           iconColor={runningPnL >= 0 ? colors.bull : colors.bear}
@@ -123,7 +140,7 @@ export default function PortfolioScreen() {
         />
         <StatCard
           label="Realized P&L"
-          value={`${totalRealizedPnL >= 0 ? "+" : ""}₹${totalRealizedPnL.toFixed(2)}`}
+          value={`${totalRealizedPnL >= 0 ? "+" : ""}${fmt(totalRealizedPnL)}`}
           icon="trending-up"
           colors={colors}
           iconColor={totalRealizedPnL >= 0 ? colors.bull : colors.bear}
@@ -187,12 +204,12 @@ export default function PortfolioScreen() {
                   <Detail label="Entry" value={`${posSymbol}${pos.entryPrice.toFixed(2)}`} colors={colors} />
                   <Detail label="Current" value={`${posSymbol}${currentPrice.toFixed(2)}`} colors={colors} />
                   <Detail label="Qty" value={`${pos.quantity}`} colors={colors} />
-                  <Detail label="Margin" value={`₹${pos.margin.toFixed(0)}`} colors={colors} />
+                  <Detail label="Margin" value={fmt(pos.margin, 0)} colors={colors} />
                 </View>
                 <View style={[styles.pnlRow, { paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
                   <Text style={[styles.posLabel, { color: colors.mutedForeground }]}>P&L</Text>
                   <Text style={[styles.posPnl, { color: posPnl >= 0 ? colors.bull : colors.bear }]}>
-                    {posPnl >= 0 ? "+" : ""}₹{posPnl.toFixed(2)}
+                    {posPnl >= 0 ? "+" : ""}{fmt(posPnl)}
                     {"  "}
                     <Text style={{ fontSize: 12 }}>({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)</Text>
                   </Text>
