@@ -84,6 +84,7 @@ interface TradingContextType {
   selectedSymbol: MarketSymbol;
   currentPrice: number;
   symbolPrices: Record<string, number>;
+  symbolChanges: Record<string, number>;
   candles: Candle[];
   timeframe: Timeframe;
   theme: "dark" | "light";
@@ -209,6 +210,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>(() => ({
     ...INDIAN_BASE_PRICES,
   }));
+  const [symbolChanges, setSymbolChanges] = useState<Record<string, number>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
   const lastSymbolRef = useRef<string>("");
@@ -228,11 +230,18 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     async function fetchAllPrices() {
       try {
         const res = await fetch(`${API_BASE}/market/prices`);
-        const map: Record<string, number> = await res.json();
+        const map: Record<string, { price: number; change24h: number }> = await res.json();
         setSymbolPrices((prev) => {
           const next = { ...prev };
           for (const id of CRYPTO_IDS) {
-            if (map[id] && map[id] > 0) next[id] = map[id];
+            if (map[id]?.price > 0) next[id] = map[id].price;
+          }
+          return next;
+        });
+        setSymbolChanges((prev) => {
+          const next = { ...prev };
+          for (const id of CRYPTO_IDS) {
+            if (map[id] !== undefined) next[id] = map[id].change24h;
           }
           return next;
         });
@@ -626,6 +635,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         selectedSymbol,
         currentPrice,
         symbolPrices,
+        symbolChanges,
         candles,
         timeframe,
         theme,

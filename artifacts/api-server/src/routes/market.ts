@@ -54,14 +54,19 @@ router.get("/market/prices", async (req, res) => {
   try {
     const ids = Object.values(COINGECKO_IDS).join(",");
     const response = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`
     );
-    const data: Record<string, { usd: number }> = await response.json();
-    const map: Record<string, number> = {};
+    const data: Record<string, { usd: number; usd_24h_change?: number }> = await response.json();
+    const result: Record<string, { price: number; change24h: number }> = {};
     for (const [symbolId, geckoId] of Object.entries(COINGECKO_IDS)) {
-      if (data[geckoId]?.usd) map[symbolId] = data[geckoId].usd;
+      if (data[geckoId]?.usd) {
+        result[symbolId] = {
+          price: data[geckoId].usd,
+          change24h: data[geckoId].usd_24h_change ?? 0,
+        };
+      }
     }
-    res.json(map);
+    res.json(result);
   } catch (err) {
     req.log.error({ err }, "Failed to fetch prices");
     res.status(502).json({ error: "Failed to fetch prices" });
