@@ -134,6 +134,7 @@ export default function HomeScreen() {
           { backgroundColor: colors.surface, borderBottomColor: colors.border },
         ]}
       >
+        <SymbolSelector />
         <View style={styles.tools}>
           <TouchableOpacity
             style={[styles.toolBtn, { backgroundColor: colors.muted }]}
@@ -156,7 +157,6 @@ export default function HomeScreen() {
             />
           </TouchableOpacity>
         </View>
-        <SymbolSelector />
       </View>
 
       <PriceBar />
