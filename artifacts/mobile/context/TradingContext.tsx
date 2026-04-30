@@ -107,6 +107,7 @@ interface TradingContextType {
     quantity: number;
     stopLoss?: number;
     takeProfit?: number;
+    entryPrice?: number;
   }) => { success: boolean; message: string };
   closePosition: (positionId: string) => void;
   getRunningPnL: () => number;
@@ -419,26 +420,27 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       quantity: number;
       stopLoss?: number;
       takeProfit?: number;
+      entryPrice?: number;
     }): { success: boolean; message: string } => {
       if (currentPrice === 0)
         return { success: false, message: "Price not loaded" };
       if (params.quantity <= 0)
         return { success: false, message: "Invalid quantity" };
 
-      const margin = (currentPrice * params.quantity) / leverage;
+      const usePrice = params.entryPrice ?? currentPrice;
+      if (usePrice <= 0)
+        return { success: false, message: "Invalid entry price" };
+
+      const margin = (usePrice * params.quantity) / leverage;
       if (margin > balance)
         return { success: false, message: "Insufficient balance" };
 
-      const liqPrice = calcLiquidationPrice(
-        params.side,
-        currentPrice,
-        leverage
-      );
+      const liqPrice = calcLiquidationPrice(params.side, usePrice, leverage);
       const newPos: Position = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
         symbol: selectedSymbol,
         side: params.side,
-        entryPrice: currentPrice,
+        entryPrice: usePrice,
         quantity: params.quantity,
         leverage,
         stopLoss: params.stopLoss,

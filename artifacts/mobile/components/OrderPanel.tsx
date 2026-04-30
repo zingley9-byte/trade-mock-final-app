@@ -32,9 +32,14 @@ export default function OrderPanel() {
   const [stopLoss, setStopLoss] = useState("");
   const [takeProfit, setTakeProfit] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [priceMode, setPriceMode] = useState<"auto" | "manual">("auto");
+  const [manualPrice, setManualPrice] = useState("");
 
   const qty = parseFloat(quantity) || 0;
-  const margin = qty > 0 && currentPrice > 0 ? (currentPrice * qty) / leverage : 0;
+  const effectivePrice = priceMode === "manual" && manualPrice
+    ? parseFloat(manualPrice) || currentPrice
+    : currentPrice;
+  const margin = qty > 0 && effectivePrice > 0 ? (effectivePrice * qty) / leverage : 0;
   const symbol = selectedSymbol.type === "crypto" ? "$" : "₹";
 
   function handleOrder() {
@@ -42,9 +47,14 @@ export default function OrderPanel() {
       Alert.alert("Invalid", "Enter a valid quantity");
       return;
     }
+    if (priceMode === "manual" && (!manualPrice || parseFloat(manualPrice) <= 0)) {
+      Alert.alert("Invalid", "Enter a valid entry price");
+      return;
+    }
     const sl = stopLoss ? parseFloat(stopLoss) : undefined;
     const tp = takeProfit ? parseFloat(takeProfit) : undefined;
-    const result = openPosition({ side, quantity: qty, stopLoss: sl, takeProfit: tp });
+    const customEntry = priceMode === "manual" ? parseFloat(manualPrice) : undefined;
+    const result = openPosition({ side, quantity: qty, stopLoss: sl, takeProfit: tp, entryPrice: customEntry });
     if (result.success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStopLoss("");
@@ -117,14 +127,106 @@ export default function OrderPanel() {
       </View>
 
       <View style={styles.inputSection}>
-        <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>
-          Entry Price (Market)
-        </Text>
-        <View style={[styles.inputBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-          <Text style={[styles.inputValue, { color: colors.mutedForeground }]}>
-            {symbol}{currentPrice > 0 ? formatNum(currentPrice) : "—"}
-          </Text>
+        <View style={styles.labelRow}>
+          <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Entry Price</Text>
+          <View style={[styles.modeSwitch, { backgroundColor: colors.muted }]}>
+            <TouchableOpacity
+              style={[
+                styles.modeBtn,
+                priceMode === "auto" && { backgroundColor: colors.primary },
+              ]}
+              onPress={() => { setPriceMode("auto"); Haptics.selectionAsync(); }}
+            >
+              <Feather
+                name="zap"
+                size={10}
+                color={priceMode === "auto" ? "#fff" : colors.mutedForeground}
+                style={{ marginRight: 3 }}
+              />
+              <Text
+                style={[
+                  styles.modeBtnText,
+                  { color: priceMode === "auto" ? "#fff" : colors.mutedForeground },
+                ]}
+              >
+                Auto
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.modeBtn,
+                priceMode === "manual" && { backgroundColor: "#6366f1" },
+              ]}
+              onPress={() => {
+                setPriceMode("manual");
+                setManualPrice(currentPrice > 0 ? formatNum(currentPrice) : "");
+                Haptics.selectionAsync();
+              }}
+            >
+              <Feather
+                name="edit-2"
+                size={10}
+                color={priceMode === "manual" ? "#fff" : colors.mutedForeground}
+                style={{ marginRight: 3 }}
+              />
+              <Text
+                style={[
+                  styles.modeBtnText,
+                  { color: priceMode === "manual" ? "#fff" : colors.mutedForeground },
+                ]}
+              >
+                Manual
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {priceMode === "auto" ? (
+          <View
+            style={[
+              styles.inputBox,
+              { backgroundColor: colors.muted, borderColor: colors.border },
+            ]}
+          >
+            <Feather name="zap" size={14} color={colors.primary} />
+            <Text style={[styles.inputValue, { color: colors.foreground, flex: 1 }]}>
+              {currentPrice > 0 ? `${symbol}${formatNum(currentPrice)}` : "Loading…"}
+            </Text>
+            <View style={[styles.livePill, { backgroundColor: colors.bullBg }]}>
+              <Text style={[styles.livePillText, { color: colors.bull }]}>LIVE</Text>
+            </View>
+          </View>
+        ) : (
+          <View
+            style={[
+              styles.inputBox,
+              {
+                backgroundColor: colors.muted,
+                borderColor: "#6366f1",
+                borderWidth: 1.5,
+              },
+            ]}
+          >
+            <Feather name="edit-2" size={14} color="#6366f1" />
+            <TextInput
+              value={manualPrice}
+              onChangeText={setManualPrice}
+              keyboardType="decimal-pad"
+              style={[styles.input, { color: colors.foreground }]}
+              placeholder={`${symbol}${currentPrice > 0 ? formatNum(currentPrice) : "0.00"}`}
+              placeholderTextColor={colors.mutedForeground}
+              autoFocus
+            />
+            <TouchableOpacity
+              onPress={() => {
+                setManualPrice(currentPrice > 0 ? formatNum(currentPrice) : "");
+                Haptics.selectionAsync();
+              }}
+            >
+              <Text style={[styles.fillMarket, { color: "#6366f1" }]}>Fill Market</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <View style={styles.inputSection}>
@@ -233,6 +335,19 @@ export default function OrderPanel() {
 
       <View style={[styles.summaryBox, { backgroundColor: colors.muted, borderRadius: 10 }]}>
         <View style={styles.summaryRow}>
+          <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Entry Price</Text>
+          <View style={styles.summaryRight}>
+            {priceMode === "manual" && (
+              <View style={[styles.manualTag, { backgroundColor: "#6366f122" }]}>
+                <Text style={[styles.manualTagText, { color: "#6366f1" }]}>Manual</Text>
+              </View>
+            )}
+            <Text style={[styles.summaryValue, { color: priceMode === "manual" ? "#6366f1" : colors.foreground }]}>
+              {symbol}{effectivePrice > 0 ? formatNum(effectivePrice) : "—"}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.summaryRow}>
           <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Margin Required</Text>
           <Text style={[styles.summaryValue, { color: colors.foreground }]}>
             ₹{margin.toFixed(2)}
@@ -241,7 +356,7 @@ export default function OrderPanel() {
         <View style={styles.summaryRow}>
           <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Position Size</Text>
           <Text style={[styles.summaryValue, { color: colors.foreground }]}>
-            {symbol}{(qty * currentPrice).toFixed(2)}
+            {symbol}{(qty * effectivePrice).toFixed(2)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
@@ -439,6 +554,36 @@ const styles = StyleSheet.create({
   advancedLabel: { fontSize: 13, fontWeight: "500" as const },
   advancedRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
   summaryBox: { padding: 12, marginBottom: 14 },
+  labelRow: {
+    flexDirection: "row" as const,
+    justifyContent: "space-between" as const,
+    alignItems: "center" as const,
+    marginBottom: 5,
+  },
+  modeSwitch: {
+    flexDirection: "row" as const,
+    padding: 3,
+    borderRadius: 8,
+    gap: 2,
+  },
+  modeBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  modeBtnText: { fontSize: 11, fontWeight: "600" as const },
+  livePill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  livePillText: { fontSize: 9, fontWeight: "700" as const, letterSpacing: 0.5 },
+  fillMarket: { fontSize: 11, fontWeight: "600" as const },
+  summaryRight: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
+  manualTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  manualTagText: { fontSize: 9, fontWeight: "700" as const },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
