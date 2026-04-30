@@ -4,11 +4,20 @@ const router = Router();
 
 const BINANCE_BASE = "https://api.binance.com/api/v3";
 
+function binanceHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (process.env.BINANCE_API_KEY) {
+    headers["X-MBX-APIKEY"] = process.env.BINANCE_API_KEY;
+  }
+  return headers;
+}
+
 router.get("/market/klines", async (req, res) => {
   const { symbol, interval, limit } = req.query;
   try {
     const response = await fetch(
-      `${BINANCE_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=${limit ?? 120}`
+      `${BINANCE_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=${limit ?? 120}`,
+      { headers: binanceHeaders() }
     );
     const data = await response.json();
     res.json(data);
@@ -22,7 +31,8 @@ router.get("/market/ticker24hr", async (req, res) => {
   const { symbol } = req.query;
   try {
     const response = await fetch(
-      `${BINANCE_BASE}/ticker/24hr?symbol=${symbol}`
+      `${BINANCE_BASE}/ticker/24hr?symbol=${symbol}`,
+      { headers: binanceHeaders() }
     );
     const data = await response.json();
     res.json(data);
