@@ -384,13 +384,55 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         wsRef.current = null;
       }
 
+      let pollInterval: ReturnType<typeof setInterval> | null = null;
+      let wsConnected = false;
+
+      function startPolling(symbolId: string) {
+        if (pollInterval) return;
+        pollInterval = setInterval(async () => {
+          try {
+            const res = await fetch(`${API_BASE}/market/prices`);
+            const map: Record<string, { price: number; change24h: number }> = await res.json();
+            if (map[symbolId]?.price > 0) {
+              const price = map[symbolId].price;
+              setCurrentPrice(price);
+              setCandles((prev) => {
+                if (prev.length === 0) return prev;
+                const last = { ...prev[prev.length - 1] };
+                last.close = price;
+                last.high = Math.max(last.high, price);
+                last.low = Math.min(last.low, price);
+                last.time = Date.now();
+                return [...prev.slice(0, -1), last];
+              });
+            }
+          } catch {}
+        }, 8000);
+        setIsConnected(true);
+      }
+
       const stream = `${symbol.id.toLowerCase()}@kline_1m`;
       const ws = new WebSocket(`${BINANCE_WS}/${stream}`);
       wsRef.current = ws;
 
-      ws.onopen = () => setIsConnected(true);
-      ws.onclose = () => setIsConnected(false);
-      ws.onerror = () => setIsConnected(false);
+      const wsTimeout = setTimeout(() => {
+        if (!wsConnected) startPolling(symbol.id);
+      }, 5000);
+
+      ws.onopen = () => {
+        wsConnected = true;
+        clearTimeout(wsTimeout);
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        setIsConnected(true);
+      };
+      ws.onclose = () => {
+        setIsConnected(false);
+        if (!wsConnected) startPolling(symbol.id);
+      };
+      ws.onerror = () => {
+        setIsConnected(false);
+        startPolling(symbol.id);
+      };
 
       ws.onmessage = (evt) => {
         try {
@@ -418,6 +460,11 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
             });
           }
         } catch {}
+      };
+
+      return () => {
+        clearTimeout(wsTimeout);
+        if (pollInterval) clearInterval(pollInterval);
       };
     },
     []
