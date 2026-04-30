@@ -146,9 +146,9 @@ function calcPnL(pos: Position, currentPrice: number): number {
   return priceDiff * pos.quantity * pos.leverage;
 }
 
-const BINANCE_BASE = "https://api.binance.com/api/v3";
-const API_BASE = "/api";
+const BINANCE_REST = "https://data-api.binance.vision/api/v3";
 const BINANCE_WS = "wss://data-stream.binance.vision/ws";
+const API_BASE = "/api";
 
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
   "1m": "1m",
@@ -227,28 +227,59 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const CRYPTO_IDS = SYMBOLS.filter((s) => s.type === "crypto").map((s) => s.id);
+    const symbolsParam = encodeURIComponent(JSON.stringify(CRYPTO_IDS));
+
     async function fetchAllPrices() {
       try {
-        const res = await fetch(`${API_BASE}/market/prices`);
-        const map: Record<string, { price: number; change24h: number }> = await res.json();
-        setSymbolPrices((prev) => {
-          const next = { ...prev };
-          for (const id of CRYPTO_IDS) {
-            if (map[id]?.price > 0) next[id] = map[id].price;
-          }
-          return next;
-        });
-        setSymbolChanges((prev) => {
-          const next = { ...prev };
-          for (const id of CRYPTO_IDS) {
-            if (map[id] !== undefined) next[id] = map[id].change24h;
-          }
-          return next;
-        });
-      } catch {}
+        const [priceRes, statsRes] = await Promise.all([
+          fetch(`${BINANCE_REST}/ticker/price?symbols=${symbolsParam}`),
+          fetch(`${BINANCE_REST}/ticker/24hr?symbols=${symbolsParam}`),
+        ]);
+        const priceData: Array<{ symbol: string; price: string }> = await priceRes.json();
+        const statsData: Array<{ symbol: string; priceChangePercent: string }> = await statsRes.json();
+
+        if (Array.isArray(priceData)) {
+          setSymbolPrices((prev) => {
+            const next = { ...prev };
+            for (const item of priceData) {
+              const p = parseFloat(item.price);
+              if (p > 0) next[item.symbol] = p;
+            }
+            return next;
+          });
+        }
+        if (Array.isArray(statsData)) {
+          setSymbolChanges((prev) => {
+            const next = { ...prev };
+            for (const item of statsData) {
+              next[item.symbol] = parseFloat(item.priceChangePercent);
+            }
+            return next;
+          });
+        }
+      } catch {
+        try {
+          const res = await fetch(`${API_BASE}/market/prices`);
+          const map: Record<string, { price: number; change24h: number }> = await res.json();
+          setSymbolPrices((prev) => {
+            const next = { ...prev };
+            for (const id of CRYPTO_IDS) {
+              if (map[id]?.price > 0) next[id] = map[id].price;
+            }
+            return next;
+          });
+          setSymbolChanges((prev) => {
+            const next = { ...prev };
+            for (const id of CRYPTO_IDS) {
+              if (map[id] !== undefined) next[id] = map[id].change24h;
+            }
+            return next;
+          });
+        } catch {}
+      }
     }
     fetchAllPrices();
-    const interval = setInterval(fetchAllPrices, 15000);
+    const interval = setInterval(fetchAllPrices, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -302,38 +333,37 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
           const last = generated[generated.length - 1];
           setCurrentPrice(last.close);
           const first = generated[0];
-          setPriceChange24h(
-            ((last.close - first.open) / first.open) * 100
-          );
-          const highs = generated.map((c) => c.high);
-          const lows = generated.map((c) => c.low);
-          setHigh24h(Math.max(...highs));
-          setLow24h(Math.min(...lows));
+          setPriceChange24h(((last.close - first.open) / first.open) * 100);
+          setHigh24h(Math.max(...generated.map((c) => c.high)));
+          setLow24h(Math.min(...generated.map((c) => c.low)));
           setVolume24h(generated.reduce((s, c) => s + c.volume, 0));
         }
         return;
       }
-      try {
-        const interval = TIMEFRAME_MAP[tf];
-        const res = await fetch(
-          `${API_BASE}/market/klines?symbol=${symbol.id}&interval=${interval}&limit=120`
-        );
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          const parsed: Candle[] = data.map((k: unknown[]) => ({
-            time: k[0] as number,
-            open: parseFloat(k[1] as string),
-            high: parseFloat(k[2] as string),
-            low: parseFloat(k[3] as string),
-            close: parseFloat(k[4] as string),
-            volume: parseFloat(k[5] as string),
-          }));
-          setCandles(parsed);
-          if (parsed.length > 0) {
-            setCurrentPrice(parsed[parsed.length - 1].close);
+      const interval = TIMEFRAME_MAP[tf];
+      const urls = [
+        `${BINANCE_REST}/klines?symbol=${symbol.id}&interval=${interval}&limit=120`,
+        `${API_BASE}/market/klines?symbol=${symbol.id}&interval=${interval}&limit=120`,
+      ];
+      for (const url of urls) {
+        try {
+          const res = await fetch(url);
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0])) {
+            const parsed: Candle[] = data.map((k: unknown[]) => ({
+              time: (k[0] as number),
+              open: parseFloat(k[1] as string),
+              high: parseFloat(k[2] as string),
+              low: parseFloat(k[3] as string),
+              close: parseFloat(k[4] as string),
+              volume: parseFloat(k[5] as string),
+            }));
+            setCandles(parsed);
+            if (parsed.length > 0) setCurrentPrice(parsed[parsed.length - 1].close);
+            break;
           }
-        }
-      } catch {}
+        } catch {}
+      }
     },
     []
   );
@@ -341,9 +371,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const fetch24hStats = useCallback(async (symbol: MarketSymbol) => {
     if (symbol.type === "indian") return;
     try {
-      const res = await fetch(
-        `${API_BASE}/market/ticker24hr?symbol=${symbol.id}`
-      );
+      const res = await fetch(`${BINANCE_REST}/ticker/24hr?symbol=${symbol.id}`);
       const data = await res.json();
       if (data && data.priceChangePercent) {
         setPriceChange24h(parseFloat(data.priceChangePercent));
@@ -351,7 +379,18 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         setLow24h(parseFloat(data.lowPrice));
         setVolume24h(parseFloat(data.volume));
       }
-    } catch {}
+    } catch {
+      try {
+        const res = await fetch(`${API_BASE}/market/ticker24hr?symbol=${symbol.id}`);
+        const data = await res.json();
+        if (data && data.priceChangePercent) {
+          setPriceChange24h(parseFloat(data.priceChangePercent));
+          setHigh24h(parseFloat(data.highPrice));
+          setLow24h(parseFloat(data.lowPrice));
+          setVolume24h(parseFloat(data.volume));
+        }
+      } catch {}
+    }
   }, []);
 
   const connectWebSocket = useCallback(
