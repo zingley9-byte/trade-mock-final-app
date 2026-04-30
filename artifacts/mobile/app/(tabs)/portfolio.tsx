@@ -52,8 +52,6 @@ export default function PortfolioScreen() {
         return `$${amount.toLocaleString("en-US", { maximumFractionDigits: decimals })}`;
       return `$${amount.toFixed(decimals)}`;
     }
-    if (Math.abs(amount) >= 10_00_000)
-      return `₹${(amount / 10_00_000).toFixed(2)}L`;
     return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: decimals })}`;
   }
 
