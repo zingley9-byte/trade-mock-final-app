@@ -29,6 +29,7 @@ export default function PortfolioScreen() {
     resetAccount,
     tradeHistory,
     currencyMode,
+    usdToInr,
   } = useTradingContext();
 
   const runningPnL = getRunningPnL();
@@ -52,7 +53,12 @@ export default function PortfolioScreen() {
         return `$${amount.toLocaleString("en-US", { maximumFractionDigits: decimals })}`;
       return `$${amount.toFixed(decimals)}`;
     }
-    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: decimals })}`;
+    const inr = amount * usdToInr;
+    if (Math.abs(inr) >= 10_000_000)
+      return `₹${(inr / 10_000_000).toFixed(2)}Cr`;
+    if (Math.abs(inr) >= 100_000)
+      return `₹${(inr / 100_000).toFixed(2)}L`;
+    return `₹${inr.toLocaleString("en-IN", { maximumFractionDigits: decimals })}`;
   }
 
   function handleReset() {

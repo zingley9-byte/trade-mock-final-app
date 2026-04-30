@@ -34,8 +34,20 @@ function formatDuration(openedAt: number, closedAt: number): string {
 export default function HistoryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { tradeHistory } = useTradingContext();
+  const { tradeHistory, currencyMode, usdToInr } = useTradingContext();
   const [filter, setFilter] = useState<"all" | "win" | "loss">("all");
+
+  const isUSD = currencyMode === "usd";
+
+  function fmt(amount: number, decimals = 2): string {
+    if (isUSD) {
+      if (Math.abs(amount) >= 1_000) return `$${amount.toLocaleString("en-US", { maximumFractionDigits: decimals })}`;
+      return `$${amount.toFixed(decimals)}`;
+    }
+    const inr = amount * usdToInr;
+    if (Math.abs(inr) >= 100_000) return `₹${(inr / 100_000).toFixed(2)}L`;
+    return `₹${inr.toLocaleString("en-IN", { maximumFractionDigits: decimals })}`;
+  }
 
   const filtered = tradeHistory.filter((t) => {
     if (filter === "win") return t.pnl > 0;
@@ -90,7 +102,7 @@ export default function HistoryScreen() {
                 { color: isWin ? colors.bull : colors.bear },
               ]}
             >
-              {isWin ? "+" : ""}₹{item.pnl.toFixed(2)}
+              {isWin ? "+" : ""}{fmt(item.pnl)}
             </Text>
             <View
               style={[
@@ -109,7 +121,7 @@ export default function HistoryScreen() {
           <DetailPair label="Entry" value={`${sym}${item.entryPrice.toFixed(item.symbol.type === "crypto" ? 4 : 2)}`} colors={colors} />
           <DetailPair label="Exit" value={`${sym}${item.exitPrice.toFixed(item.symbol.type === "crypto" ? 4 : 2)}`} colors={colors} />
           <DetailPair label="Qty" value={`${item.quantity}`} colors={colors} />
-          <DetailPair label="Margin" value={`₹${item.margin.toFixed(0)}`} colors={colors} />
+          <DetailPair label="Margin" value={fmt(item.margin, 0)} colors={colors} />
           <DetailPair label="Duration" value={formatDuration(item.openedAt, item.closedAt)} colors={colors} />
         </View>
       </View>
@@ -122,7 +134,7 @@ export default function HistoryScreen() {
         <Text style={[styles.title, { color: colors.foreground }]}>Trade History</Text>
         <View style={[styles.pnlSummary, { backgroundColor: totalPnL >= 0 ? colors.bullBg : colors.bearBg }]}>
           <Text style={[styles.pnlSummaryText, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
-            {totalPnL >= 0 ? "+" : ""}₹{totalPnL.toFixed(2)}
+            {totalPnL >= 0 ? "+" : ""}{fmt(totalPnL)}
           </Text>
         </View>
       </View>

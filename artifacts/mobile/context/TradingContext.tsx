@@ -104,6 +104,7 @@ interface TradingContextType {
   setLeverage: (l: number) => void;
   setMarketFilter: (f: "crypto" | "indian") => void;
   setCurrencyMode: (m: "usd" | "inr") => void;
+  usdToInr: number;
   tradeFlash: { side: "buy" | "sell"; symbol: string } | null;
   openPosition: (params: {
     side: "buy" | "sell";
@@ -209,12 +210,24 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [marketFilter, setMarketFilterState] = useState<"crypto" | "indian">("crypto");
   const [currencyMode, setCurrencyModeState] = useState<"usd" | "inr">("usd");
   const [tradeFlash, setTradeFlash] = useState<{ side: "buy" | "sell"; symbol: string } | null>(null);
+  const [usdToInr, setUsdToInr] = useState(84);
   const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>(() => ({
     ...INDIAN_BASE_PRICES,
   }));
   const [symbolChanges, setSymbolChanges] = useState<Record<string, number>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    async function fetchRate() {
+      try {
+        const res = await fetch("https://open.er-api.com/v6/latest/USD");
+        const data = await res.json();
+        if (data?.rates?.INR) setUsdToInr(data.rates.INR);
+      } catch {}
+    }
+    fetchRate();
+  }, []);
   const lastSymbolRef = useRef<string>("");
 
   useEffect(() => {
@@ -746,6 +759,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         setLeverage: handleSetLeverage,
         setMarketFilter,
         setCurrencyMode,
+        usdToInr,
         tradeFlash,
         openPosition,
         closePosition,

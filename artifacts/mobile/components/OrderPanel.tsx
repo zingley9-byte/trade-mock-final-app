@@ -13,8 +13,6 @@ import { Feather } from "@expo/vector-icons";
 import { LEVERAGES, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 
-const INR_RATE = 83.5;
-
 export default function OrderPanel() {
   const {
     balance,
@@ -27,17 +25,20 @@ export default function OrderPanel() {
     closePosition,
     getRunningPnL,
     currencyMode,
+    usdToInr,
   } = useTradingContext();
   const colors = useColors();
 
   function formatBalance(amount: number): string {
     if (currencyMode === "usd") {
-      const usd = amount;
-      if (usd >= 1_000_000) return `$${(usd / 1_000_000).toFixed(2)}M`;
-      if (usd >= 1_000) return `$${usd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-      return `$${usd.toFixed(2)}`;
+      if (Math.abs(amount) >= 1_000_000) return `$${(amount / 1_000_000).toFixed(2)}M`;
+      if (Math.abs(amount) >= 1_000) return `$${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+      return `$${amount.toFixed(2)}`;
     }
-    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+    const inr = amount * usdToInr;
+    if (Math.abs(inr) >= 10_000_000) return `₹${(inr / 10_000_000).toFixed(2)}Cr`;
+    if (Math.abs(inr) >= 100_000) return `₹${(inr / 100_000).toFixed(2)}L`;
+    return `₹${inr.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
   }
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
