@@ -41,32 +41,20 @@ export default function SymbolSelector() {
         onPress={() => setOpen(true)}
         activeOpacity={0.7}
       >
-        <View style={styles.symbolInfo}>
-          <View style={[styles.badge, { backgroundColor: selectedSymbol.type === "crypto" ? "#f59e0b22" : "#6366f122" }]}>
-            <Text style={[styles.badgeText, { color: selectedSymbol.type === "crypto" ? "#f59e0b" : "#6366f1" }]}>
-              {selectedSymbol.type === "crypto" ? "CRYPTO" : "IND"}
-            </Text>
-          </View>
-          <View>
-            <Text style={[styles.symbolLabel, { color: colors.foreground }]}>
-              {selectedSymbol.label}
-            </Text>
-            <Text style={[styles.symbolName, { color: colors.mutedForeground }]}>
-              {selectedSymbol.name}
-            </Text>
-          </View>
+        <View style={[styles.badge, { backgroundColor: selectedSymbol.type === "crypto" ? "#f59e0b22" : "#6366f122" }]}>
+          <Text style={[styles.badgeText, { color: selectedSymbol.type === "crypto" ? "#f59e0b" : "#6366f1" }]}>
+            {selectedSymbol.type === "crypto" ? "CRYPTO" : "IND"}
+          </Text>
         </View>
-        <View style={styles.priceInfo}>
-          <Text style={[styles.price, { color: colors.foreground }]}>
-            {selectedSymbol.type === "crypto" ? "$" : "₹"}
-            {formatPrice(currentPrice)}
+        <View>
+          <Text style={[styles.symbolLabel, { color: colors.foreground }]}>
+            {selectedSymbol.label}
           </Text>
           <Text style={[styles.change, { color: isPositive ? colors.bull : colors.bear }]}>
-            {isPositive ? "+" : ""}
-            {priceChange24h.toFixed(2)}%
+            {isPositive ? "+" : ""}{priceChange24h.toFixed(2)}%
           </Text>
         </View>
-        <Feather name="chevron-down" size={18} color={colors.mutedForeground} />
+        <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
@@ -133,20 +121,19 @@ const styles = StyleSheet.create({
   trigger: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
     borderWidth: 1,
-    gap: 8,
+    gap: 6,
   },
-  symbolInfo: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
-  badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  badgeText: { fontSize: 9, fontWeight: "700" as const, letterSpacing: 0.5 },
-  symbolLabel: { fontSize: 15, fontWeight: "700" as const },
-  symbolName: { fontSize: 11, marginTop: 1 },
-  priceInfo: { alignItems: "flex-end", marginRight: 6 },
-  price: { fontSize: 14, fontWeight: "600" as const },
-  change: { fontSize: 11, fontWeight: "600" as const },
+  badge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
+  badgeText: { fontSize: 8, fontWeight: "700" as const, letterSpacing: 0.5 },
+  symbolLabel: { fontSize: 12, fontWeight: "700" as const },
+  symbolName: { fontSize: 10, marginTop: 1 },
+  priceInfo: { alignItems: "flex-end", marginRight: 4 },
+  price: { fontSize: 12, fontWeight: "600" as const },
+  change: { fontSize: 10, fontWeight: "600" as const },
   backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   sheet: {
     position: "absolute",
