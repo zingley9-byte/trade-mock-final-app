@@ -75,7 +75,7 @@ export const TIMEFRAMES: Timeframe[] = ["1m", "5m", "15m", "30m", "1h", "1D"];
 export const LEVERAGES = [1, 5, 10, 25, 50, 80, 100];
 
 const INITIAL_BALANCE = 1000000;
-const STORAGE_KEY = "trademock_state_v3";
+const STORAGE_KEY = "trademock_state_v4";
 
 interface TradingContextType {
   balance: number;
@@ -571,7 +571,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       if (usePrice <= 0)
         return { success: false, message: "Invalid entry price" };
 
-      const margin = (usePrice * params.quantity) / leverage;
+      const priceForMargin =
+        selectedSymbol.type === "crypto" ? usePrice * usdToInr : usePrice;
+      const margin = (priceForMargin * params.quantity) / leverage;
       if (margin > balance)
         return { success: false, message: "Insufficient balance" };
 
@@ -605,7 +607,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
       return { success: true, message: "Position opened" };
     },
-    [currentPrice, balance, leverage, selectedSymbol, tradeHistory, theme]
+    [currentPrice, balance, leverage, selectedSymbol, tradeHistory, theme, usdToInr]
   );
 
   const closePosition = useCallback(
@@ -614,7 +616,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         const pos = prev.find((p) => p.id === positionId);
         if (!pos) return prev;
 
-        const pnl = calcPnL(pos, currentPrice);
+        const pnlRaw = calcPnL(pos, currentPrice);
+        const pnl =
+          pos.symbol.type === "crypto" ? pnlRaw * usdToInr : pnlRaw;
         const exitValue = pos.margin + pnl;
         const pnlPct = (pnl / pos.margin) * 100;
 
@@ -646,12 +650,16 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         return updated;
       });
     },
-    [currentPrice, tradeHistory, theme, leverage]
+    [currentPrice, tradeHistory, theme, leverage, usdToInr]
   );
 
   const getRunningPnL = useCallback((): number => {
-    return positions.reduce((sum, pos) => sum + calcPnL(pos, currentPrice), 0);
-  }, [positions, currentPrice]);
+    return positions.reduce((sum, pos) => {
+      const pnlRaw = calcPnL(pos, currentPrice);
+      const pnlINR = pos.symbol.type === "crypto" ? pnlRaw * usdToInr : pnlRaw;
+      return sum + pnlINR;
+    }, 0);
+  }, [positions, currentPrice, usdToInr]);
 
   const getTotalPortfolioValue = useCallback((): number => {
     const marginUsed = positions.reduce((s, p) => s + p.margin, 0);

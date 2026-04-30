@@ -41,12 +41,12 @@ export default function HistoryScreen() {
 
   function fmt(amount: number, decimals = 2): string {
     if (isUSD) {
-      if (Math.abs(amount) >= 1_000) return `$${amount.toLocaleString("en-US", { maximumFractionDigits: decimals })}`;
-      return `$${amount.toFixed(decimals)}`;
+      const usd = amount / usdToInr;
+      if (Math.abs(usd) >= 1_000) return `$${usd.toLocaleString("en-US", { maximumFractionDigits: decimals })}`;
+      return `$${usd.toFixed(decimals)}`;
     }
-    const inr = amount * usdToInr;
-    if (Math.abs(inr) >= 100_000) return `₹${(inr / 100_000).toFixed(2)}L`;
-    return `₹${inr.toLocaleString("en-IN", { maximumFractionDigits: decimals })}`;
+    if (Math.abs(amount) >= 100_000) return `₹${(amount / 100_000).toFixed(2)}L`;
+    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: decimals })}`;
   }
 
   const filtered = tradeHistory.filter((t) => {

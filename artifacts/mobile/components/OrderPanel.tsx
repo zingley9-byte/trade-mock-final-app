@@ -31,14 +31,14 @@ export default function OrderPanel() {
 
   function formatBalance(amount: number): string {
     if (currencyMode === "usd") {
-      if (Math.abs(amount) >= 1_000_000) return `$${(amount / 1_000_000).toFixed(2)}M`;
-      if (Math.abs(amount) >= 1_000) return `$${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-      return `$${amount.toFixed(2)}`;
+      const usd = amount / usdToInr;
+      if (Math.abs(usd) >= 1_000_000) return `$${(usd / 1_000_000).toFixed(2)}M`;
+      if (Math.abs(usd) >= 1_000) return `$${usd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+      return `$${usd.toFixed(2)}`;
     }
-    const inr = amount * usdToInr;
-    if (Math.abs(inr) >= 10_000_000) return `₹${(inr / 10_000_000).toFixed(2)}Cr`;
-    if (Math.abs(inr) >= 100_000) return `₹${(inr / 100_000).toFixed(2)}L`;
-    return `₹${inr.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+    if (Math.abs(amount) >= 10_000_000) return `₹${(amount / 10_000_000).toFixed(2)}Cr`;
+    if (Math.abs(amount) >= 100_000) return `₹${(amount / 100_000).toFixed(2)}L`;
+    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
   }
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
@@ -53,7 +53,9 @@ export default function OrderPanel() {
   const effectivePrice = priceMode === "manual" && manualPrice
     ? parseFloat(manualPrice) || currentPrice
     : currentPrice;
-  const margin = qty > 0 && effectivePrice > 0 ? (effectivePrice * qty) / leverage : 0;
+  const priceForMargin =
+    selectedSymbol.type === "crypto" ? effectivePrice * usdToInr : effectivePrice;
+  const margin = qty > 0 && priceForMargin > 0 ? (priceForMargin * qty) / leverage : 0;
   const symbol = selectedSymbol.type === "crypto" ? "$" : "₹";
 
   function handleOrder() {
