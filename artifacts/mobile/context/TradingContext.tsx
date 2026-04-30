@@ -104,6 +104,7 @@ interface TradingContextType {
   setLeverage: (l: number) => void;
   setMarketFilter: (f: "crypto" | "indian") => void;
   setCurrencyMode: (m: "usd" | "inr") => void;
+  tradeFlash: { side: "buy" | "sell"; symbol: string } | null;
   openPosition: (params: {
     side: "buy" | "sell";
     quantity: number;
@@ -207,6 +208,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [volume24h, setVolume24h] = useState(0);
   const [marketFilter, setMarketFilterState] = useState<"crypto" | "indian">("crypto");
   const [currencyMode, setCurrencyModeState] = useState<"usd" | "inr">("usd");
+  const [tradeFlash, setTradeFlash] = useState<{ side: "buy" | "sell"; symbol: string } | null>(null);
   const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>(() => ({
     ...INDIAN_BASE_PRICES,
   }));
@@ -585,6 +587,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         return updated;
       });
 
+      setTradeFlash({ side: params.side, symbol: selectedSymbol.label });
+      setTimeout(() => setTradeFlash(null), 3200);
+
       return { success: true, message: "Position opened" };
     },
     [currentPrice, balance, leverage, selectedSymbol, tradeHistory, theme]
@@ -741,6 +746,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         setLeverage: handleSetLeverage,
         setMarketFilter,
         setCurrencyMode,
+        tradeFlash,
         openPosition,
         closePosition,
         getRunningPnL,

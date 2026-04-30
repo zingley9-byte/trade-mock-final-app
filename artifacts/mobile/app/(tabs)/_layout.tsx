@@ -6,6 +6,7 @@ import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { SymbolView } from "expo-symbols";
 
 import AppHeader from "@/components/AppHeader";
+import TradeFlashOverlay from "@/components/TradeFlashOverlay";
 import { useColors } from "@/hooks/useColors";
 
 export default function TabLayout() {
@@ -18,6 +19,7 @@ export default function TabLayout() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <AppHeader />
+      <TradeFlashOverlay />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: colors.primary,
