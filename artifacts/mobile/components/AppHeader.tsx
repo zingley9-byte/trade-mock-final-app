@@ -98,41 +98,6 @@ export default function AppHeader() {
           </Text>
         </View>
 
-        <View style={[styles.marketSwitch, { backgroundColor: colors.muted, borderRadius: 20 }]}>
-          <TouchableOpacity
-            style={[
-              styles.switchBtn,
-              marketFilter === "crypto" && { backgroundColor: colors.primary },
-            ]}
-            onPress={() => setMarketFilter("crypto")}
-          >
-            <Text
-              style={[
-                styles.switchText,
-                { color: marketFilter === "crypto" ? colors.primaryForeground : colors.mutedForeground },
-              ]}
-            >
-              Crypto
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.switchBtn,
-              marketFilter === "indian" && { backgroundColor: colors.primary },
-            ]}
-            onPress={() => setMarketFilter("indian")}
-          >
-            <Text
-              style={[
-                styles.switchText,
-                { color: marketFilter === "indian" ? colors.primaryForeground : colors.mutedForeground },
-              ]}
-            >
-              Indian
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         <View style={styles.rightGroup}>
           <TouchableOpacity
             style={[styles.currencyBtn, { backgroundColor: colors.muted }]}
