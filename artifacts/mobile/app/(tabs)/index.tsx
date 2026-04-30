@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  FlatList,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import CandlestickChart from "@/components/CandlestickChart";
@@ -203,19 +204,25 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {visibleSymbols.map((sym, idx) => (
-          <WatchlistRow
-            key={sym.id}
-            symbol={sym}
-            isSelected={sym.id === selectedSymbol.id}
-            price={symbolPrices[sym.id] ?? 0}
-            change24h={symbolChanges[sym.id] ?? 0}
-            currencyMode={currencyMode}
-            onPress={() => setSelectedSymbol(sym)}
-            colors={colors}
-            isLast={idx === visibleSymbols.length - 1}
-          />
-        ))}
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
+        >
+          {visibleSymbols.map((sym, idx) => (
+            <WatchlistRow
+              key={sym.id}
+              symbol={sym}
+              isSelected={sym.id === selectedSymbol.id}
+              price={symbolPrices[sym.id] ?? 0}
+              change24h={symbolChanges[sym.id] ?? 0}
+              currencyMode={currencyMode}
+              onPress={() => setSelectedSymbol(sym)}
+              colors={colors}
+              isLast={idx === visibleSymbols.length - 1}
+            />
+          ))}
+        </ScrollView>
       </View>
     </View>
   );
@@ -246,8 +253,10 @@ const styles = StyleSheet.create({
   },
   chartWrap: { overflow: "hidden" },
   watchCard: {
+    flex: 1,
     marginHorizontal: 12,
     marginTop: 10,
+    marginBottom: 12,
     borderRadius: 14,
     borderWidth: 1,
     overflow: "hidden",
