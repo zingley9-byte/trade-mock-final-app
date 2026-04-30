@@ -148,7 +148,7 @@ function calcPnL(pos: Position, currentPrice: number): number {
 
 const BINANCE_BASE = "https://api.binance.com/api/v3";
 const API_BASE = "/api";
-const BINANCE_WS = "wss://stream.binance.com:9443/ws";
+const BINANCE_WS = "wss://data-stream.binance.vision/ws";
 
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
   "1m": "1m",
