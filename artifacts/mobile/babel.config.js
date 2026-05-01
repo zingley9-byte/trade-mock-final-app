@@ -3,7 +3,7 @@ module.exports = function (api) {
   return {
     presets: [["babel-preset-expo", { unstable_transformImportMeta: true }]],
     plugins: [
-      ["transform-inline-environment-variables", { include: ["GOOGLE_API_KEY"] }],
+      ["transform-inline-environment-variables", { include: ["FIREBASE_API_KEY"] }],
     ],
   };
 };

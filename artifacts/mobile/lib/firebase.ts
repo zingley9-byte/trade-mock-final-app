@@ -5,8 +5,8 @@ import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const API_KEY: string =
-  (Constants.expoConfig?.extra?.googleApiKey as string) ||
-  (process.env.GOOGLE_API_KEY as string) ||
+  (Constants.expoConfig?.extra?.firebaseApiKey as string) ||
+  (process.env.FIREBASE_API_KEY as string) ||
   "";
 
 const firebaseConfig = {

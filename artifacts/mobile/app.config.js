@@ -26,7 +26,7 @@ module.exports = {
       reactCompiler: true,
     },
     extra: {
-      googleApiKey: process.env.GOOGLE_API_KEY || "",
+      firebaseApiKey: process.env.FIREBASE_API_KEY || "",
     },
   },
 };
