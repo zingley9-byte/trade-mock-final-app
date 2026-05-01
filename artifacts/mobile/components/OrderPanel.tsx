@@ -20,9 +20,6 @@ export default function OrderPanel() {
     leverage,
     setLeverage,
     openPosition,
-    positions,
-    closePosition,
-    getRunningPnL,
     currencyMode,
     usdToInr,
   } = useTradingContext();
@@ -113,8 +110,6 @@ export default function OrderPanel() {
     }
   }
 
-  const runningPnL = getRunningPnL();
-
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.surface }]}
@@ -127,14 +122,6 @@ export default function OrderPanel() {
           <Text style={[styles.balLabel, { color: colors.mutedForeground }]}>Balance</Text>
           <Text style={[styles.balValue, { color: colors.foreground }]}>{formatBalance(balance)}</Text>
         </View>
-        {positions.length > 0 && (
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={[styles.balLabel, { color: colors.mutedForeground }]}>Running P&L</Text>
-            <Text style={[styles.pnlValue, { color: runningPnL >= 0 ? colors.bull : colors.bear }]}>
-              {runningPnL >= 0 ? "+" : ""}{formatBalance(runningPnL)}
-            </Text>
-          </View>
-        )}
       </View>
 
       {/* ── BUY / SELL toggle ────────────────────────────────────────────── */}
@@ -379,90 +366,6 @@ export default function OrderPanel() {
         </Text>
       </TouchableOpacity>
 
-      {/* ── Open positions ─────────────────────────────────────────────────── */}
-      {positions.length > 0 && (
-        <View style={{ marginTop: 16 }}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Open Positions</Text>
-          {positions.map((pos) => {
-            const priceDiff  = pos.side === "buy" ? currentPrice - pos.entryPrice : pos.entryPrice - currentPrice;
-            const posPnl     = priceDiff * pos.quantity * pos.leverage;
-            const pnlPct     = (posPnl / pos.margin) * 100;
-
-            return (
-              <View key={pos.id} style={[styles.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={styles.posHeader}>
-                  <View style={styles.posLeft}>
-                    <View style={[styles.posSideBadge, { backgroundColor: pos.side === "buy" ? colors.bullBg : colors.bearBg }]}>
-                      <Text style={[styles.posSideText, { color: pos.side === "buy" ? colors.bull : colors.bear }]}>
-                        {pos.side === "buy" ? "LONG" : "SHORT"}
-                      </Text>
-                    </View>
-                    <Text style={[styles.posSymbol, { color: colors.foreground }]}>{pos.symbol.label}</Text>
-                    <Text style={[styles.posLev, { color: colors.primary }]}>x{pos.leverage}</Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => { closePosition(pos.id); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); }}
-                    style={[styles.closeBtn, { borderColor: colors.border }]}
-                  >
-                    <Text style={[styles.closeBtnText, { color: colors.foreground }]}>Close</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.posRow}>
-                  <View>
-                    <Text style={[styles.posLabel, { color: colors.mutedForeground }]}>Entry</Text>
-                    <Text style={[styles.posValue, { color: colors.foreground }]}>
-                      ${pos.entryPrice.toFixed(4)}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: "center" }}>
-                    <Text style={[styles.posLabel, { color: colors.mutedForeground }]}>Qty</Text>
-                    <Text style={[styles.posValue, { color: colors.foreground }]}>{pos.quantity}</Text>
-                  </View>
-                  <View style={{ alignItems: "center" }}>
-                    <Text style={[styles.posLabel, { color: colors.mutedForeground }]}>Margin</Text>
-                    <Text style={[styles.posValue, { color: colors.foreground }]}>{formatBalance(pos.margin)}</Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={[styles.posLabel, { color: colors.mutedForeground }]}>P&L</Text>
-                    <Text style={[styles.posPnl, { color: posPnl >= 0 ? colors.bull : colors.bear }]}>
-                      {posPnl >= 0 ? "+" : ""}{formatBalance(posPnl)}
-                    </Text>
-                    <Text style={[styles.posPnlPct, { color: posPnl >= 0 ? colors.bull : colors.bear }]}>
-                      ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)
-                    </Text>
-                  </View>
-                </View>
-
-                {(pos.stopLoss || pos.takeProfit) && (
-                  <View style={styles.slTpDisplay}>
-                    {pos.stopLoss && (
-                      <View style={[styles.slTpChip, { backgroundColor: colors.bearBg }]}>
-                        <Text style={[styles.slTpChipText, { color: colors.bear }]}>
-                          SL ${pos.stopLoss.toFixed(2)}
-                        </Text>
-                      </View>
-                    )}
-                    {pos.takeProfit && (
-                      <View style={[styles.slTpChip, { backgroundColor: colors.bullBg }]}>
-                        <Text style={[styles.slTpChipText, { color: colors.bull }]}>
-                          TP ${pos.takeProfit.toFixed(2)}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={[styles.slTpChip, { backgroundColor: "#f59e0b22" }]}>
-                      <Text style={[styles.slTpChipText, { color: "#f59e0b" }]}>
-                        Liq ${pos.liquidationPrice.toFixed(2)}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-              </View>
-            );
-          })}
-        </View>
-      )}
-
       <View style={{ height: 32 }} />
     </ScrollView>
   );
@@ -475,7 +378,6 @@ const styles = StyleSheet.create({
   balanceRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 12 },
   balLabel:   { fontSize: 11, marginBottom: 2 },
   balValue:   { fontSize: 18, fontWeight: "700" as const },
-  pnlValue:   { fontSize: 17, fontWeight: "700" as const },
 
   // Side toggle
   sideRow:     { flexDirection: "row", padding: 4, gap: 4, marginBottom: 14 },
@@ -536,25 +438,4 @@ const styles = StyleSheet.create({
   orderBtn:     { borderRadius: 10, paddingVertical: 15, alignItems: "center", marginBottom: 90 },
   orderBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" as const, letterSpacing: 0.5 },
 
-  // Open positions
-  sectionTitle: { fontSize: 14, fontWeight: "700" as const, marginBottom: 10 },
-  posCard:      { borderRadius: 10, borderWidth: 1, padding: 12, marginBottom: 10 },
-  posHeader:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  posLeft:      { flexDirection: "row", alignItems: "center", gap: 6 },
-  posSideBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  posSideText:  { fontSize: 10, fontWeight: "700" as const },
-  posSymbol:    { fontSize: 13, fontWeight: "700" as const },
-  posLev:       { fontSize: 12, fontWeight: "600" as const },
-  closeBtn:     { borderRadius: 6, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5 },
-  closeBtnText: { fontSize: 12, fontWeight: "600" as const },
-  posRow:       { flexDirection: "row", justifyContent: "space-between" },
-  posLabel:     { fontSize: 10, marginBottom: 2 },
-  posValue:     { fontSize: 13, fontWeight: "600" as const },
-  posPnl:       { fontSize: 13, fontWeight: "700" as const },
-  posPnlPct:    { fontSize: 10 },
-
-  // SL/TP chips in position card
-  slTpDisplay:   { flexDirection: "row", gap: 6, marginTop: 10, flexWrap: "wrap" },
-  slTpChip:      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
-  slTpChipText:  { fontSize: 11, fontWeight: "600" as const },
 });
