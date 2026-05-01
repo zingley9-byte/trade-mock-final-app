@@ -3,7 +3,7 @@ import { TM_AUTH_KEY, TM_ONBOARDED_KEY } from "@/constants/authKeys";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useRef } from "react";
-import { Animated, Dimensions, Image, StyleSheet, Text, View } from "react-native";
+import { Animated, Dimensions, Image, Platform, StyleSheet, Text, View } from "react-native";
 
 const { width, height } = Dimensions.get("window");
 
@@ -13,34 +13,11 @@ export default function SplashScreen() {
   const taglineOpacity = useRef(new Animated.Value(0)).current;
   const glowOpacity = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(logoOpacity, {
-          toValue: 1,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-        Animated.spring(logoScale, {
-          toValue: 1,
-          friction: 5,
-          tension: 60,
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowOpacity, {
-          toValue: 1,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.delay(200),
-      Animated.timing(taglineOpacity, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-      Animated.delay(1200),
-    ]).start(async () => {
+  const isWeb = Platform.OS === "web";
+  const nd = !isWeb;
+
+  async function navigate() {
+    try {
       const onboarded = await AsyncStorage.getItem(TM_ONBOARDED_KEY);
       const auth = await AsyncStorage.getItem(TM_AUTH_KEY);
       if (!onboarded) {
@@ -50,7 +27,31 @@ export default function SplashScreen() {
       } else {
         router.replace("/(tabs)");
       }
+    } catch {
+      router.replace("/(tabs)");
+    }
+  }
+
+  useEffect(() => {
+    const fallback = setTimeout(navigate, 2400);
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(logoOpacity, { toValue: 1, duration: 700, useNativeDriver: nd }),
+        Animated.spring(logoScale, { toValue: 1, friction: 5, tension: 60, useNativeDriver: nd }),
+        Animated.timing(glowOpacity, { toValue: 1, duration: 700, useNativeDriver: nd }),
+      ]),
+      Animated.delay(200),
+      Animated.timing(taglineOpacity, { toValue: 1, duration: 500, useNativeDriver: nd }),
+      Animated.delay(1200),
+    ]).start(({ finished }) => {
+      if (finished) {
+        clearTimeout(fallback);
+        navigate();
+      }
     });
+
+    return () => clearTimeout(fallback);
   }, []);
 
   return (
