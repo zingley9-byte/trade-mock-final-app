@@ -27,19 +27,21 @@ const COIN_COLORS: Record<string, string> = {
   DOGEUSDT: "#C2A633", SOLUSDT: "#9945FF",
 };
 
-function fmtPrice(price: number, _symbol: MarketSymbol, mode: "usd" | "inr"): string {
+function fmtPrice(price: number, mode: "usd" | "inr", usdToInr: number): string {
   const sym = mode === "usd" ? "$" : "₹";
   if (!price) return `${sym}—`;
-  if (price >= 10000) return `${sym}${price.toLocaleString(mode === "usd" ? "en-US" : "en-IN", { maximumFractionDigits: 2 })}`;
-  if (price >= 1) return `${sym}${price.toFixed(2)}`;
-  return `${sym}${price.toFixed(4)}`;
+  const p = mode === "inr" ? price * usdToInr : price;
+  if (p >= 100000) return `${sym}${p.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  if (p >= 10000)  return `${sym}${p.toLocaleString(mode === "usd" ? "en-US" : "en-IN", { maximumFractionDigits: 2 })}`;
+  if (p >= 1)      return `${sym}${p.toFixed(2)}`;
+  return `${sym}${p.toFixed(4)}`;
 }
 
 function WatchlistRow({
-  symbol, isSelected, price, change24h, currencyMode, onPress, colors, isLast,
+  symbol, isSelected, price, change24h, currencyMode, usdToInr, onPress, colors, isLast,
 }: {
   symbol: MarketSymbol; isSelected: boolean; price: number;
-  change24h: number; currencyMode: "usd" | "inr";
+  change24h: number; currencyMode: "usd" | "inr"; usdToInr: number;
   onPress: () => void; colors: any; isLast: boolean;
 }) {
   const coinColor = COIN_COLORS[symbol.id] ?? colors.primary;
@@ -63,7 +65,7 @@ function WatchlistRow({
         </View>
       </View>
       <View style={styles.rowMid}>
-        <Text style={[styles.priceText, { color: colors.foreground }]}>{fmtPrice(price, symbol, currencyMode)}</Text>
+        <Text style={[styles.priceText, { color: colors.foreground }]}>{fmtPrice(price, currencyMode, usdToInr)}</Text>
       </View>
       <View style={styles.rowRight}>
         {change24h !== 0 ? (
@@ -140,7 +142,7 @@ export default function HomeScreen() {
     candles, chartType, setChartType,
     selectedSymbol, setSelectedSymbol,
     symbolPrices, symbolChanges,
-    currencyMode, theme, timeframe,
+    currencyMode, usdToInr, theme, timeframe,
   } = useTradingContext();
 
   const [chartExpanded, setChartExpanded] = useState(false);
@@ -324,6 +326,7 @@ export default function HomeScreen() {
                   price={symbolPrices[sym.id] ?? 0}
                   change24h={symbolChanges[sym.id] ?? 0}
                   currencyMode={currencyMode}
+                  usdToInr={usdToInr}
                   onPress={() => setSelectedSymbol(sym)}
                   colors={colors}
                   isLast={idx === visibleSymbols.length - 1}

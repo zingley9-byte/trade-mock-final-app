@@ -14,14 +14,14 @@ export default function PriceBar() {
     volume24h,
     isConnected,
     currencyMode,
+    usdToInr,
   } = useTradingContext();
 
   const isPositive = priceChange24h >= 0;
-  const INR_RATE = 83.5;
 
   function formatPrice(price: number): string {
     if (price === 0) return "—";
-    const p = currencyMode === "inr" && selectedSymbol.type === "crypto" ? price * INR_RATE : price;
+    const p = currencyMode === "inr" ? price * usdToInr : price;
     if (p >= 100000) return p.toLocaleString("en-IN", { maximumFractionDigits: 0 });
     if (p >= 1000) return p.toFixed(2);
     if (p >= 1) return p.toFixed(4);
