@@ -15,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TradingProvider } from "@/context/TradingContext";
+import { AlertsProvider } from "@/context/AlertsContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,6 +42,7 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <TradingProvider>
+            <AlertsProvider>
             <GestureHandlerRootView style={{ flex: 1 }}>
               <KeyboardProvider>
                 <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
@@ -51,6 +53,7 @@ export default function RootLayout() {
                 </Stack>
               </KeyboardProvider>
             </GestureHandlerRootView>
+            </AlertsProvider>
           </TradingProvider>
         </QueryClientProvider>
       </ErrorBoundary>

@@ -21,6 +21,8 @@ import { SYMBOLS, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CoinLogo from "@/components/CoinLogo";
+import { useAlerts } from "@/context/AlertsContext";
+import AlertsModal from "@/components/AlertsModal";
 
 const PROFILE_KEY = "trademock_profile_image";
 
@@ -46,10 +48,12 @@ export default function AppHeader() {
   const insets = useSafeAreaInsets();
   const { theme, setTheme, currencyMode, setCurrencyMode, setSelectedSymbol, symbolPrices } = useTradingContext();
 
+  const { unreadCount, markAllRead } = useAlerts();
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const searchRef = useRef<TextInput>(null);
   const isDark = theme === "dark";
 
@@ -155,6 +159,19 @@ export default function AppHeader() {
             </Text>
           </TouchableOpacity>
 
+          {/* Bell / Alerts */}
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: colors.muted }]}
+            onPress={() => { markAllRead(); setAlertsOpen(true); }}
+          >
+            <Feather name="bell" size={16} color={colors.foreground} />
+            {unreadCount > 0 && (
+              <View style={[styles.badge, { backgroundColor: colors.bear }]}>
+                <Text style={styles.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.avatarBtn, { backgroundColor: colors.muted, borderColor: colors.primary }]}
             onPress={() => { setSearchFocused(false); setProfileOpen(true); }}
@@ -167,6 +184,8 @@ export default function AppHeader() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <AlertsModal visible={alertsOpen} onClose={() => setAlertsOpen(false)} />
 
       {/* ─── Search dropdown ─── */}
       {showDropdown && (
@@ -320,6 +339,16 @@ const styles = StyleSheet.create({
   rightGroup: { flexDirection: "row", alignItems: "center", gap: 6 },
   currencyBtn: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8 },
   currencyText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+  iconBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center", position: "relative",
+  },
+  badge: {
+    position: "absolute", top: -2, right: -2,
+    minWidth: 16, height: 16, borderRadius: 8,
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 3,
+  },
+  badgeText: { color: "#fff", fontSize: 9, fontWeight: "700" as const },
   avatarBtn: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
