@@ -85,10 +85,12 @@ function WatchlistRow({
 }
 
 const IND_LABELS: { key: keyof IndicatorConfig; label: string; color: string }[] = [
-  { key: "ema9", label: "EMA9", color: "#f59e0b" },
+  { key: "ema9",  label: "EMA9",  color: "#f59e0b" },
   { key: "ema20", label: "EMA20", color: "#a78bfa" },
-  { key: "rsi", label: "RSI", color: "#3b82f6" },
-  { key: "macd", label: "MACD", color: "#10b981" },
+  { key: "sma20", label: "SMA20", color: "#38bdf8" },
+  { key: "bb",    label: "BB",    color: "#94a3b8" },
+  { key: "rsi",   label: "RSI",   color: "#3b82f6" },
+  { key: "macd",  label: "MACD",  color: "#10b981" },
 ];
 
 function IndicatorMenu({
@@ -151,7 +153,7 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [indicators, setIndicators] = useState<IndicatorConfig>({
-    ema9: false, ema20: false, rsi: false, macd: false,
+    ema9: false, ema20: false, sma20: false, bb: false, rsi: false, macd: false,
   });
 
   const anyIndicator = Object.values(indicators).some(Boolean);

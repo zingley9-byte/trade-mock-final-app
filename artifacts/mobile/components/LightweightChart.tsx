@@ -7,6 +7,8 @@ import { Candle } from "@/context/TradingContext";
 export interface IndicatorConfig {
   ema9: boolean;
   ema20: boolean;
+  sma20: boolean;
+  bb: boolean;
   rsi: boolean;
   macd: boolean;
 }
@@ -68,6 +70,28 @@ function calcRSI(closes: number[], period = 14): (number | null)[] {
   return result;
 }
 
+function calcSMA(closes: number[], period: number): (number | null)[] {
+  return closes.map((_, i) => {
+    if (i < period - 1) return null;
+    return closes.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period;
+  });
+}
+
+function calcBB(closes: number[], period = 20, mult = 2) {
+  const mid = calcSMA(closes, period);
+  const upper: (number | null)[] = [];
+  const lower: (number | null)[] = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) { upper.push(null); lower.push(null); continue; }
+    const slice = closes.slice(i - period + 1, i + 1);
+    const mean  = mid[i]!;
+    const std   = Math.sqrt(slice.reduce((s, v) => s + (v - mean) ** 2, 0) / period);
+    upper.push(mean + mult * std);
+    lower.push(mean - mult * std);
+  }
+  return { mid, upper, lower };
+}
+
 function calcMACD(closes: number[], fast = 12, slow = 26, sig = 9) {
   const fk = 2 / (fast + 1), sk = 2 / (slow + 1), sigk = 2 / (sig + 1);
   let fema = closes[0], sema = closes[0];
@@ -97,7 +121,9 @@ interface ChartState {
   chart: any;
   lc: any;
   series: {
-    candle: any; vol: any; ema9: any; ema20: any;
+    candle: any; vol: any;
+    ema9: any; ema20: any; sma20: any;
+    bbMid: any; bbUp: any; bbLow: any;
     rsi: any; macdL: any; macdS: any; macdH: any;
   };
   data: any[];
@@ -111,7 +137,7 @@ function WebChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const st = useRef<ChartState>({
     chart: null, lc: null,
-    series: { candle: null, vol: null, ema9: null, ema20: null, rsi: null, macdL: null, macdS: null, macdH: null },
+    series: { candle: null, vol: null, ema9: null, ema20: null, sma20: null, bbMid: null, bbUp: null, bbLow: null, rsi: null, macdL: null, macdS: null, macdH: null },
     data: [],
   });
   const wsRef = useRef<WebSocket | null>(null);
@@ -129,7 +155,7 @@ function WebChart({
   const removeAllIndicators = useCallback(() => {
     const s = st.current;
     if (!s.chart) return;
-    (["ema9", "ema20", "rsi", "macdL", "macdS", "macdH"] as const).forEach((k) => {
+    (["ema9", "ema20", "sma20", "bbMid", "bbUp", "bbLow", "rsi", "macdL", "macdS", "macdH"] as const).forEach((k) => {
       if (s.series[k]) { try { s.chart.removeSeries(s.series[k]); } catch {} s.series[k] = null; }
     });
   }, []);
@@ -162,6 +188,43 @@ function WebChart({
       });
       series.setData(calcEMA(closes, 20).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
       s.series.ema20 = series;
+    }
+
+    if (ind?.sma20) {
+      const series = s.chart.addSeries(LineSeries, {
+        color: "#38bdf8", lineWidth: 1, title: "SMA20",
+        priceLineVisible: false, lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      series.setData(calcSMA(closes, 20).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+      s.series.sma20 = series;
+    }
+
+    if (ind?.bb) {
+      const { mid, upper, lower } = calcBB(closes, 20, 2);
+      const bbMid = s.chart.addSeries(LineSeries, {
+        color: "#94a3b8", lineWidth: 1, title: "BB Mid",
+        priceLineVisible: false, lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      bbMid.setData(mid.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+      s.series.bbMid = bbMid;
+
+      const bbUp = s.chart.addSeries(LineSeries, {
+        color: "#3b82f660", lineWidth: 1, title: "BB Upper",
+        priceLineVisible: false, lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      bbUp.setData(upper.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+      s.series.bbUp = bbUp;
+
+      const bbLow = s.chart.addSeries(LineSeries, {
+        color: "#3b82f660", lineWidth: 1, title: "BB Lower",
+        priceLineVisible: false, lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      bbLow.setData(lower.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+      s.series.bbLow = bbLow;
     }
 
     let nextPane = 1;
@@ -327,7 +390,7 @@ function WebChart({
       wsRef.current?.close();
       if (ivRef.current) clearInterval(ivRef.current);
       try { st.current.chart?.remove(); } catch {}
-      st.current = { chart: null, lc: null, series: { candle: null, vol: null, ema9: null, ema20: null, rsi: null, macdL: null, macdS: null, macdH: null }, data: [] };
+      st.current = { chart: null, lc: null, series: { candle: null, vol: null, ema9: null, ema20: null, sma20: null, bbMid: null, bbUp: null, bbLow: null, rsi: null, macdL: null, macdS: null, macdH: null }, data: [] };
     };
   }, [symbol, timeframe, symbolType, chartType, height]);
 
@@ -341,7 +404,7 @@ function WebChart({
 
   useEffect(() => {
     if (st.current.chart && st.current.data.length) syncIndicators();
-  }, [indicators?.ema9, indicators?.ema20, indicators?.rsi, indicators?.macd, syncIndicators]);
+  }, [indicators?.ema9, indicators?.ema20, indicators?.sma20, indicators?.bb, indicators?.rsi, indicators?.macd, syncIndicators]);
 
   const containerStyle: React.CSSProperties = isFullscreen
     ? { position: "fixed", inset: 0, zIndex: 9999, background: bg, display: "flex", flexDirection: "column" }
