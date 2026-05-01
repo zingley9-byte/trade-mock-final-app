@@ -49,12 +49,16 @@ export default function PortfolioScreen() {
 
   function handleReset() {
     if (resetsRemaining === 0) {
-      Alert.alert("Limit Reached", "You have used all 2 resets for this 30-day period.");
+      Alert.alert(
+        "⚠️ Reset Limit Reached",
+        "You have used all 2 resets for this 30-day period. Please wait for your oldest reset to expire before trying again."
+      );
       return;
     }
+    const afterReset = resetsRemaining - 1;
     Alert.alert(
-      "Reset Account",
-      `This will reset your balance to ${isUSD ? "$1,000,000" : "₹10,00,000"} and clear all history.\n\nResets remaining after this: ${resetsRemaining - 1}/2 (30 days)`,
+      "⚠️ Reset Warning",
+      `You only get 2 resets every 30 days.\n\nAfter this reset, you will have ${afterReset} reset${afterReset !== 1 ? "s" : ""} remaining in this 30-day window.\n\nYour balance will be restored to ${isUSD ? "$1,000,000" : "₹10,00,000"} and all trade history will be cleared.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -62,7 +66,7 @@ export default function PortfolioScreen() {
           style: "destructive",
           onPress: () => {
             const result = resetAccount();
-            if (!result.allowed) Alert.alert("Limit Reached", result.message);
+            if (!result.allowed) Alert.alert("⚠️ Limit Reached", result.message);
           },
         },
       ]
