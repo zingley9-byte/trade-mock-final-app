@@ -93,8 +93,36 @@ export default function OrderPanel() {
     if (priceMode === "manual" && (!manualPrice || parseFloat(manualPrice) <= 0)) {
       setOrderError("Enter a valid entry price"); return;
     }
+
+    const entryRef = priceMode === "manual" && manualPrice
+      ? parseFloat(manualPrice)
+      : effectivePrice;
+
     const sl = stopLoss   ? parseFloat(stopLoss)   : undefined;
     const tp = takeProfit ? parseFloat(takeProfit) : undefined;
+
+    // ── SL/TP direction guard ───────────────────────────────────────────────
+    if (sl !== undefined && entryRef > 0) {
+      if (side === "buy" && sl >= entryRef) {
+        setOrderError(`Stop Loss (${symbol}${sl.toFixed(2)}) must be BELOW entry price (${symbol}${entryRef.toFixed(2)}) for a BUY trade`);
+        return;
+      }
+      if (side === "sell" && sl <= entryRef) {
+        setOrderError(`Stop Loss (${symbol}${sl.toFixed(2)}) must be ABOVE entry price (${symbol}${entryRef.toFixed(2)}) for a SELL trade`);
+        return;
+      }
+    }
+    if (tp !== undefined && entryRef > 0) {
+      if (side === "buy" && tp <= entryRef) {
+        setOrderError(`Target Price (${symbol}${tp.toFixed(2)}) must be ABOVE entry price (${symbol}${entryRef.toFixed(2)}) for a BUY trade`);
+        return;
+      }
+      if (side === "sell" && tp >= entryRef) {
+        setOrderError(`Target Price (${symbol}${tp.toFixed(2)}) must be BELOW entry price (${symbol}${entryRef.toFixed(2)}) for a SELL trade`);
+        return;
+      }
+    }
+
     const customEntry = priceMode === "manual" ? parseFloat(manualPrice) : undefined;
     const result = openPosition({ side, quantity: qty, stopLoss: sl, takeProfit: tp, entryPrice: customEntry });
     if (result.success) {
@@ -224,6 +252,9 @@ export default function OrderPanel() {
               </TouchableOpacity>
             )}
           </View>
+          <Text style={[styles.slHint, { color: colors.mutedForeground }]}>
+            {side === "buy" ? "↓ below entry" : "↑ above entry"}
+          </Text>
         </View>
 
         {/* Target Price */}
@@ -247,6 +278,9 @@ export default function OrderPanel() {
               </TouchableOpacity>
             )}
           </View>
+          <Text style={[styles.slHint, { color: colors.mutedForeground }]}>
+            {side === "buy" ? "↑ above entry" : "↓ below entry"}
+          </Text>
         </View>
       </View>
 
@@ -548,6 +582,7 @@ const styles = StyleSheet.create({
   slTpLabelRow: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 5 },
   slDot:        { width: 6, height: 6, borderRadius: 3 },
   slTpLabel:    { fontSize: 12, fontWeight: "600" as const },
+  slHint:       { fontSize: 10, marginTop: 3, marginLeft: 2 },
 
   // Indian lot stepper
   lotHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
