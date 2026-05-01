@@ -1,9 +1,17 @@
-import React, { useEffect, useRef } from "react";
-import { Platform, View } from "react-native";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Platform, View, Text, StyleSheet, TouchableOpacity, Modal, Dimensions } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import CandlestickChart from "./CandlestickChart";
 import { Candle } from "@/context/TradingContext";
 
-interface Props {
+export interface IndicatorConfig {
+  ema9: boolean;
+  ema20: boolean;
+  rsi: boolean;
+  macd: boolean;
+}
+
+export interface Props {
   symbol: string;
   symbolType: "crypto" | "indian";
   timeframe?: string;
@@ -17,160 +25,326 @@ interface Props {
   gridColor?: string;
   bgColor?: string;
   chartType?: "candle" | "line";
+  showVolume?: boolean;
+  indicators?: IndicatorConfig;
+  isFullscreen?: boolean;
+  onFullscreenToggle?: () => void;
 }
 
 function buildInterval(tf: string): string {
-  const map: Record<string, string> = {
-    "1m": "1m", "5m": "5m", "15m": "15m",
-    "30m": "30m", "1h": "1h", "1D": "1d",
-  };
-  return map[tf] ?? "15m";
+  const m: Record<string, string> = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h", "1D": "1d" };
+  return m[tf] ?? "15m";
 }
 
-function WebChart({ symbol, symbolType, timeframe = "15m", isDark = true, height = 300, onPriceUpdate }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
-  const seriesRef = useRef<any>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+function calcEMA(closes: number[], period: number): (number | null)[] {
+  const result: (number | null)[] = [];
+  const k = 2 / (period + 1);
+  let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = 0; i < closes.length; i++) {
+    if (i < period - 1) { result.push(null); continue; }
+    if (i === period - 1) { result.push(ema); continue; }
+    ema = closes[i] * k + ema * (1 - k);
+    result.push(ema);
+  }
+  return result;
+}
 
-  const bg = isDark ? "#0d1117" : "#ffffff";
-  const textColor = isDark ? "#94a3b8" : "#374151";
-  const gridColor = isDark ? "#1e293b" : "#f1f5f9";
-  const up = "#00c896";
-  const down = "#ff4d4d";
+function calcRSI(closes: number[], period = 14): (number | null)[] {
+  const result: (number | null)[] = new Array(period).fill(null);
+  if (closes.length <= period) return result;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d > 0) gains += d; else losses -= d;
+  }
+  let avgG = gains / period, avgL = losses / period;
+  result.push(100 - 100 / (1 + avgG / (avgL || 0.0001)));
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    avgG = (avgG * (period - 1) + Math.max(0, d)) / period;
+    avgL = (avgL * (period - 1) + Math.max(0, -d)) / period;
+    result.push(100 - 100 / (1 + avgG / (avgL || 0.0001)));
+  }
+  return result;
+}
+
+function calcMACD(closes: number[], fast = 12, slow = 26, sig = 9) {
+  const fk = 2 / (fast + 1), sk = 2 / (slow + 1), sigk = 2 / (sig + 1);
+  let fema = closes[0], sema = closes[0];
+  const macdLine: (number | null)[] = [];
+  for (let i = 0; i < closes.length; i++) {
+    fema = closes[i] * fk + fema * (1 - fk);
+    sema = closes[i] * sk + sema * (1 - sk);
+    macdLine.push(i >= slow - 1 ? fema - sema : null);
+  }
+  const valid = macdLine.filter((v) => v !== null) as number[];
+  let sige = valid[0] ?? 0;
+  const signalLine: (number | null)[] = new Array(slow - 1).fill(null);
+  for (let i = 0; i < valid.length; i++) {
+    if (i < sig - 1) { signalLine.push(null); sige = valid[i]; continue; }
+    if (i === sig - 1) { sige = valid.slice(0, sig).reduce((a, b) => a + b) / sig; signalLine.push(sige); continue; }
+    sige = valid[i] * sigk + sige * (1 - sigk);
+    signalLine.push(sige);
+  }
+  const histogram = macdLine.map((m, i) => {
+    const s = signalLine[i];
+    return m !== null && s !== null ? m - s : null;
+  });
+  return { macdLine, signalLine, histogram };
+}
+
+interface ChartState {
+  chart: any;
+  lc: any;
+  series: {
+    candle: any; vol: any; ema9: any; ema20: any;
+    rsi: any; macdL: any; macdS: any; macdH: any;
+  };
+  data: any[];
+}
+
+function WebChart({
+  symbol, symbolType, timeframe = "15m", isDark = true, height = 320,
+  onPriceUpdate, chartType = "candle", showVolume = true, indicators,
+  isFullscreen = false, onFullscreenToggle,
+}: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const st = useRef<ChartState>({
+    chart: null, lc: null,
+    series: { candle: null, vol: null, ema9: null, ema20: null, rsi: null, macdL: null, macdS: null, macdH: null },
+    data: [],
+  });
+  const wsRef = useRef<WebSocket | null>(null);
+  const ivRef = useRef<any>(null);
+  const indicatorsRef = useRef(indicators);
+  const [legend, setLegend] = useState<{ o?: string; h?: string; l?: string; c?: string } | null>(null);
+
+  useEffect(() => { indicatorsRef.current = indicators; }, [indicators]);
+
+  const bg = isDark ? "#0b0e17" : "#ffffff";
+  const tc = isDark ? "#94a3b8" : "#374151";
+  const gc = isDark ? "#1e293b" : "#e2e8f0";
+  const up = "#00c896", dn = "#ff4d4d";
+
+  const removeAllIndicators = useCallback(() => {
+    const s = st.current;
+    if (!s.chart) return;
+    (["ema9", "ema20", "rsi", "macdL", "macdS", "macdH"] as const).forEach((k) => {
+      if (s.series[k]) { try { s.chart.removeSeries(s.series[k]); } catch {} s.series[k] = null; }
+    });
+  }, []);
+
+  const syncIndicators = useCallback(() => {
+    const s = st.current;
+    if (!s.chart || !s.lc || !s.data.length) return;
+    const ind = indicatorsRef.current;
+    const { LineSeries, HistogramSeries } = s.lc;
+    const closes = s.data.map((c: any) => c.close);
+    const times = s.data.map((c: any) => c.time);
+
+    removeAllIndicators();
+
+    if (ind?.ema9) {
+      const series = s.chart.addSeries(LineSeries, {
+        color: "#f59e0b", lineWidth: 1, title: "EMA9",
+        priceLineVisible: false, lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      series.setData(calcEMA(closes, 9).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+      s.series.ema9 = series;
+    }
+
+    if (ind?.ema20) {
+      const series = s.chart.addSeries(LineSeries, {
+        color: "#a78bfa", lineWidth: 1, title: "EMA20",
+        priceLineVisible: false, lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      series.setData(calcEMA(closes, 20).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+      s.series.ema20 = series;
+    }
+
+    let nextPane = 1;
+
+    if (ind?.rsi) {
+      const series = s.chart.addSeries(LineSeries, {
+        color: "#3b82f6", lineWidth: 1.5, title: "RSI(14)",
+        priceLineVisible: false, lastValueVisible: true,
+      }, nextPane++);
+      series.setData(calcRSI(closes, 14).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+      series.applyOptions({ priceFormat: { type: "custom", formatter: (p: number) => p.toFixed(1) } });
+      s.series.rsi = series;
+    }
+
+    if (ind?.macd) {
+      const { macdLine, signalLine, histogram } = calcMACD(closes);
+      const pane = nextPane++;
+
+      const macdL = s.chart.addSeries(LineSeries, {
+        color: "#3b82f6", lineWidth: 1.5, title: "MACD",
+        priceLineVisible: false, lastValueVisible: false,
+      }, pane);
+      macdL.setData(macdLine.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+      s.series.macdL = macdL;
+
+      const macdS = s.chart.addSeries(LineSeries, {
+        color: "#f59e0b", lineWidth: 1, title: "Signal",
+        priceLineVisible: false, lastValueVisible: false,
+      }, pane);
+      macdS.setData(signalLine.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+      s.series.macdS = macdS;
+
+      const macdH = s.chart.addSeries(HistogramSeries, {
+        title: "Histogram", priceLineVisible: false, lastValueVisible: false,
+      }, pane);
+      macdH.setData(
+        histogram.map((v, i) => ({
+          time: times[i], value: v,
+          color: v !== null ? (v >= 0 ? "#26a69a70" : "#ef444470") : "transparent",
+        })).filter((d: any) => d.value !== null)
+      );
+      s.series.macdH = macdH;
+    }
+  }, [removeAllIndicators]);
 
   useEffect(() => {
     if (!containerRef.current) return;
-
     let destroyed = false;
 
     async function init() {
       const lc = await import("lightweight-charts");
-      const { createChart, CrosshairMode, CandlestickSeries } = lc as any;
+      const { createChart, CrosshairMode, CandlestickSeries, HistogramSeries, LineSeries, AreaSeries } = lc as any;
       if (destroyed || !containerRef.current) return;
 
       const chart = createChart(containerRef.current, {
         width: containerRef.current.offsetWidth,
         height,
-        layout: {
-          background: { type: "solid" as any, color: bg },
-          textColor,
-        },
-        grid: {
-          vertLines: { color: gridColor },
-          horzLines: { color: gridColor },
-        },
+        layout: { background: { type: "solid" as any, color: bg }, textColor: tc },
+        grid: { vertLines: { color: gc }, horzLines: { color: gc } },
         crosshair: { mode: CrosshairMode.Normal },
         rightPriceScale: {
-          borderColor: gridColor,
-          scaleMargins: { top: 0.08, bottom: 0.08 },
+          borderColor: gc,
+          scaleMargins: { top: 0.06, bottom: showVolume ? 0.22 : 0.04 },
         },
-        timeScale: {
-          borderColor: gridColor,
-          timeVisible: true,
-          secondsVisible: false,
-        },
+        timeScale: { borderColor: gc, timeVisible: true, secondsVisible: false },
         handleScroll: true,
         handleScale: true,
       });
 
-      const series = CandlestickSeries
-        ? chart.addSeries(CandlestickSeries, {
-            upColor: up, downColor: down,
-            borderUpColor: up, borderDownColor: down,
-            wickUpColor: up, wickDownColor: down,
-          })
-        : chart.addCandlestickSeries({
-            upColor: up, downColor: down,
-            borderUpColor: up, borderDownColor: down,
-            wickUpColor: up, wickDownColor: down,
-          });
+      st.current.chart = chart;
+      st.current.lc = lc;
 
-      chartRef.current = chart;
-      seriesRef.current = series;
+      let mainSeries: any;
+      if (chartType === "candle") {
+        mainSeries = chart.addSeries(CandlestickSeries, {
+          upColor: up, downColor: dn,
+          borderUpColor: up, borderDownColor: dn,
+          wickUpColor: up, wickDownColor: dn,
+        });
+      } else {
+        mainSeries = chart.addSeries(AreaSeries, {
+          lineColor: up, topColor: up + "40", bottomColor: up + "05", lineWidth: 2,
+        });
+      }
+      st.current.series.candle = mainSeries;
 
-      const observer = new ResizeObserver(() => {
-        if (containerRef.current && chartRef.current) {
-          chartRef.current.applyOptions({ width: containerRef.current.offsetWidth });
+      if (showVolume) {
+        const volSeries = chart.addSeries(HistogramSeries, {
+          color: "#26a69a50", priceScaleId: "vol",
+          priceFormat: { type: "volume" },
+        });
+        chart.priceScale("vol").applyOptions({
+          scaleMargins: { top: 0.82, bottom: 0 }, visible: false,
+        });
+        st.current.series.vol = volSeries;
+      }
+
+      chart.subscribeCrosshairMove((param: any) => {
+        if (!param?.time || !param?.seriesData) { setLegend(null); return; }
+        const d = param.seriesData.get(mainSeries);
+        if (!d) return;
+        if (chartType === "candle") {
+          setLegend({ o: d.open?.toFixed(2), h: d.high?.toFixed(2), l: d.low?.toFixed(2), c: d.close?.toFixed(2) });
+        } else {
+          setLegend({ c: d.value?.toFixed(2) });
         }
       });
-      observer.observe(containerRef.current);
+
+      const ro = new ResizeObserver(() => {
+        if (containerRef.current && chart) chart.applyOptions({ width: containerRef.current.offsetWidth });
+      });
+      ro.observe(containerRef.current);
 
       if (symbolType === "crypto") {
-        const binanceSym = symbol.replace("/", "").toUpperCase();
-        const finalSym = binanceSym.endsWith("USDT") ? binanceSym : binanceSym + "USDT";
+        const sym = symbol.replace("/", "").toUpperCase();
+        const final = sym.endsWith("USDT") ? sym : sym + "USDT";
         const interval = buildInterval(timeframe);
-
         try {
-          const res = await fetch(
-            `https://data-api.binance.vision/api/v3/klines?symbol=${finalSym}&interval=${interval}&limit=200`
-          );
+          const res = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${final}&interval=${interval}&limit=500`);
           const data = await res.json();
           if (Array.isArray(data) && !destroyed) {
             const candles = data.map((d: any[]) => ({
               time: Math.floor(d[0] / 1000) as any,
-              open: +d[1], high: +d[2], low: +d[3], close: +d[4],
+              open: +d[1], high: +d[2], low: +d[3], close: +d[4], volume: +d[5],
             }));
-            series.setData(candles);
+            if (chartType === "candle") mainSeries.setData(candles);
+            else mainSeries.setData(candles.map((c: any) => ({ time: c.time, value: c.close })));
+            if (showVolume && st.current.series.vol) {
+              st.current.series.vol.setData(candles.map((c: any) => ({
+                time: c.time, value: c.volume,
+                color: c.close >= c.open ? "#26a69a50" : "#ef444450",
+              })));
+            }
+            st.current.data = candles;
             const last = candles[candles.length - 1];
             if (last && onPriceUpdate) onPriceUpdate(last.close);
+            if (!destroyed) syncIndicators();
           }
         } catch {}
 
         if (!destroyed) {
-          const ws = new WebSocket(
-            `wss://data-stream.binance.vision/ws/${finalSym.toLowerCase()}@kline_${interval}`
-          );
+          const ws = new WebSocket(`wss://data-stream.binance.vision/ws/${final.toLowerCase()}@kline_${interval}`);
           wsRef.current = ws;
           ws.onmessage = (evt) => {
-            const msg = JSON.parse(evt.data);
-            const k = msg.k;
-            series.update({
-              time: Math.floor(k.t / 1000) as any,
-              open: +k.o, high: +k.h, low: +k.l, close: +k.c,
-            });
+            if (destroyed) return;
+            const k = JSON.parse(evt.data).k;
+            const c = { time: Math.floor(k.t / 1000) as any, open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
+            if (chartType === "candle") st.current.series.candle?.update(c);
+            else st.current.series.candle?.update({ time: c.time, value: c.close });
+            if (showVolume && st.current.series.vol) {
+              st.current.series.vol.update({ time: c.time, value: c.volume, color: c.close >= c.open ? "#26a69a50" : "#ef444450" });
+            }
             if (onPriceUpdate) onPriceUpdate(+k.c);
           };
         }
       } else {
-        const DEMO_BASE: Record<string, number> = {
-          NIFTY50: 24500, SENSEX: 80200, BANKNIFTY: 52000, BANKEX: 58000,
-        };
-        let price = DEMO_BASE[symbol] ?? 24500;
-        let demoTime = Math.floor(Date.now() / 1000) - 100 * 60;
-
+        const BASE: Record<string, number> = { NIFTY50: 24500, SENSEX: 80200, BANKNIFTY: 52000, BANKEX: 58000 };
+        let price = BASE[symbol] ?? 24500;
+        let t = Math.floor(Date.now() / 1000) - 400 * 60;
         const hist: any[] = [];
-        for (let i = 0; i < 100; i++) {
-          const open = price;
-          const change = (Math.random() - 0.5) * price * 0.003;
-          const close = open + change;
-          hist.push({
-            time: demoTime,
-            open, high: Math.max(open, close) + Math.random() * price * 0.001,
-            low: Math.min(open, close) - Math.random() * price * 0.001, close,
-          });
-          price = close;
-          demoTime += 60;
+        for (let i = 0; i < 400; i++) {
+          const open = price, change = (Math.random() - 0.5) * price * 0.003, close = open + change;
+          hist.push({ time: t, open, high: Math.max(open, close) + Math.random() * price * 0.001, low: Math.min(open, close) - Math.random() * price * 0.001, close, volume: Math.random() * 5e5 + 1e5 });
+          price = close; t += 60;
         }
-        series.setData(hist);
+        if (chartType === "candle") mainSeries.setData(hist);
+        else mainSeries.setData(hist.map((c) => ({ time: c.time, value: c.close })));
+        if (showVolume && st.current.series.vol) {
+          st.current.series.vol.setData(hist.map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? "#26a69a50" : "#ef444450" })));
+        }
+        st.current.data = hist;
         if (onPriceUpdate) onPriceUpdate(price);
-
-        const iv = setInterval(() => {
-          if (destroyed || !seriesRef.current) return;
-          const open = price;
-          const change = (Math.random() - 0.5) * open * 0.002;
-          const close = open + change;
-          demoTime += 1;
-          seriesRef.current.update({
-            time: demoTime as any,
-            open, high: Math.max(open, close) + Math.random() * open * 0.0005,
-            low: Math.min(open, close) - Math.random() * open * 0.0005, close,
-          });
+        if (!destroyed) syncIndicators();
+        ivRef.current = setInterval(() => {
+          if (destroyed || !st.current.series.candle) return;
+          const open = price, change = (Math.random() - 0.5) * open * 0.0015, close = open + change;
+          t++;
+          const update = { time: t as any, open, high: Math.max(open, close) + Math.random() * open * 0.0005, low: Math.min(open, close) - Math.random() * open * 0.0005, close };
+          if (chartType === "candle") st.current.series.candle.update(update);
+          else st.current.series.candle.update({ time: t as any, value: close });
           price = close;
           if (onPriceUpdate) onPriceUpdate(close);
         }, 1000);
-        intervalRef.current = iv;
       }
     }
 
@@ -179,45 +353,99 @@ function WebChart({ symbol, symbolType, timeframe = "15m", isDark = true, height
     return () => {
       destroyed = true;
       wsRef.current?.close();
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      chartRef.current?.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
+      if (ivRef.current) clearInterval(ivRef.current);
+      try { st.current.chart?.remove(); } catch {}
+      st.current = { chart: null, lc: null, series: { candle: null, vol: null, ema9: null, ema20: null, rsi: null, macdL: null, macdS: null, macdH: null }, data: [] };
     };
-  }, [symbol, symbolType, timeframe]);
+  }, [symbol, timeframe, symbolType, chartType, height]);
 
   useEffect(() => {
-    if (!chartRef.current) return;
-    chartRef.current.applyOptions({
-      layout: {
-        background: { type: "solid", color: bg },
-        textColor,
-      },
-      grid: {
-        vertLines: { color: gridColor },
-        horzLines: { color: gridColor },
-      },
+    if (!st.current.chart) return;
+    st.current.chart.applyOptions({
+      layout: { background: { type: "solid", color: bg }, textColor: tc },
+      grid: { vertLines: { color: gc }, horzLines: { color: gc } },
     });
   }, [isDark]);
 
+  useEffect(() => {
+    if (st.current.chart && st.current.data.length) syncIndicators();
+  }, [indicators?.ema9, indicators?.ema20, indicators?.rsi, indicators?.macd, syncIndicators]);
+
+  const containerStyle: React.CSSProperties = isFullscreen
+    ? { position: "fixed", inset: 0, zIndex: 9999, background: bg, display: "flex", flexDirection: "column" }
+    : { width: "100%", height, overflow: "hidden", background: bg, position: "relative" };
+
+  const innerStyle: React.CSSProperties = isFullscreen
+    ? { flex: 1, width: "100%" }
+    : { width: "100%", height: "100%" };
+
   return (
-    <div
-      ref={containerRef}
-      style={{ width: "100%", height, overflow: "hidden", background: bg }}
-    />
+    <div style={containerStyle}>
+      {legend && (
+        <div style={{
+          position: "absolute", top: 6, left: 8, zIndex: 10,
+          display: "flex", gap: 10, fontSize: 11, color: tc,
+          pointerEvents: "none", fontFamily: "monospace", userSelect: "none",
+        }}>
+          {legend.o && <span>O <b>{legend.o}</b></span>}
+          {legend.h && <span>H <b style={{ color: up }}>{legend.h}</b></span>}
+          {legend.l && <span>L <b style={{ color: dn }}>{legend.l}</b></span>}
+          {legend.c && <span>C <b>{legend.c}</b></span>}
+        </div>
+      )}
+      {isFullscreen && onFullscreenToggle && (
+        <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
+          <button
+            onClick={onFullscreenToggle}
+            style={{ background: "#ffffff18", border: "1px solid #ffffff30", borderRadius: 8, color: "#fff", padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
+          >✕ Exit</button>
+        </div>
+      )}
+      <div ref={containerRef} style={innerStyle} />
+    </div>
   );
 }
 
 export default function LightweightChart(props: Props) {
+  const { height = 300, isFullscreen = false, onFullscreenToggle } = props;
+
   if (Platform.OS === "web") {
+    if (isFullscreen) {
+      return <WebChart {...props} height={Dimensions.get("window").height} />;
+    }
     return <WebChart {...props} />;
   }
 
+  if (isFullscreen) {
+    return (
+      <Modal visible animationType="slide" onRequestClose={onFullscreenToggle}>
+        <View style={{ flex: 1, backgroundColor: "#0b0e17" }}>
+          <TouchableOpacity
+            onPress={onFullscreenToggle}
+            style={styles.fsClose}
+          >
+            <Feather name="x" size={20} color="#fff" />
+          </TouchableOpacity>
+          <CandlestickChart
+            candles={props.candles ?? []}
+            height={Dimensions.get("window").height - 60}
+            chartType={props.chartType ?? "candle"}
+            bullColor={props.bullColor ?? "#00c896"}
+            bearColor={props.bearColor ?? "#ff4d4d"}
+            textColor={props.textColor ?? "#64748b"}
+            gridColor={props.gridColor ?? "rgba(100,116,139,0.15)"}
+            bgColor={props.bgColor ?? "transparent"}
+          />
+        </View>
+      </Modal>
+    );
+  }
+
   return (
-    <View style={{ height: props.height ?? 300, width: "100%" }}>
+    <View style={{ height, width: "100%" }}>
       <CandlestickChart
         candles={props.candles ?? []}
-        height={props.height ?? 300}
+        height={height}
         chartType={props.chartType ?? "candle"}
         bullColor={props.bullColor ?? "#00c896"}
         bearColor={props.bearColor ?? "#ff4d4d"}
@@ -228,3 +456,11 @@ export default function LightweightChart(props: Props) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  fsClose: {
+    position: "absolute", top: 48, right: 16, zIndex: 10,
+    backgroundColor: "#ffffff18", borderRadius: 20,
+    width: 36, height: 36, alignItems: "center", justifyContent: "center",
+  },
+});
