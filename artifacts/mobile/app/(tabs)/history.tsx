@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   FlatList,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -34,7 +35,14 @@ function formatDuration(openedAt: number, closedAt: number): string {
 export default function HistoryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { tradeHistory, currencyMode, usdToInr } = useTradingContext();
+  const {
+    tradeHistory,
+    balance,
+    positions,
+    getRunningPnL,
+    currencyMode,
+    usdToInr,
+  } = useTradingContext();
   const [filter, setFilter] = useState<"all" | "win" | "loss">("all");
 
   const isUSD = currencyMode === "usd";
@@ -53,12 +61,14 @@ export default function HistoryScreen() {
     return true;
   });
 
-  const totalPnL = tradeHistory.reduce((s, t) => s + t.pnl, 0);
-  const wins = tradeHistory.filter((t) => t.pnl > 0).length;
-  const losses = tradeHistory.filter((t) => t.pnl <= 0).length;
+  const totalPnL       = tradeHistory.reduce((s, t) => s + t.pnl, 0);
+  const wins           = tradeHistory.filter((t) => t.pnl > 0).length;
+  const losses         = tradeHistory.filter((t) => t.pnl <= 0).length;
+  const winRate        = tradeHistory.length > 0 ? (wins / tradeHistory.length) * 100 : 0;
+  const marginUsed     = positions.reduce((s, p) => s + p.margin, 0);
+  const runningPnL     = getRunningPnL();
 
   function renderItem({ item }: { item: TradeHistory }) {
-    const sym = item.symbol.type === "crypto" ? "$" : "₹";
     const isWin = item.pnl > 0;
     return (
       <View
@@ -116,8 +126,8 @@ export default function HistoryScreen() {
         </View>
 
         <View style={[styles.details, { borderTopColor: colors.border }]}>
-          <DetailPair label="Entry" value={`${sym}${item.entryPrice.toFixed(item.symbol.type === "crypto" ? 4 : 2)}`} colors={colors} />
-          <DetailPair label="Exit" value={`${sym}${item.exitPrice.toFixed(item.symbol.type === "crypto" ? 4 : 2)}`} colors={colors} />
+          <DetailPair label="Entry" value={`$${item.entryPrice.toFixed(4)}`} colors={colors} />
+          <DetailPair label="Exit" value={`$${item.exitPrice.toFixed(4)}`} colors={colors} />
           <DetailPair label="Qty" value={`${item.quantity}`} colors={colors} />
           <DetailPair label="Margin" value={fmt(item.margin, 0)} colors={colors} />
           <DetailPair label="Duration" value={formatDuration(item.openedAt, item.closedAt)} colors={colors} />
@@ -129,7 +139,7 @@ export default function HistoryScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: colors.foreground }]}>Trade History</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>History</Text>
         <View style={[styles.pnlSummary, { backgroundColor: totalPnL >= 0 ? colors.bullBg : colors.bearBg }]}>
           <Text style={[styles.pnlSummaryText, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
             {totalPnL >= 0 ? "+" : ""}{fmt(totalPnL)}
@@ -137,6 +147,35 @@ export default function HistoryScreen() {
         </View>
       </View>
 
+      {/* ── Account stats ──────────────────────────────────────────────────── */}
+      <View style={styles.accountGrid}>
+        <StatChip
+          label="Available Balance"
+          value={fmt(balance, 0)}
+          valueColor={colors.foreground}
+          colors={colors}
+        />
+        <StatChip
+          label="Margin Used"
+          value={fmt(marginUsed, 0)}
+          valueColor="#f59e0b"
+          colors={colors}
+        />
+        <StatChip
+          label="Running P&L"
+          value={`${runningPnL >= 0 ? "+" : ""}${fmt(runningPnL)}`}
+          valueColor={runningPnL >= 0 ? colors.bull : colors.bear}
+          colors={colors}
+        />
+        <StatChip
+          label="Realized P&L"
+          value={`${totalPnL >= 0 ? "+" : ""}${fmt(totalPnL)}`}
+          valueColor={totalPnL >= 0 ? colors.bull : colors.bear}
+          colors={colors}
+        />
+      </View>
+
+      {/* ── Trade summary chips ────────────────────────────────────────────── */}
       <View style={styles.statsRow}>
         <View style={[styles.statChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.statNum, { color: colors.foreground }]}>{tradeHistory.length}</Text>
@@ -152,12 +191,13 @@ export default function HistoryScreen() {
         </View>
         <View style={[styles.statChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.statNum, { color: colors.primary }]}>
-            {tradeHistory.length > 0 ? ((wins / tradeHistory.length) * 100).toFixed(0) : 0}%
+            {winRate.toFixed(0)}%
           </Text>
           <Text style={[styles.statLbl, { color: colors.mutedForeground }]}>Win Rate</Text>
         </View>
       </View>
 
+      {/* ── Filter ─────────────────────────────────────────────────────────── */}
       <View style={styles.filterRow}>
         {(["all", "win", "loss"] as const).map((f) => (
           <TouchableOpacity
@@ -165,9 +205,7 @@ export default function HistoryScreen() {
             onPress={() => setFilter(f)}
             style={[
               styles.filterBtn,
-              {
-                backgroundColor: filter === f ? colors.primary : colors.muted,
-              },
+              { backgroundColor: filter === f ? colors.primary : colors.muted },
             ]}
           >
             <Text
@@ -182,14 +220,15 @@ export default function HistoryScreen() {
         ))}
       </View>
 
+      {/* ── Trade list ─────────────────────────────────────────────────────── */}
       {filtered.length === 0 ? (
         <View style={styles.empty}>
           <Feather name="clock" size={40} color={colors.mutedForeground} />
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            No trades yet
+            {tradeHistory.length === 0 ? "No trades yet" : "No trades match filter"}
           </Text>
           <Text style={[styles.emptySubText, { color: colors.mutedForeground }]}>
-            Open a position to start trading
+            {tradeHistory.length === 0 ? "Open a position to start trading" : "Try a different filter"}
           </Text>
         </View>
       ) : (
@@ -203,6 +242,25 @@ export default function HistoryScreen() {
           }}
         />
       )}
+    </View>
+  );
+}
+
+function StatChip({
+  label,
+  value,
+  valueColor,
+  colors,
+}: {
+  label: string;
+  value: string;
+  valueColor: string;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <View style={[styles.accountChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Text style={[styles.accountLabel, { color: colors.mutedForeground }]}>{label}</Text>
+      <Text style={[styles.accountValue, { color: valueColor }]}>{value}</Text>
     </View>
   );
 }
@@ -236,6 +294,26 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "700" as const },
   pnlSummary: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   pnlSummaryText: { fontSize: 14, fontWeight: "700" as const },
+
+  // Account stats grid (2-column)
+  accountGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  accountChip: {
+    width: "47.5%",
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
+  },
+  accountLabel: { fontSize: 10, fontWeight: "500" as const },
+  accountValue: { fontSize: 14, fontWeight: "700" as const },
+
+  // Trade summary row
   statsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 14, marginBottom: 12 },
   statChip: {
     flex: 1,
@@ -244,21 +322,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
   },
-  statNum: { fontSize: 16, fontWeight: "700" as const },
+  statNum: { fontSize: 15, fontWeight: "700" as const },
   statLbl: { fontSize: 10, marginTop: 2 },
+
   filterRow: { flexDirection: "row", gap: 8, paddingHorizontal: 14, marginBottom: 12 },
-  filterBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 8,
-  },
+  filterBtn: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8 },
   filterText: { fontSize: 13, fontWeight: "600" as const },
-  card: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
-    marginBottom: 10,
-  },
+
+  card: { borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 10 },
   cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -282,7 +353,7 @@ const styles = StyleSheet.create({
   },
   detailLabel: { fontSize: 10, marginBottom: 2 },
   detailValue: { fontSize: 12, fontWeight: "500" as const },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, marginTop: 80 },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, marginTop: 60 },
   emptyText: { fontSize: 16, fontWeight: "600" as const },
   emptySubText: { fontSize: 13 },
 });

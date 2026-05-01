@@ -27,7 +27,6 @@ export default function PortfolioScreen() {
     getTotalPortfolioValue,
     closePosition,
     resetAccount,
-    tradeHistory,
     currencyMode,
     usdToInr,
   } = useTradingContext();
@@ -36,14 +35,8 @@ export default function PortfolioScreen() {
   const totalValue = getTotalPortfolioValue();
   const totalPnL = totalValue - INITIAL_BALANCE;
   const totalPnLPct = (totalPnL / INITIAL_BALANCE) * 100;
-  const marginUsed = positions.reduce((s, p) => s + p.margin, 0);
-
-  const winTrades = tradeHistory.filter((t) => t.pnl > 0).length;
-  const winRate = tradeHistory.length > 0 ? (winTrades / tradeHistory.length) * 100 : 0;
-  const totalRealizedPnL = tradeHistory.reduce((s, t) => s + t.pnl, 0);
 
   const isUSD = currencyMode === "usd";
-  const sym = isUSD ? "$" : "₹";
 
   function fmt(amount: number, decimals = 2): string {
     if (isUSD) {
@@ -82,6 +75,7 @@ export default function PortfolioScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* ── Total Portfolio Value ─────────────────────────────────────────── */}
       <View style={[styles.portfolioCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.portfolioLabel, { color: colors.mutedForeground }]}>
           Total Portfolio Value
@@ -90,20 +84,10 @@ export default function PortfolioScreen() {
           {fmt(totalValue)}
         </Text>
         <View style={styles.pnlRow}>
-          <Text
-            style={[
-              styles.totalPnL,
-              { color: totalPnL >= 0 ? colors.bull : colors.bear },
-            ]}
-          >
+          <Text style={[styles.totalPnL, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
             {totalPnL >= 0 ? "+" : ""}{fmt(totalPnL)}
           </Text>
-          <View
-            style={[
-              styles.pnlBadge,
-              { backgroundColor: totalPnL >= 0 ? colors.bullBg : colors.bearBg },
-            ]}
-          >
+          <View style={[styles.pnlBadge, { backgroundColor: totalPnL >= 0 ? colors.bullBg : colors.bearBg }]}>
             <Text style={[styles.pnlBadgeText, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
               {totalPnLPct >= 0 ? "+" : ""}{totalPnLPct.toFixed(2)}%
             </Text>
@@ -111,60 +95,18 @@ export default function PortfolioScreen() {
         </View>
       </View>
 
-      <View style={styles.statsGrid}>
-        <StatCard
-          label="Available Balance"
-          value={fmt(balance, 0)}
-          icon="dollar-sign"
-          colors={colors}
-          iconColor={colors.primary}
-        />
-        <StatCard
-          label="Margin Used"
-          value={fmt(marginUsed, 0)}
-          icon="lock"
-          colors={colors}
-          iconColor="#f59e0b"
-        />
-        <StatCard
-          label="Running P&L"
-          value={`${runningPnL >= 0 ? "+" : ""}${fmt(runningPnL)}`}
-          icon="activity"
-          colors={colors}
-          iconColor={runningPnL >= 0 ? colors.bull : colors.bear}
-          valueColor={runningPnL >= 0 ? colors.bull : colors.bear}
-        />
-        <StatCard
-          label="Realized P&L"
-          value={`${totalRealizedPnL >= 0 ? "+" : ""}${fmt(totalRealizedPnL)}`}
-          icon="trending-up"
-          colors={colors}
-          iconColor={totalRealizedPnL >= 0 ? colors.bull : colors.bear}
-          valueColor={totalRealizedPnL >= 0 ? colors.bull : colors.bear}
-        />
-        <StatCard
-          label="Win Rate"
-          value={`${winRate.toFixed(1)}%`}
-          icon="award"
-          colors={colors}
-          iconColor="#6366f1"
-        />
-        <StatCard
-          label="Total Trades"
-          value={`${tradeHistory.length}`}
-          icon="list"
-          colors={colors}
-          iconColor={colors.primary}
-        />
-      </View>
-
-      {positions.length > 0 && (
-        <View style={{ marginHorizontal: 14, marginTop: 8 }}>
+      {/* ── Open Positions ────────────────────────────────────────────────── */}
+      {positions.length === 0 ? (
+        <View style={styles.emptyPos}>
+          <Feather name="inbox" size={36} color={colors.mutedForeground} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No open positions</Text>
+        </View>
+      ) : (
+        <View style={{ marginHorizontal: 14, marginTop: 4 }}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
             Open Positions ({positions.length})
           </Text>
           {positions.map((pos) => {
-            const posSymbol = pos.symbol.type === "crypto" ? "$" : "₹";
             const priceDiff =
               pos.side === "buy"
                 ? currentPrice - pos.entryPrice
@@ -197,8 +139,8 @@ export default function PortfolioScreen() {
                   </TouchableOpacity>
                 </View>
                 <View style={styles.posDetails}>
-                  <Detail label="Entry" value={`${posSymbol}${pos.entryPrice.toFixed(2)}`} colors={colors} />
-                  <Detail label="Current" value={`${posSymbol}${currentPrice.toFixed(2)}`} colors={colors} />
+                  <Detail label="Entry" value={`$${pos.entryPrice.toFixed(4)}`} colors={colors} />
+                  <Detail label="Current" value={`$${currentPrice.toFixed(4)}`} colors={colors} />
                   <Detail label="Qty" value={`${pos.quantity}`} colors={colors} />
                   <Detail label="Margin" value={fmt(pos.margin, 0)} colors={colors} />
                 </View>
@@ -219,41 +161,7 @@ export default function PortfolioScreen() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  icon,
-  colors,
-  iconColor,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  icon: string;
-  colors: ReturnType<typeof useColors>;
-  iconColor: string;
-  valueColor?: string;
-}) {
-  return (
-    <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={[styles.statIcon, { backgroundColor: `${iconColor}20` }]}>
-        <Feather name={icon as any} size={16} color={iconColor} />
-      </View>
-      <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{label}</Text>
-      <Text style={[styles.statValue, { color: valueColor ?? colors.foreground }]}>{value}</Text>
-    </View>
-  );
-}
-
-function Detail({
-  label,
-  value,
-  colors,
-}: {
-  label: string;
-  value: string;
-  colors: ReturnType<typeof useColors>;
-}) {
+function Detail({ label, value, colors }: { label: string; value: string; colors: ReturnType<typeof useColors> }) {
   return (
     <View style={styles.detailItem}>
       <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>{label}</Text>
@@ -287,7 +195,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 14,
     borderWidth: 1,
-    marginBottom: 14,
+    marginBottom: 18,
     alignItems: "center",
   },
   portfolioLabel: { fontSize: 12, marginBottom: 6 },
@@ -296,36 +204,11 @@ const styles = StyleSheet.create({
   totalPnL: { fontSize: 17, fontWeight: "700" as const },
   pnlBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   pnlBadgeText: { fontSize: 12, fontWeight: "700" as const },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    paddingHorizontal: 14,
-    marginBottom: 16,
-  },
-  statCard: {
-    width: "47%",
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 6,
-  },
-  statIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  statLabel: { fontSize: 11, marginTop: 2 },
-  statValue: { fontSize: 16, fontWeight: "700" as const },
   sectionTitle: { fontSize: 15, fontWeight: "700" as const, marginBottom: 10 },
-  posCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 10,
-  },
-  posTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
+  emptyPos: { alignItems: "center", justifyContent: "center", gap: 8, marginTop: 60 },
+  emptyText: { fontSize: 15, fontWeight: "500" as const },
+  posCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 10 },
+  posTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   posLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   sideBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
   sideText: { fontSize: 11, fontWeight: "700" as const },
