@@ -79,9 +79,9 @@ export default function SplashScreen() {
         >
           <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
           <Image
-            source={require("@/assets/images/logo_transparent.png")}
+            source={require("@/assets/images/logo.png")}
             style={styles.logo}
-            resizeMode="contain"
+            resizeMode="cover"
           />
         </Animated.View>
 
@@ -144,6 +144,8 @@ const styles = StyleSheet.create({
   logo: {
     width: 150,
     height: 150,
+    borderRadius: 75,
+    overflow: "hidden",
   },
   appName: {
     fontSize: 32,

@@ -92,9 +92,9 @@ function LogoSlide({ accent }: { accent: string }) {
       <Animated.View style={[styles.glowRing1, { borderColor: accent + "40", opacity: glowOpacity, transform: [{ scale: ring1Anim }] }]} />
       <Animated.View style={[styles.logoBg, { borderColor: accent + "60", shadowColor: accent }]}>
         <Image
-          source={require("@/assets/images/logo_transparent.png")}
+          source={require("@/assets/images/logo.png")}
           style={styles.logoImg}
-          resizeMode="contain"
+          resizeMode="cover"
         />
       </Animated.View>
     </Animated.View>
@@ -215,12 +215,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#ffffff08",
+    backgroundColor: "#000",
+    overflow: "hidden",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 30,
   },
-  logoImg: { width: 100, height: 100 },
+  logoImg: { width: 130, height: 130, borderRadius: 65 },
   glowRing1: {
     position: "absolute",
     width: 160,
