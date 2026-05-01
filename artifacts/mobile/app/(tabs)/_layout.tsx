@@ -92,6 +92,18 @@ export default function TabLayout() {
               ),
           }}
         />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: "Settings",
+            tabBarIcon: ({ color, size }) =>
+              isIOS ? (
+                <SymbolView name="gearshape.fill" tintColor={color} size={size} />
+              ) : (
+                <Feather name="settings" size={22} color={color} />
+              ),
+          }}
+        />
       </Tabs>
     </View>
   );

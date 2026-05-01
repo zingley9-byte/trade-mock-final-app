@@ -170,7 +170,7 @@ export default function AppHeader() {
             />
           </View>
 
-          <TouchableOpacity style={styles.menuRow}>
+          <TouchableOpacity style={styles.menuRow} onPress={() => { setProfileOpen(false); router.push("/(tabs)/settings"); }}>
             <View style={styles.menuLeft}>
               <Feather name="settings" size={16} color={colors.foreground} />
               <Text style={[styles.menuText, { color: colors.foreground }]}>Settings</Text>
