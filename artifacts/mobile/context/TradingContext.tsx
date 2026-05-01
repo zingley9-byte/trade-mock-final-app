@@ -531,7 +531,14 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     if (lastSymbolRef.current === selectedSymbol.id) return;
     lastSymbolRef.current = selectedSymbol.id;
     setCandles([]);
-    setCurrentPrice(0);
+    // For Indian symbols use the base price immediately — never 0 — so trades
+    // can be placed the instant the user switches. For crypto we reset to 0
+    // (shows "Loading...") while the real Binance data arrives.
+    setCurrentPrice(
+      selectedSymbol.type === "indian"
+        ? (INDIAN_BASE_PRICES[selectedSymbol.id] ?? 20000)
+        : 0
+    );
     fetchCandles(selectedSymbol, timeframe);
     fetch24hStats(selectedSymbol);
     const cleanup = connectWebSocket(selectedSymbol);
