@@ -17,7 +17,7 @@ import {
   View,
 } from "react-native";
 import { TM_AUTH_KEY } from "@/constants/authKeys";
-import { auth } from "@/lib/firebase";
+import { getFirebaseAuth } from "@/lib/firebase";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -86,12 +86,13 @@ export default function AuthScreen() {
 
     setLoading(true);
     try {
+      const fbAuth = getFirebaseAuth();
       if (mode === "login") {
-        const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+        const cred = await signInWithEmailAndPassword(fbAuth, email.trim(), password);
         const user = cred.user;
         await saveUser(user.uid, user.email ?? email, user.displayName ?? email.split("@")[0]);
       } else {
-        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const cred = await createUserWithEmailAndPassword(fbAuth, email.trim(), password);
         await updateProfile(cred.user, { displayName: name.trim() });
         await saveUser(cred.user.uid, email, name.trim());
       }
@@ -111,8 +112,9 @@ export default function AuthScreen() {
     setLoading(true);
     setError("");
     try {
+      const fbAuth = getFirebaseAuth();
       const provider = new GoogleAuthProvider();
-      const cred = await signInWithPopup(auth, provider);
+      const cred = await signInWithPopup(fbAuth, provider);
       const user = cred.user;
       await saveUser(user.uid, user.email ?? "", user.displayName ?? "Trader");
       router.replace("/(tabs)");
