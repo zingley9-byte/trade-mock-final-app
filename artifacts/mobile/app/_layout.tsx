@@ -43,7 +43,10 @@ export default function RootLayout() {
           <TradingProvider>
             <GestureHandlerRootView style={{ flex: 1 }}>
               <KeyboardProvider>
-                <Stack screenOptions={{ headerShown: false }}>
+                <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
+                  <Stack.Screen name="index" options={{ headerShown: false }} />
+                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                  <Stack.Screen name="auth" options={{ headerShown: false }} />
                   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 </Stack>
               </KeyboardProvider>

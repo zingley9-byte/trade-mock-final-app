@@ -1,4 +1,5 @@
 import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Image,
@@ -64,11 +65,13 @@ export default function AppHeader() {
         {
           text: "Logout & Reset",
           style: "destructive",
-          onPress: () => {
+          onPress: async () => {
             setProfileImage(null);
-            AsyncStorage.removeItem(PROFILE_KEY);
+            await AsyncStorage.removeItem(PROFILE_KEY);
+            await AsyncStorage.removeItem("tm_auth_user");
             resetAccount();
             setProfileOpen(false);
+            router.replace("/auth");
           },
         },
       ]
