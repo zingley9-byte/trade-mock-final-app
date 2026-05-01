@@ -1,0 +1,81 @@
+🔔 1. HTML (index.html)
+<button onclick="enableNotification()">Enable Notification</button>
+<button onclick="setAlert()">Set BTC Alert (₹70,000)</button>
+
+<script type="module" src="app.js"></script>
+⚙️ 2. Firebase + Notification (app.js)
+
+👉 YOUR_VAPID_KEY को अपनी key से replace करो
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js";
+
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const messaging = getMessaging(app);
+
+let userToken = null;
+
+// 🔔 Permission
+window.enableNotification = async () => {
+  const permission = await Notification.requestPermission();
+  if (permission === "granted") {
+    userToken = await getToken(messaging, {
+      vapidKey: "YOUR_VAPID_KEY"
+    });
+    console.log("Token:", userToken);
+    alert("Notification Enabled ✅");
+  }
+};
+
+// 🎯 Alert set
+let targetPrice = 70000;
+
+// 📡 Binance live price
+const socket = new WebSocket("wss://stream.binance.com:9443/ws/btcusdt@trade");
+
+socket.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  const price = parseFloat(data.p);
+
+  console.log("BTC Price:", price);
+
+  if (price >= targetPrice) {
+    showNotification(price);
+  }
+};
+
+// 🔔 Notification show
+function showNotification(price) {
+  new Notification("🚀 BTC Alert", {
+    body: `Price reached: $${price}`
+  });
+}
+📁 3. Service Worker (firebase-messaging-sw.js)
+
+👉 same folder me file banao
+
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+});
+
+const messaging = firebase.messaging();
+⚠️ Important Setup
+
+✔ App HTTPS par hona chahiye (Replit OK)
+✔ First click → “Enable Notification”
+✔ Browser allow karna
