@@ -42,11 +42,9 @@ export default function HistoryScreen() {
   function fmt(amount: number, decimals = 2): string {
     if (isUSD) {
       const usd = amount / usdToInr;
-      if (Math.abs(usd) >= 1_000) return `$${usd.toLocaleString("en-US", { maximumFractionDigits: decimals })}`;
-      return `$${usd.toFixed(decimals)}`;
+      return `$${usd.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
     }
-    if (Math.abs(amount) >= 100_000) return `₹${(amount / 100_000).toFixed(2)}L`;
-    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: decimals })}`;
+    return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
   }
 
   const filtered = tradeHistory.filter((t) => {

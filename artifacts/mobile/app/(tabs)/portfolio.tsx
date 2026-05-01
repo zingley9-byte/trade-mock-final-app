@@ -48,13 +48,9 @@ export default function PortfolioScreen() {
   function fmt(amount: number, decimals = 2): string {
     if (isUSD) {
       const usd = amount / usdToInr;
-      if (Math.abs(usd) >= 1_000_000)
-        return `$${(usd / 1_000_000).toFixed(2)}M`;
-      if (Math.abs(usd) >= 1_000)
-        return `$${usd.toLocaleString("en-US", { maximumFractionDigits: decimals })}`;
-      return `$${usd.toFixed(decimals)}`;
+      return `$${usd.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
     }
-    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: decimals })}`;
+    return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
   }
 
   function handleReset() {

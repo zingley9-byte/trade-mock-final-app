@@ -74,13 +74,9 @@ export default function OrderPanel() {
   function formatBalance(amount: number): string {
     if (currencyMode === "usd") {
       const usd = amount / usdToInr;
-      if (Math.abs(usd) >= 1_000_000) return `$${(usd / 1_000_000).toFixed(2)}M`;
-      if (Math.abs(usd) >= 1_000)     return `$${usd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-      return `$${usd.toFixed(2)}`;
+      return `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
-    if (Math.abs(amount) >= 10_000_000) return `₹${(amount / 10_000_000).toFixed(2)}Cr`;
-    if (Math.abs(amount) >= 100_000)    return `₹${(amount / 100_000).toFixed(2)}L`;
-    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+    return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   function formatNum(n: number): string {
