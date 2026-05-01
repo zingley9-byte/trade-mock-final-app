@@ -61,7 +61,13 @@ export default function OrderPanel() {
   const priceForMargin = selectedSymbol.type === "crypto"
     ? effectivePrice * usdToInr
     : effectivePrice;
-  const margin  = qty > 0 && priceForMargin > 0 ? (priceForMargin * qty) / leverage : 0;
+  // Mirror TradingContext: Indian F&O uses 10% SEBI SPAN margin on contract value
+  const INDIAN_MARGIN_RATE = 0.10;
+  const margin  = qty > 0 && priceForMargin > 0
+    ? isIndian
+      ? (priceForMargin * qty * INDIAN_MARGIN_RATE) / leverage
+      : (priceForMargin * qty) / leverage
+    : 0;
   const symbol  = selectedSymbol.type === "crypto" ? "$" : "₹";
 
   // ── Formatters ───────────────────────────────────────────────────────────
@@ -374,7 +380,9 @@ export default function OrderPanel() {
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Margin Required</Text>
+          <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>
+            {isIndian ? "Margin (SPAN 10%)" : "Margin Required"}
+          </Text>
           <Text style={[styles.summaryValue, { color: colors.foreground }]}>{formatBalance(margin)}</Text>
         </View>
         <View style={styles.summaryRow}>

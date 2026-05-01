@@ -148,6 +148,9 @@ function calcPnL(pos: Position, currentPrice: number): number {
   return priceDiff * pos.quantity * pos.leverage;
 }
 
+// Indian F&O uses SEBI SPAN margin (~10% of contract value, like real brokers)
+const INDIAN_MARGIN_RATE = 0.10;
+
 const BINANCE_REST = "https://data-api.binance.vision/api/v3";
 const BINANCE_WS = "wss://data-stream.binance.vision/ws";
 const API_BASE = "/api";
@@ -573,7 +576,11 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
       const priceForMargin =
         selectedSymbol.type === "crypto" ? usePrice * usdToInr : usePrice;
-      const margin = (priceForMargin * params.quantity) / leverage;
+      // Indian F&O: SEBI SPAN margin (~10% of contract value), same as real brokers
+      const margin =
+        selectedSymbol.type === "indian"
+          ? (priceForMargin * params.quantity * INDIAN_MARGIN_RATE) / leverage
+          : (priceForMargin * params.quantity) / leverage;
       if (margin > balance)
         return { success: false, message: "Insufficient balance" };
 
