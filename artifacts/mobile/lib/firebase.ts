@@ -2,7 +2,7 @@ import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_GOOGLE_API_KEY,
+  apiKey: process.env.GOOGLE_API_KEY || "",
   authDomain: "trademock-webs.firebaseapp.com",
   projectId: "trademock-webs",
   storageBucket: "trademock-webs.firebasestorage.app",
