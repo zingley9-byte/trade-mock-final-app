@@ -15,6 +15,7 @@ import LightweightChart, { IndicatorConfig } from "@/components/LightweightChart
 import SymbolSelector from "@/components/SymbolSelector";
 import TimeframeSelector from "@/components/TimeframeSelector";
 import PriceBar from "@/components/PriceBar";
+import CoinLogo from "@/components/CoinLogo";
 import { MarketSymbol, SYMBOLS, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -56,9 +57,7 @@ function WatchlistRow({
       ]}
     >
       <View style={styles.rowLeft}>
-        <View style={[styles.coinDot, { backgroundColor: coinColor }]}>
-          <Text style={styles.coinDotText}>{ticker.charAt(0)}</Text>
-        </View>
+        <CoinLogo symbolId={symbol.id} size={36} />
         <View>
           <Text style={[styles.coinName, { color: colors.foreground }]}>{ticker}</Text>
           <Text style={[styles.coinSub, { color: colors.mutedForeground }]}>{symbol.name}</Text>

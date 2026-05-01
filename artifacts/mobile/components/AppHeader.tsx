@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SYMBOLS, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import CoinLogo from "@/components/CoinLogo";
 
 const PROFILE_KEY = "trademock_profile_image";
 
@@ -188,7 +189,6 @@ export default function AppHeader() {
                   </View>
                   {searchResults.coins.map((sym) => {
                     const ticker = sym.label.replace("/USDT", "");
-                    const coinColor = COIN_COLORS[sym.id] ?? colors.primary;
                     const price = symbolPrices[sym.id];
                     return (
                       <TouchableOpacity
@@ -197,9 +197,7 @@ export default function AppHeader() {
                         onPress={() => selectCoin(sym)}
                         activeOpacity={0.7}
                       >
-                        <View style={[styles.resultIcon, { backgroundColor: coinColor + "22" }]}>
-                          <Text style={[styles.resultIconText, { color: coinColor }]}>{ticker.charAt(0)}</Text>
-                        </View>
+                        <CoinLogo symbolId={sym.id} size={32} />
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.resultLabel, { color: colors.foreground }]}>{ticker}</Text>
                           <Text style={[styles.resultSub, { color: colors.mutedForeground }]}>{sym.name}</Text>
