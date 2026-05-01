@@ -550,6 +550,10 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   const setSelectedSymbol = useCallback((s: MarketSymbol) => {
     lastSymbolRef.current = "";
+    // Set Indian base price immediately so there is never a zero-price window
+    if (s.type === "indian") {
+      setCurrentPrice(INDIAN_BASE_PRICES[s.id] ?? 20000);
+    }
     setSelectedSymbolState(s);
   }, []);
 
@@ -565,12 +569,18 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       takeProfit?: number;
       entryPrice?: number;
     }): { success: boolean; message: string } => {
-      if (currentPrice === 0)
-        return { success: false, message: "Price not loaded" };
+      // For Indian symbols always fall back to base price if WebSocket hasn't fired yet
+      const effectiveCurrentPrice =
+        currentPrice === 0 && selectedSymbol.type === "indian"
+          ? (INDIAN_BASE_PRICES[selectedSymbol.id] ?? 20000)
+          : currentPrice;
+
+      if (effectiveCurrentPrice === 0)
+        return { success: false, message: "Price not loaded yet — please wait a moment" };
       if (params.quantity <= 0)
         return { success: false, message: "Invalid quantity" };
 
-      const usePrice = params.entryPrice ?? currentPrice;
+      const usePrice = params.entryPrice ?? effectiveCurrentPrice;
       if (usePrice <= 0)
         return { success: false, message: "Invalid entry price" };
 

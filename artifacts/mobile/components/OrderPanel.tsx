@@ -1,7 +1,6 @@
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -45,6 +44,7 @@ export default function OrderPanel() {
   const [takeProfit,  setTakeProfit]  = useState("");
   const [priceMode,   setPriceMode]   = useState<"auto" | "manual">("auto");
   const [manualPrice, setManualPrice] = useState("");
+  const [orderError,  setOrderError]  = useState("");
 
   const isIndian   = selectedSymbol.type === "indian";
   const lotSize    = LOT_SIZES[selectedSymbol.id] ?? 1;
@@ -88,9 +88,10 @@ export default function OrderPanel() {
 
   // ── Order handler ─────────────────────────────────────────────────────────
   function handleOrder() {
-    if (qty <= 0) { Alert.alert("Invalid", "Enter a valid quantity"); return; }
+    setOrderError("");
+    if (qty <= 0) { setOrderError("Enter a valid quantity"); return; }
     if (priceMode === "manual" && (!manualPrice || parseFloat(manualPrice) <= 0)) {
-      Alert.alert("Invalid", "Enter a valid entry price"); return;
+      setOrderError("Enter a valid entry price"); return;
     }
     const sl = stopLoss   ? parseFloat(stopLoss)   : undefined;
     const tp = takeProfit ? parseFloat(takeProfit) : undefined;
@@ -100,8 +101,9 @@ export default function OrderPanel() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStopLoss("");
       setTakeProfit("");
+      setOrderError("");
     } else {
-      Alert.alert("Order Failed", result.message);
+      setOrderError(result.message);
     }
   }
 
@@ -393,6 +395,14 @@ export default function OrderPanel() {
         </View>
       </View>
 
+      {/* ── Inline error ──────────────────────────────────────────────────── */}
+      {orderError !== "" && (
+        <View style={[styles.errorBox, { backgroundColor: "#ef444422", borderColor: "#ef4444" }]}>
+          <Feather name="alert-circle" size={13} color="#ef4444" />
+          <Text style={styles.errorText}>{orderError}</Text>
+        </View>
+      )}
+
       {/* ── Place order button ────────────────────────────────────────────── */}
       <TouchableOpacity
         style={[styles.orderBtn, { backgroundColor: side === "buy" ? colors.bull : colors.bear }]}
@@ -579,6 +589,10 @@ const styles = StyleSheet.create({
   summaryRight: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
   manualTag:    { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   manualTagText:{ fontSize: 9, fontWeight: "700" as const },
+
+  // Inline error
+  errorBox:  { flexDirection: "row", alignItems: "center", gap: 7, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 10 },
+  errorText: { color: "#ef4444", fontSize: 13, fontWeight: "500" as const, flex: 1 },
 
   // Order button
   orderBtn:     { borderRadius: 10, paddingVertical: 15, alignItems: "center", marginBottom: 16 },
