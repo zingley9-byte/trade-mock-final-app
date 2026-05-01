@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
   errorText: { color: "#ef4444", fontSize: 13, fontWeight: "500" as const, flex: 1 },
 
   // Order button
-  orderBtn:     { borderRadius: 10, paddingVertical: 15, alignItems: "center", marginBottom: 16 },
+  orderBtn:     { borderRadius: 10, paddingVertical: 15, alignItems: "center", marginBottom: 90 },
   orderBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" as const, letterSpacing: 0.5 },
 
   // Open positions
