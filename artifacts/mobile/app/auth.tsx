@@ -93,7 +93,7 @@ export default function AuthScreen() {
       } else if (e?.code === "auth/user-not-found") {
         setError("No account found with this email.");
       } else if (e?.code === "auth/wrong-password" || e?.code === "auth/invalid-credential") {
-        setError("Incorrect email or password.");
+        setError("Password is incorrect.");
       } else if (e?.code === "auth/too-many-requests") {
         setError("Too many attempts. Try again later.");
       } else {

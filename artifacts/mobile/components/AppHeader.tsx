@@ -24,7 +24,7 @@ const PROFILE_KEY = "trademock_profile_image";
 export default function AppHeader() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { theme, setTheme, marketFilter, setMarketFilter, resetAccount, currencyMode, setCurrencyMode } =
+  const { theme, setTheme, currencyMode, setCurrencyMode } =
     useTradingContext();
 
   const [profileOpen, setProfileOpen] = useState(false);
@@ -59,17 +59,16 @@ export default function AppHeader() {
   function handleLogout() {
     Alert.alert(
       "Logout",
-      "Reset account and clear all data?",
+      "Are you sure you want to logout?",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Logout & Reset",
+          text: "Logout",
           style: "destructive",
           onPress: async () => {
             setProfileImage(null);
             await AsyncStorage.removeItem(PROFILE_KEY);
             await AsyncStorage.removeItem("tm_auth_user");
-            resetAccount();
             setProfileOpen(false);
             router.replace("/auth");
           },
