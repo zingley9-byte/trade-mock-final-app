@@ -112,7 +112,8 @@ interface TradingContextType {
   closePosition: (positionId: string) => void;
   getRunningPnL: () => number;
   getTotalPortfolioValue: () => number;
-  resetAccount: () => void;
+  resetAccount: () => { allowed: boolean; message: string };
+  resetsRemaining: number;
 }
 
 const TradingContext = createContext<TradingContextType | null>(null);
@@ -182,6 +183,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [usdToInr, setUsdToInr] = useState(84);
   const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
   const [symbolChanges, setSymbolChanges] = useState<Record<string, number>>({});
+  const [resetTimestamps, setResetTimestamps] = useState<number[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -277,6 +279,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         if (saved.leverage) setLeverage(saved.leverage);
         if (saved.marketFilter) setMarketFilterState(saved.marketFilter);
         if (saved.currencyMode) setCurrencyModeState(saved.currencyMode);
+        if (Array.isArray(saved.resetTimestamps)) setResetTimestamps(saved.resetTimestamps);
       }
     } catch {}
   }
@@ -288,7 +291,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     newTheme: "dark" | "light",
     newLeverage: number,
     newMarketFilter?: "crypto",
-    newCurrencyMode?: "usd" | "inr"
+    newCurrencyMode?: "usd" | "inr",
+    newResetTimestamps?: number[]
   ) {
     try {
       await AsyncStorage.setItem(
@@ -301,6 +305,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
           leverage: newLeverage,
           marketFilter: newMarketFilter,
           currencyMode: newCurrencyMode,
+          resetTimestamps: newResetTimestamps ?? resetTimestamps,
         })
       );
     } catch {}
@@ -592,13 +597,29 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     return balance + marginUsed + getRunningPnL();
   }, [balance, positions, getRunningPnL]);
 
-  const resetAccount = useCallback(async () => {
+  const RESET_LIMIT = 2;
+  const RESET_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+  const resetAccount = useCallback((): { allowed: boolean; message: string } => {
+    const now = Date.now();
+    const recent = resetTimestamps.filter((t) => now - t < RESET_WINDOW_MS);
+    if (recent.length >= RESET_LIMIT) {
+      const oldest = Math.min(...recent);
+      const daysLeft = Math.ceil((RESET_WINDOW_MS - (now - oldest)) / (24 * 60 * 60 * 1000));
+      return {
+        allowed: false,
+        message: `Reset limit reached (${RESET_LIMIT}/30 days). Try again in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}.`,
+      };
+    }
+    const newTimestamps = [...recent, now];
+    setResetTimestamps(newTimestamps);
     setBalance(INITIAL_BALANCE);
     setPositions([]);
     setTradeHistory([]);
     setLeverage(1);
-    await AsyncStorage.removeItem(STORAGE_KEY);
-  }, []);
+    saveState(INITIAL_BALANCE, [], [], theme, 1, marketFilter, currencyMode, newTimestamps);
+    return { allowed: true, message: "Account reset successfully." };
+  }, [resetTimestamps, theme, marketFilter, currencyMode]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -695,6 +716,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         getRunningPnL,
         getTotalPortfolioValue,
         resetAccount,
+        resetsRemaining: Math.max(0, 2 - resetTimestamps.filter((t) => Date.now() - t < 30 * 24 * 60 * 60 * 1000).length),
       }}
     >
       {children}

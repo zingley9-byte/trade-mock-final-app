@@ -27,6 +27,7 @@ export default function PortfolioScreen() {
     getTotalPortfolioValue,
     closePosition,
     resetAccount,
+    resetsRemaining,
     currencyMode,
     usdToInr,
   } = useTradingContext();
@@ -47,12 +48,23 @@ export default function PortfolioScreen() {
   }
 
   function handleReset() {
+    if (resetsRemaining === 0) {
+      Alert.alert("Limit Reached", "You have used all 2 resets for this 30-day period.");
+      return;
+    }
     Alert.alert(
       "Reset Account",
-      `This will reset your balance to ${isUSD ? "$1,000,000" : "₹10,00,000"} and clear all history.`,
+      `This will reset your balance to ${isUSD ? "$1,000,000" : "₹10,00,000"} and clear all history.\n\nResets remaining after this: ${resetsRemaining - 1}/2 (30 days)`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Reset", style: "destructive", onPress: resetAccount },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: () => {
+            const result = resetAccount();
+            if (!result.allowed) Alert.alert("Limit Reached", result.message);
+          },
+        },
       ]
     );
   }
@@ -68,10 +80,12 @@ export default function PortfolioScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>Portfolio</Text>
         <TouchableOpacity
           onPress={handleReset}
-          style={[styles.resetBtn, { borderColor: colors.border }]}
+          style={[styles.resetBtn, { borderColor: colors.border, opacity: resetsRemaining === 0 ? 0.4 : 1 }]}
         >
           <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
-          <Text style={[styles.resetText, { color: colors.mutedForeground }]}>Reset</Text>
+          <Text style={[styles.resetText, { color: colors.mutedForeground }]}>
+            Reset ({resetsRemaining}/2)
+          </Text>
         </TouchableOpacity>
       </View>
 
