@@ -3,8 +3,11 @@ import {
   Alert,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -87,7 +90,12 @@ export default function AlertsModal({ visible, onClose }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={onClose} />
+      <Pressable style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={() => { Keyboard.dismiss(); onClose(); }} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.kavWrap}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
+      >
       <View style={[styles.sheet, { backgroundColor: colors.card }]}>
 
         {/* Header */}
@@ -188,24 +196,24 @@ export default function AlertsModal({ visible, onClose }: Props) {
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No alerts set</Text>
           </View>
         ) : (
-          <FlatList
-            data={alerts}
-            keyExtractor={(a) => a.id}
-            renderItem={renderAlert}
-            style={{ maxHeight: 240 }}
-          />
+          <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+            {alerts.map((item) => (
+              <View key={item.id}>{renderAlert({ item })}</View>
+            ))}
+          </ScrollView>
         )}
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  kavWrap:  { position: "absolute", bottom: 0, left: 0, right: 0 },
   sheet: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    paddingBottom: 40, maxHeight: "88%",
+    paddingBottom: 40, maxHeight: "92%",
   },
   header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 18, paddingTop: 22 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
