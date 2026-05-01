@@ -164,27 +164,50 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
   "1D": "1d",
 };
 
-const INDIAN_BASE_PRICES: Record<string, number> = {
-  NIFTY50: 24200,
-  SENSEX: 79500,
-  BANKNIFTY: 51800,
-  BANKEX: 57000,
+// Price ranges for Indian index simulation
+const INDIAN_PRICE_RANGES: Record<string, { min: number; max: number }> = {
+  NIFTY50:   { min: 23900, max: 24000 },
+  SENSEX:    { min: 75000, max: 76900 },
+  BANKNIFTY: { min: 51200, max: 52400 },
+  BANKEX:    { min: 56200, max: 57800 },
 };
+
+const INDIAN_BASE_PRICES: Record<string, number> = Object.fromEntries(
+  Object.entries(INDIAN_PRICE_RANGES).map(([id, { min, max }]) => [id, (min + max) / 2])
+);
+
+function clampIndianPrice(symbolId: string, price: number): number {
+  const range = INDIAN_PRICE_RANGES[symbolId];
+  if (!range) return price;
+  return Math.min(Math.max(price, range.min), range.max);
+}
 
 function generateIndianCandles(
   symbolId: string,
   count: number = 120
 ): Candle[] {
+  const range = INDIAN_PRICE_RANGES[symbolId];
   const base = INDIAN_BASE_PRICES[symbolId] ?? 20000;
   const candles: Candle[] = [];
-  let price = base * (0.97 + Math.random() * 0.06);
+  // Start at a random point within the range
+  let price = range
+    ? range.min + Math.random() * (range.max - range.min)
+    : base * (0.97 + Math.random() * 0.06);
   const now = Date.now();
+  // Volatility: ~0.15% per candle, clamped to the range
+  const volatility = base * 0.0015;
   for (let i = count; i >= 0; i--) {
     const open = price;
-    const change = (Math.random() - 0.48) * base * 0.003;
-    const close = Math.max(open + change, base * 0.5);
-    const high = Math.max(open, close) + Math.random() * base * 0.002;
-    const low = Math.min(open, close) - Math.random() * base * 0.002;
+    const change = (Math.random() - 0.48) * volatility;
+    const close = clampIndianPrice(symbolId, open + change);
+    const high = Math.min(
+      Math.max(open, close) + Math.random() * volatility * 0.5,
+      range ? range.max : close * 1.002
+    );
+    const low = Math.max(
+      Math.min(open, close) - Math.random() * volatility * 0.5,
+      range ? range.min : close * 0.998
+    );
     const volume = 100000 + Math.random() * 500000;
     candles.push({ time: now - i * 60000, open, high, low, close, volume });
     price = close;
@@ -417,16 +440,17 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         setIsConnected(false);
         const interval = setInterval(() => {
           setCurrentPrice((prev) => {
-            if (prev === 0) return INDIAN_BASE_PRICES[symbol.id] ?? 20000;
+            const base = INDIAN_BASE_PRICES[symbol.id] ?? 20000;
+            if (prev === 0) return base;
             const delta = prev * (Math.random() - 0.498) * 0.001;
-            return prev + delta;
+            return clampIndianPrice(symbol.id, prev + delta);
           });
           setCandles((prev) => {
             if (prev.length === 0) return prev;
             const last = { ...prev[prev.length - 1] };
             const now = Date.now();
             const delta = last.close * (Math.random() - 0.498) * 0.001;
-            last.close = last.close + delta;
+            last.close = clampIndianPrice(symbol.id, last.close + delta);
             last.high = Math.max(last.high, last.close);
             last.low = Math.min(last.low, last.close);
             last.time = now;
