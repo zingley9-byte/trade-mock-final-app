@@ -89,14 +89,11 @@ export default function AppHeader() {
           },
         ]}
       >
-        <View style={styles.logo}>
-          <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
-            <Feather name="trending-up" size={14} color="#fff" />
-          </View>
-          <Text style={[styles.logoText, { color: colors.foreground }]}>
-            Trade<Text style={{ color: colors.primary }}>Mock</Text>
-          </Text>
-        </View>
+        <Image
+          source={require("@/assets/images/logo_transparent.png")}
+          style={styles.logoImg}
+          resizeMode="contain"
+        />
 
         <View style={styles.rightGroup}>
           <TouchableOpacity
@@ -203,15 +200,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 10,
   },
-  logo: { flexDirection: "row", alignItems: "center", gap: 7 },
-  logoIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoText: { fontSize: 16, fontWeight: "800" as const, letterSpacing: -0.5 },
+  logoImg: { width: 140, height: 44 },
   marketSwitch: {
     flexDirection: "row",
     padding: 3,
