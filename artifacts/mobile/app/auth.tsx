@@ -57,19 +57,6 @@ export default function AuthScreen() {
     setError("");
   }
 
-  function parseFirebaseError(code: string): string {
-    switch (code) {
-      case "auth/invalid-email": return "Invalid email address.";
-      case "auth/user-not-found": return "No account found with this email.";
-      case "auth/wrong-password": return "Incorrect password.";
-      case "auth/email-already-in-use": return "An account already exists with this email.";
-      case "auth/weak-password": return "Password should be at least 6 characters.";
-      case "auth/too-many-requests": return "Too many attempts. Try again later.";
-      case "auth/invalid-credential": return "Incorrect email or password.";
-      default: return "Something went wrong. Please try again.";
-    }
-  }
-
   async function handleSubmit() {
     setError("");
     if (!email.trim()) { setError("Enter your email"); return; }
@@ -94,7 +81,24 @@ export default function AuthScreen() {
       }
       router.replace("/(tabs)");
     } catch (e: any) {
-      setError(parseFirebaseError(e?.code ?? ""));
+      console.log(e?.code, e?.message);
+      if (e?.code === "auth/email-already-in-use") {
+        setError("Email already registered. Please login.");
+      } else if (e?.code === "auth/invalid-email") {
+        setError("Invalid email address.");
+      } else if (e?.code === "auth/weak-password") {
+        setError("Password must be at least 6 characters.");
+      } else if (e?.code === "auth/operation-not-allowed") {
+        setError("Email/Password login is not enabled in Firebase.");
+      } else if (e?.code === "auth/user-not-found") {
+        setError("No account found with this email.");
+      } else if (e?.code === "auth/wrong-password" || e?.code === "auth/invalid-credential") {
+        setError("Incorrect email or password.");
+      } else if (e?.code === "auth/too-many-requests") {
+        setError("Too many attempts. Try again later.");
+      } else {
+        setError(e?.message ?? "Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
