@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { Appearance } from "react-native";
 
-export type MarketType = "crypto" | "indian";
+export type MarketType = "crypto";
 
 export interface MarketSymbol {
   id: string;
@@ -65,10 +65,6 @@ export const SYMBOLS: MarketSymbol[] = [
   { id: "BNBUSDT", name: "BNB", label: "BNB/USDT", type: "crypto" },
   { id: "DOGEUSDT", name: "Dogecoin", label: "DOGE/USDT", type: "crypto" },
   { id: "SOLUSDT", name: "Solana", label: "SOL/USDT", type: "crypto" },
-  { id: "NIFTY50", name: "Nifty 50", label: "NIFTY50", type: "indian" },
-  { id: "SENSEX", name: "BSE Sensex", label: "SENSEX", type: "indian" },
-  { id: "BANKNIFTY", name: "Bank Nifty", label: "BANKNIFTY", type: "indian" },
-  { id: "BANKEX", name: "Bank Ex", label: "BANKEX", type: "indian" },
 ];
 
 export const TIMEFRAMES: Timeframe[] = ["1m", "5m", "15m", "30m", "1h", "1D"];
@@ -95,14 +91,14 @@ interface TradingContextType {
   high24h: number;
   low24h: number;
   volume24h: number;
-  marketFilter: "crypto" | "indian";
+  marketFilter: "crypto";
   currencyMode: "usd" | "inr";
   setSelectedSymbol: (s: MarketSymbol) => void;
   setTimeframe: (t: Timeframe) => void;
   setTheme: (t: "dark" | "light") => void;
   setChartType: (t: "candle" | "line") => void;
   setLeverage: (l: number) => void;
-  setMarketFilter: (f: "crypto" | "indian") => void;
+  setMarketFilter: (f: "crypto") => void;
   setCurrencyMode: (m: "usd" | "inr") => void;
   usdToInr: number;
   tradeFlash: { side: "buy" | "sell"; symbol: string } | null;
@@ -148,9 +144,6 @@ function calcPnL(pos: Position, currentPrice: number): number {
   return priceDiff * pos.quantity * pos.leverage;
 }
 
-// Indian F&O uses SEBI SPAN margin (~10% of contract value, like real brokers)
-const INDIAN_MARGIN_RATE = 0.10;
-
 const BINANCE_REST = "https://data-api.binance.vision/api/v3";
 const BINANCE_WS = "wss://data-stream.binance.vision/ws";
 const API_BASE = "/api";
@@ -164,56 +157,6 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
   "1D": "1d",
 };
 
-// Price ranges for Indian index simulation
-const INDIAN_PRICE_RANGES: Record<string, { min: number; max: number }> = {
-  NIFTY50:   { min: 23900, max: 24000 },
-  SENSEX:    { min: 75000, max: 76900 },
-  BANKNIFTY: { min: 51200, max: 52400 },
-  BANKEX:    { min: 56200, max: 57800 },
-};
-
-const INDIAN_BASE_PRICES: Record<string, number> = Object.fromEntries(
-  Object.entries(INDIAN_PRICE_RANGES).map(([id, { min, max }]) => [id, (min + max) / 2])
-);
-
-function clampIndianPrice(symbolId: string, price: number): number {
-  const range = INDIAN_PRICE_RANGES[symbolId];
-  if (!range) return price;
-  return Math.min(Math.max(price, range.min), range.max);
-}
-
-function generateIndianCandles(
-  symbolId: string,
-  count: number = 120
-): Candle[] {
-  const range = INDIAN_PRICE_RANGES[symbolId];
-  const base = INDIAN_BASE_PRICES[symbolId] ?? 20000;
-  const candles: Candle[] = [];
-  // Start at a random point within the range
-  let price = range
-    ? range.min + Math.random() * (range.max - range.min)
-    : base * (0.97 + Math.random() * 0.06);
-  const now = Date.now();
-  // Volatility: ~0.15% per candle, clamped to the range
-  const volatility = base * 0.0015;
-  for (let i = count; i >= 0; i--) {
-    const open = price;
-    const change = (Math.random() - 0.48) * volatility;
-    const close = clampIndianPrice(symbolId, open + change);
-    const high = Math.min(
-      Math.max(open, close) + Math.random() * volatility * 0.5,
-      range ? range.max : close * 1.002
-    );
-    const low = Math.max(
-      Math.min(open, close) - Math.random() * volatility * 0.5,
-      range ? range.min : close * 0.998
-    );
-    const volume = 100000 + Math.random() * 500000;
-    candles.push({ time: now - i * 60000, open, high, low, close, volume });
-    price = close;
-  }
-  return candles;
-}
 
 export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [balance, setBalance] = useState(INITIAL_BALANCE);
@@ -233,13 +176,11 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [high24h, setHigh24h] = useState(0);
   const [low24h, setLow24h] = useState(0);
   const [volume24h, setVolume24h] = useState(0);
-  const [marketFilter, setMarketFilterState] = useState<"crypto" | "indian">("crypto");
+  const [marketFilter, setMarketFilterState] = useState<"crypto">("crypto");
   const [currencyMode, setCurrencyModeState] = useState<"usd" | "inr">("usd");
   const [tradeFlash, setTradeFlash] = useState<{ side: "buy" | "sell"; symbol: string } | null>(null);
   const [usdToInr, setUsdToInr] = useState(84);
-  const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>(() => ({
-    ...INDIAN_BASE_PRICES,
-  }));
+  const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
   const [symbolChanges, setSymbolChanges] = useState<Record<string, number>>({});
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -346,7 +287,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     newHistory: TradeHistory[],
     newTheme: "dark" | "light",
     newLeverage: number,
-    newMarketFilter?: "crypto" | "indian",
+    newMarketFilter?: "crypto",
     newCurrencyMode?: "usd" | "inr"
   ) {
     try {
@@ -367,20 +308,6 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   const fetchCandles = useCallback(
     async (symbol: MarketSymbol, tf: Timeframe) => {
-      if (symbol.type === "indian") {
-        const generated = generateIndianCandles(symbol.id, 120);
-        setCandles(generated);
-        if (generated.length > 0) {
-          const last = generated[generated.length - 1];
-          setCurrentPrice(last.close);
-          const first = generated[0];
-          setPriceChange24h(((last.close - first.open) / first.open) * 100);
-          setHigh24h(Math.max(...generated.map((c) => c.high)));
-          setLow24h(Math.min(...generated.map((c) => c.low)));
-          setVolume24h(generated.reduce((s, c) => s + c.volume, 0));
-        }
-        return;
-      }
       const interval = TIMEFRAME_MAP[tf];
       const urls = [
         `${BINANCE_REST}/klines?symbol=${symbol.id}&interval=${interval}&limit=120`,
@@ -410,7 +337,6 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   );
 
   const fetch24hStats = useCallback(async (symbol: MarketSymbol) => {
-    if (symbol.type === "indian") return;
     try {
       const res = await fetch(`${BINANCE_REST}/ticker/24hr?symbol=${symbol.id}`);
       const data = await res.json();
@@ -436,30 +362,6 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   const connectWebSocket = useCallback(
     (symbol: MarketSymbol) => {
-      if (symbol.type === "indian") {
-        setIsConnected(false);
-        const interval = setInterval(() => {
-          setCurrentPrice((prev) => {
-            const base = INDIAN_BASE_PRICES[symbol.id] ?? 20000;
-            if (prev === 0) return base;
-            const delta = prev * (Math.random() - 0.498) * 0.001;
-            return clampIndianPrice(symbol.id, prev + delta);
-          });
-          setCandles((prev) => {
-            if (prev.length === 0) return prev;
-            const last = { ...prev[prev.length - 1] };
-            const now = Date.now();
-            const delta = last.close * (Math.random() - 0.498) * 0.001;
-            last.close = clampIndianPrice(symbol.id, last.close + delta);
-            last.high = Math.max(last.high, last.close);
-            last.low = Math.min(last.low, last.close);
-            last.time = now;
-            return [...prev.slice(0, -1), last];
-          });
-        }, 1000);
-        return () => clearInterval(interval);
-      }
-
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -555,14 +457,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     if (lastSymbolRef.current === selectedSymbol.id) return;
     lastSymbolRef.current = selectedSymbol.id;
     setCandles([]);
-    // For Indian symbols use the base price immediately — never 0 — so trades
-    // can be placed the instant the user switches. For crypto we reset to 0
-    // (shows "Loading...") while the real Binance data arrives.
-    setCurrentPrice(
-      selectedSymbol.type === "indian"
-        ? (INDIAN_BASE_PRICES[selectedSymbol.id] ?? 20000)
-        : 0
-    );
+    setCurrentPrice(0);
     fetchCandles(selectedSymbol, timeframe);
     fetch24hStats(selectedSymbol);
     const cleanup = connectWebSocket(selectedSymbol);
@@ -581,10 +476,6 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   const setSelectedSymbol = useCallback((s: MarketSymbol) => {
     lastSymbolRef.current = "";
-    // Set Indian base price immediately so there is never a zero-price window
-    if (s.type === "indian") {
-      setCurrentPrice(INDIAN_BASE_PRICES[s.id] ?? 20000);
-    }
     setSelectedSymbolState(s);
   }, []);
 
@@ -600,28 +491,17 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       takeProfit?: number;
       entryPrice?: number;
     }): { success: boolean; message: string } => {
-      // For Indian symbols always fall back to base price if WebSocket hasn't fired yet
-      const effectiveCurrentPrice =
-        currentPrice === 0 && selectedSymbol.type === "indian"
-          ? (INDIAN_BASE_PRICES[selectedSymbol.id] ?? 20000)
-          : currentPrice;
-
-      if (effectiveCurrentPrice === 0)
+      if (currentPrice === 0)
         return { success: false, message: "Price not loaded yet — please wait a moment" };
       if (params.quantity <= 0)
         return { success: false, message: "Invalid quantity" };
 
-      const usePrice = params.entryPrice ?? effectiveCurrentPrice;
+      const usePrice = params.entryPrice ?? currentPrice;
       if (usePrice <= 0)
         return { success: false, message: "Invalid entry price" };
 
-      const priceForMargin =
-        selectedSymbol.type === "crypto" ? usePrice * usdToInr : usePrice;
-      // Indian F&O: SEBI SPAN margin (~10% of contract value), same as real brokers
-      const margin =
-        selectedSymbol.type === "indian"
-          ? (priceForMargin * params.quantity * INDIAN_MARGIN_RATE) / leverage
-          : (priceForMargin * params.quantity) / leverage;
+      const priceForMargin = usePrice * usdToInr;
+      const margin = (priceForMargin * params.quantity) / leverage;
       if (margin > balance)
         return { success: false, message: "Insufficient balance" };
 
@@ -665,8 +545,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         if (!pos) return prev;
 
         const pnlRaw = calcPnL(pos, currentPrice);
-        const pnl =
-          pos.symbol.type === "crypto" ? pnlRaw * usdToInr : pnlRaw;
+        const pnl = pnlRaw * usdToInr;
         const exitValue = pos.margin + pnl;
         const pnlPct = (pnl / pos.margin) * 100;
 
@@ -704,8 +583,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const getRunningPnL = useCallback((): number => {
     return positions.reduce((sum, pos) => {
       const pnlRaw = calcPnL(pos, currentPrice);
-      const pnlINR = pos.symbol.type === "crypto" ? pnlRaw * usdToInr : pnlRaw;
-      return sum + pnlINR;
+      return sum + pnlRaw * usdToInr;
     }, 0);
   }, [positions, currentPrice, usdToInr]);
 
@@ -767,15 +645,10 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   );
 
   const setMarketFilter = useCallback(
-    (f: "crypto" | "indian") => {
-      setMarketFilterState(f);
-      const firstOfType = SYMBOLS.find((s) => s.type === f);
-      if (firstOfType) {
-        setSelectedSymbol(firstOfType);
-      }
-      saveState(balance, positions, tradeHistory, theme, leverage, f, currencyMode);
+    (_f: "crypto") => {
+      saveState(balance, positions, tradeHistory, theme, leverage, "crypto", currencyMode);
     },
-    [balance, positions, tradeHistory, theme, leverage, currencyMode, setSelectedSymbol]
+    [balance, positions, tradeHistory, theme, leverage, currencyMode]
   );
 
   const setCurrencyMode = useCallback(

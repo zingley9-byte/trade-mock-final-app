@@ -13,7 +13,7 @@ export interface IndicatorConfig {
 
 export interface Props {
   symbol: string;
-  symbolType: "crypto" | "indian";
+  symbolType: "crypto";
   timeframe?: string;
   isDark?: boolean;
   height?: number;
@@ -275,7 +275,7 @@ function WebChart({
       });
       ro.observe(containerRef.current);
 
-      if (symbolType === "crypto") {
+      {
         const sym = symbol.replace("/", "").toUpperCase();
         const final = sym.endsWith("USDT") ? sym : sym + "USDT";
         const interval = buildInterval(timeframe);
@@ -317,34 +317,6 @@ function WebChart({
             if (onPriceUpdate) onPriceUpdate(+k.c);
           };
         }
-      } else {
-        const BASE: Record<string, number> = { NIFTY50: 24500, SENSEX: 80200, BANKNIFTY: 52000, BANKEX: 58000 };
-        let price = BASE[symbol] ?? 24500;
-        let t = Math.floor(Date.now() / 1000) - 400 * 60;
-        const hist: any[] = [];
-        for (let i = 0; i < 400; i++) {
-          const open = price, change = (Math.random() - 0.5) * price * 0.003, close = open + change;
-          hist.push({ time: t, open, high: Math.max(open, close) + Math.random() * price * 0.001, low: Math.min(open, close) - Math.random() * price * 0.001, close, volume: Math.random() * 5e5 + 1e5 });
-          price = close; t += 60;
-        }
-        if (chartType === "candle") mainSeries.setData(hist);
-        else mainSeries.setData(hist.map((c) => ({ time: c.time, value: c.close })));
-        if (showVolume && st.current.series.vol) {
-          st.current.series.vol.setData(hist.map((c) => ({ time: c.time, value: c.volume, color: c.close >= c.open ? "#26a69a50" : "#ef444450" })));
-        }
-        st.current.data = hist;
-        if (onPriceUpdate) onPriceUpdate(price);
-        if (!destroyed) syncIndicators();
-        ivRef.current = setInterval(() => {
-          if (destroyed || !st.current.series.candle) return;
-          const open = price, change = (Math.random() - 0.5) * open * 0.0015, close = open + change;
-          t++;
-          const update = { time: t as any, open, high: Math.max(open, close) + Math.random() * open * 0.0005, low: Math.min(open, close) - Math.random() * open * 0.0005, close };
-          if (chartType === "candle") st.current.series.candle.update(update);
-          else st.current.series.candle.update({ time: t as any, value: close });
-          price = close;
-          if (onPriceUpdate) onPriceUpdate(close);
-        }, 1000);
       }
     }
 

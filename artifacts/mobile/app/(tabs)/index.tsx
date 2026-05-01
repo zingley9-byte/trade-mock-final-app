@@ -24,12 +24,11 @@ const isWeb = Platform.OS === "web";
 
 const COIN_COLORS: Record<string, string> = {
   BTCUSDT: "#F7931A", ETHUSDT: "#627EEA", BNBUSDT: "#F0B90B",
-  DOGEUSDT: "#C2A633", SOLUSDT: "#9945FF", NIFTY50: "#1a7ef7",
-  SENSEX: "#e84040", BANKNIFTY: "#16a34a", BANKEX: "#7c3aed",
+  DOGEUSDT: "#C2A633", SOLUSDT: "#9945FF",
 };
 
-function fmtPrice(price: number, symbol: MarketSymbol, mode: "usd" | "inr"): string {
-  const sym = symbol.type === "indian" ? "₹" : mode === "usd" ? "$" : "₹";
+function fmtPrice(price: number, _symbol: MarketSymbol, mode: "usd" | "inr"): string {
+  const sym = mode === "usd" ? "$" : "₹";
   if (!price) return `${sym}—`;
   if (price >= 10000) return `${sym}${price.toLocaleString(mode === "usd" ? "en-US" : "en-IN", { maximumFractionDigits: 2 })}`;
   if (price >= 1) return `${sym}${price.toFixed(2)}`;
@@ -139,7 +138,6 @@ export default function HomeScreen() {
   const colors = useColors();
   const {
     candles, chartType, setChartType,
-    marketFilter, setMarketFilter,
     selectedSymbol, setSelectedSymbol,
     symbolPrices, symbolChanges,
     currencyMode, theme, timeframe,
@@ -158,13 +156,12 @@ export default function HomeScreen() {
   const chartH = isFullscreen ? 0 : chartExpanded ? SH * 0.62 : SH * 0.36;
 
   const visibleSymbols = useMemo(() => {
-    const base = SYMBOLS.filter((s) => s.type === marketFilter);
-    if (!searchQuery.trim()) return base;
+    if (!searchQuery.trim()) return SYMBOLS;
     const q = searchQuery.toLowerCase();
-    return base.filter(
+    return SYMBOLS.filter(
       (s) => s.label.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
     );
-  }, [marketFilter, searchQuery]);
+  }, [searchQuery]);
 
   function toggleIndicator(key: keyof IndicatorConfig) {
     setIndicators((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -280,17 +277,9 @@ export default function HomeScreen() {
         <View style={[styles.watchCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.watchHeader, { borderBottomColor: colors.border }]}>
             <View style={styles.tabsWrap}>
-              {(["crypto", "indian"] as const).map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  onPress={() => { setMarketFilter(t); setSearchQuery(""); }}
-                  style={[styles.tab, marketFilter === t && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
-                >
-                  <Text style={[styles.tabText, { color: marketFilter === t ? colors.primary : colors.mutedForeground }]}>
-                    {t === "crypto" ? "Crypto" : "Indian"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              <View style={[styles.tab, { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}>
+                <Text style={[styles.tabText, { color: colors.primary }]}>Crypto</Text>
+              </View>
             </View>
             <View style={styles.watchRight}>
               {showSearch ? (

@@ -13,25 +13,15 @@ import { MarketSymbol, SYMBOLS, useTradingContext } from "@/context/TradingConte
 import { useColors } from "@/hooks/useColors";
 
 export default function SymbolSelector() {
-  const { selectedSymbol, setSelectedSymbol, currentPrice, priceChange24h, marketFilter } =
-    useTradingContext();
+  const { selectedSymbol, setSelectedSymbol, priceChange24h } = useTradingContext();
   const colors = useColors();
   const [open, setOpen] = useState(false);
-  const [activeType, setActiveType] = useState<"crypto" | "indian">(marketFilter);
 
-  const filtered = SYMBOLS.filter((s) => s.type === activeType);
   const isPositive = priceChange24h >= 0;
 
   function handleSelect(s: MarketSymbol) {
     setSelectedSymbol(s);
     setOpen(false);
-  }
-
-  function formatPrice(price: number): string {
-    if (price === 0) return "—";
-    if (price >= 1000) return price.toFixed(2);
-    if (price >= 1) return price.toFixed(4);
-    return price.toFixed(6);
   }
 
   return (
@@ -41,10 +31,8 @@ export default function SymbolSelector() {
         onPress={() => setOpen(true)}
         activeOpacity={0.7}
       >
-        <View style={[styles.badge, { backgroundColor: selectedSymbol.type === "crypto" ? "#f59e0b22" : "#6366f122" }]}>
-          <Text style={[styles.badgeText, { color: selectedSymbol.type === "crypto" ? "#f59e0b" : "#6366f1" }]}>
-            {selectedSymbol.type === "crypto" ? "CRYPTO" : "IND"}
-          </Text>
+        <View style={[styles.badge, { backgroundColor: "#f59e0b22" }]}>
+          <Text style={[styles.badgeText, { color: "#f59e0b" }]}>CRYPTO</Text>
         </View>
         <View>
           <Text style={[styles.symbolLabel, { color: colors.foreground }]}>
@@ -61,36 +49,14 @@ export default function SymbolSelector() {
         <Pressable style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={() => setOpen(false)} />
         <View style={[styles.sheet, { backgroundColor: colors.card }]}>
           <View style={styles.sheetHeader}>
-            <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Select Market</Text>
+            <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Select Crypto</Text>
             <TouchableOpacity onPress={() => setOpen(false)}>
               <Feather name="x" size={22} color={colors.mutedForeground} />
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.tabs, { backgroundColor: colors.muted, borderRadius: 10 }]}>
-            {(["crypto", "indian"] as const).map((t) => (
-              <TouchableOpacity
-                key={t}
-                style={[
-                  styles.tab,
-                  activeType === t && { backgroundColor: colors.primary },
-                ]}
-                onPress={() => setActiveType(t)}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    { color: activeType === t ? colors.primaryForeground : colors.mutedForeground },
-                  ]}
-                >
-                  {t === "crypto" ? "Crypto" : "Indian Market"}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           <FlatList
-            data={filtered}
+            data={SYMBOLS}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <TouchableOpacity
@@ -130,9 +96,6 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
   badgeText: { fontSize: 8, fontWeight: "700" as const, letterSpacing: 0.5 },
   symbolLabel: { fontSize: 12, fontWeight: "700" as const },
-  symbolName: { fontSize: 10, marginTop: 1 },
-  priceInfo: { alignItems: "flex-end", marginRight: 4 },
-  price: { fontSize: 12, fontWeight: "600" as const },
   change: { fontSize: 10, fontWeight: "600" as const },
   backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   sheet: {
@@ -153,19 +116,6 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   sheetTitle: { fontSize: 17, fontWeight: "700" as const },
-  tabs: {
-    flexDirection: "row",
-    marginHorizontal: 16,
-    padding: 4,
-    marginBottom: 8,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  tabText: { fontSize: 13, fontWeight: "600" as const },
   symbolRow: {
     flexDirection: "row",
     justifyContent: "space-between",

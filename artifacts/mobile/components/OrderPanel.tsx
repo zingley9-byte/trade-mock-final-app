@@ -12,14 +12,6 @@ import { Feather } from "@expo/vector-icons";
 import { LEVERAGES, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 
-// ── Indian index lot sizes ─────────────────────────────────────────────────
-const LOT_SIZES: Record<string, number> = {
-  NIFTY50:   65,
-  BANKNIFTY: 30,
-  SENSEX:    20,
-  BANKEX:    30,
-};
-
 export default function OrderPanel() {
   const {
     balance,
@@ -38,37 +30,23 @@ export default function OrderPanel() {
 
   // ── State ────────────────────────────────────────────────────────────────
   const [side,        setSide]        = useState<"buy" | "sell">("buy");
-  const [quantity,    setQuantity]    = useState("0.01");   // crypto
-  const [lots,        setLots]        = useState(1);         // indian lots
+  const [quantity,    setQuantity]    = useState("0.01");
   const [stopLoss,    setStopLoss]    = useState("");
   const [takeProfit,  setTakeProfit]  = useState("");
   const [priceMode,   setPriceMode]   = useState<"auto" | "manual">("auto");
   const [manualPrice, setManualPrice] = useState("");
   const [orderError,  setOrderError]  = useState("");
 
-  const isIndian   = selectedSymbol.type === "indian";
-  const lotSize    = LOT_SIZES[selectedSymbol.id] ?? 1;
-  const totalUnits = lots * lotSize;
-
-  // Reset lots when symbol changes
-  useEffect(() => { setLots(1); }, [selectedSymbol.id]);
-
   // ── Derived numbers ───────────────────────────────────────────────────────
-  const qty           = isIndian ? totalUnits : (parseFloat(quantity) || 0);
+  const qty           = parseFloat(quantity) || 0;
   const effectivePrice = priceMode === "manual" && manualPrice
     ? parseFloat(manualPrice) || currentPrice
     : currentPrice;
-  const priceForMargin = selectedSymbol.type === "crypto"
-    ? effectivePrice * usdToInr
-    : effectivePrice;
-  // Mirror TradingContext: Indian F&O uses 10% SEBI SPAN margin on contract value
-  const INDIAN_MARGIN_RATE = 0.10;
+  const priceForMargin = effectivePrice * usdToInr;
   const margin  = qty > 0 && priceForMargin > 0
-    ? isIndian
-      ? (priceForMargin * qty * INDIAN_MARGIN_RATE) / leverage
-      : (priceForMargin * qty) / leverage
+    ? (priceForMargin * qty) / leverage
     : 0;
-  const symbol  = selectedSymbol.type === "crypto" ? "$" : "₹";
+  const symbol = "$";
 
   // ── Formatters ───────────────────────────────────────────────────────────
   function formatBalance(amount: number): string {
@@ -243,7 +221,7 @@ export default function OrderPanel() {
               onChangeText={setStopLoss}
               keyboardType="decimal-pad"
               style={[styles.input, { color: colors.foreground }]}
-              placeholder={`${symbol}${currentPrice > 0 ? (side === "buy" ? (currentPrice * 0.98).toFixed(isIndian ? 2 : 4) : (currentPrice * 1.02).toFixed(isIndian ? 2 : 4)) : "0.00"}`}
+              placeholder={`${symbol}${currentPrice > 0 ? (side === "buy" ? (currentPrice * 0.98).toFixed(4) : (currentPrice * 1.02).toFixed(4)) : "0.00"}`}
               placeholderTextColor={colors.mutedForeground}
             />
             {stopLoss !== "" && (
@@ -269,7 +247,7 @@ export default function OrderPanel() {
               onChangeText={setTakeProfit}
               keyboardType="decimal-pad"
               style={[styles.input, { color: colors.foreground }]}
-              placeholder={`${symbol}${currentPrice > 0 ? (side === "buy" ? (currentPrice * 1.02).toFixed(isIndian ? 2 : 4) : (currentPrice * 0.98).toFixed(isIndian ? 2 : 4)) : "0.00"}`}
+              placeholder={`${symbol}${currentPrice > 0 ? (side === "buy" ? (currentPrice * 1.02).toFixed(4) : (currentPrice * 0.98).toFixed(4)) : "0.00"}`}
               placeholderTextColor={colors.mutedForeground}
             />
             {takeProfit !== "" && (
@@ -286,73 +264,28 @@ export default function OrderPanel() {
 
       {/* ── Quantity ─────────────────────────────────────────────────────── */}
       <View style={styles.inputSection}>
-        {isIndian ? (
-          /* Indian lot-based stepper */
-          <>
-            <View style={styles.lotHeaderRow}>
-              <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Quantity</Text>
-              <View style={[styles.lotInfoPill, { backgroundColor: colors.muted }]}>
-                <Text style={[styles.lotInfoText, { color: colors.primary }]}>
-                  {lots} lot{lots > 1 ? "s" : ""} × {lotSize}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.stepperRow}>
-              {/* Decrement */}
+        <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Quantity</Text>
+        <View style={[styles.inputBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          <TextInput
+            value={quantity}
+            onChangeText={setQuantity}
+            keyboardType="decimal-pad"
+            style={[styles.input, { color: colors.foreground }]}
+            placeholder="0.01"
+            placeholderTextColor={colors.mutedForeground}
+          />
+          <View style={styles.qtyBtns}>
+            {["0.01", "0.1", "1"].map((q) => (
               <TouchableOpacity
-                style={[styles.stepperBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
-                onPress={() => { if (lots > 1) { setLots(l => l - 1); Haptics.selectionAsync(); } }}
-                activeOpacity={0.7}
+                key={q}
+                style={[styles.qtyBtn, { backgroundColor: colors.secondary, borderRadius: 6 }]}
+                onPress={() => setQuantity(q)}
               >
-                <Feather name="minus" size={18} color={lots > 1 ? colors.foreground : colors.mutedForeground} />
+                <Text style={[styles.qtyBtnText, { color: colors.foreground }]}>{q}</Text>
               </TouchableOpacity>
-
-              {/* Display */}
-              <View style={[styles.stepperDisplay, { backgroundColor: colors.muted, borderColor: colors.primary }]}>
-                <Text style={[styles.stepperValue, { color: colors.foreground }]}>{totalUnits}</Text>
-                <Text style={[styles.stepperUnit, { color: colors.mutedForeground }]}>units</Text>
-              </View>
-
-              {/* Increment */}
-              <TouchableOpacity
-                style={[styles.stepperBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
-                onPress={() => { setLots(l => l + 1); Haptics.selectionAsync(); }}
-                activeOpacity={0.7}
-              >
-                <Feather name="plus" size={18} color={colors.foreground} />
-              </TouchableOpacity>
-            </View>
-            <Text style={[styles.lotHint, { color: colors.mutedForeground }]}>
-              {selectedSymbol.id} · 1 lot = {lotSize} qty · Total = {totalUnits} units
-            </Text>
-          </>
-        ) : (
-          /* Crypto quantity input */
-          <>
-            <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Quantity</Text>
-            <View style={[styles.inputBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-              <TextInput
-                value={quantity}
-                onChangeText={setQuantity}
-                keyboardType="decimal-pad"
-                style={[styles.input, { color: colors.foreground }]}
-                placeholder="0.01"
-                placeholderTextColor={colors.mutedForeground}
-              />
-              <View style={styles.qtyBtns}>
-                {["0.01", "0.1", "1"].map((q) => (
-                  <TouchableOpacity
-                    key={q}
-                    style={[styles.qtyBtn, { backgroundColor: colors.secondary, borderRadius: 6 }]}
-                    onPress={() => setQuantity(q)}
-                  >
-                    <Text style={[styles.qtyBtnText, { color: colors.foreground }]}>{q}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </>
-        )}
+            ))}
+          </View>
+        </View>
       </View>
 
       {/* ── Leverage ─────────────────────────────────────────────────────── */}
@@ -407,14 +340,10 @@ export default function OrderPanel() {
         )}
         <View style={styles.summaryRow}>
           <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Quantity</Text>
-          <Text style={[styles.summaryValue, { color: colors.foreground }]}>
-            {isIndian ? `${totalUnits} (${lots}L)` : qty}
-          </Text>
+          <Text style={[styles.summaryValue, { color: colors.foreground }]}>{qty}</Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>
-            {isIndian ? "Margin (SPAN 10%)" : "Margin Required"}
-          </Text>
+          <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Margin Required</Text>
           <Text style={[styles.summaryValue, { color: colors.foreground }]}>{formatBalance(margin)}</Text>
         </View>
         <View style={styles.summaryRow}>
@@ -445,7 +374,6 @@ export default function OrderPanel() {
       >
         <Text style={styles.orderBtnText}>
           {side === "buy" ? "BUY" : "SELL"} {selectedSymbol.label}
-          {isIndian ? ` · ${lots}L` : ""}
         </Text>
       </TouchableOpacity>
 
@@ -454,12 +382,9 @@ export default function OrderPanel() {
         <View style={{ marginTop: 16 }}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Open Positions</Text>
           {positions.map((pos) => {
-            const posSymbol  = pos.symbol.type === "crypto" ? "$" : "₹";
             const priceDiff  = pos.side === "buy" ? currentPrice - pos.entryPrice : pos.entryPrice - currentPrice;
             const posPnl     = priceDiff * pos.quantity * pos.leverage;
             const pnlPct     = (posPnl / pos.margin) * 100;
-            const posLotSize = LOT_SIZES[pos.symbol.id];
-            const posLots    = posLotSize ? Math.round(pos.quantity / posLotSize) : null;
 
             return (
               <View key={pos.id} style={[styles.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -472,11 +397,6 @@ export default function OrderPanel() {
                     </View>
                     <Text style={[styles.posSymbol, { color: colors.foreground }]}>{pos.symbol.label}</Text>
                     <Text style={[styles.posLev, { color: colors.primary }]}>x{pos.leverage}</Text>
-                    {posLots && (
-                      <View style={[styles.lotBadge, { backgroundColor: colors.muted }]}>
-                        <Text style={[styles.lotBadgeText, { color: colors.mutedForeground }]}>{posLots}L</Text>
-                      </View>
-                    )}
                   </View>
                   <TouchableOpacity
                     onPress={() => { closePosition(pos.id); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); }}
@@ -490,14 +410,12 @@ export default function OrderPanel() {
                   <View>
                     <Text style={[styles.posLabel, { color: colors.mutedForeground }]}>Entry</Text>
                     <Text style={[styles.posValue, { color: colors.foreground }]}>
-                      {posSymbol}{pos.entryPrice.toFixed(pos.symbol.type === "crypto" ? 4 : 2)}
+                      ${pos.entryPrice.toFixed(4)}
                     </Text>
                   </View>
                   <View style={{ alignItems: "center" }}>
                     <Text style={[styles.posLabel, { color: colors.mutedForeground }]}>Qty</Text>
-                    <Text style={[styles.posValue, { color: colors.foreground }]}>
-                      {posLots ? `${posLots}L` : pos.quantity}
-                    </Text>
+                    <Text style={[styles.posValue, { color: colors.foreground }]}>{pos.quantity}</Text>
                   </View>
                   <View style={{ alignItems: "center" }}>
                     <Text style={[styles.posLabel, { color: colors.mutedForeground }]}>Margin</Text>
@@ -519,20 +437,20 @@ export default function OrderPanel() {
                     {pos.stopLoss && (
                       <View style={[styles.slTpChip, { backgroundColor: colors.bearBg }]}>
                         <Text style={[styles.slTpChipText, { color: colors.bear }]}>
-                          SL {posSymbol}{pos.stopLoss.toFixed(2)}
+                          SL ${pos.stopLoss.toFixed(2)}
                         </Text>
                       </View>
                     )}
                     {pos.takeProfit && (
                       <View style={[styles.slTpChip, { backgroundColor: colors.bullBg }]}>
                         <Text style={[styles.slTpChipText, { color: colors.bull }]}>
-                          TP {posSymbol}{pos.takeProfit.toFixed(2)}
+                          TP ${pos.takeProfit.toFixed(2)}
                         </Text>
                       </View>
                     )}
                     <View style={[styles.slTpChip, { backgroundColor: "#f59e0b22" }]}>
                       <Text style={[styles.slTpChipText, { color: "#f59e0b" }]}>
-                        Liq {posSymbol}{pos.liquidationPrice.toFixed(2)}
+                        Liq ${pos.liquidationPrice.toFixed(2)}
                       </Text>
                     </View>
                   </View>
@@ -584,24 +502,6 @@ const styles = StyleSheet.create({
   slTpLabel:    { fontSize: 12, fontWeight: "600" as const },
   slHint:       { fontSize: 10, marginTop: 3, marginLeft: 2 },
 
-  // Indian lot stepper
-  lotHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  lotInfoPill:  { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  lotInfoText:  { fontSize: 12, fontWeight: "700" as const },
-  stepperRow:   { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-  stepperBtn: {
-    width: 44, height: 44, borderRadius: 8,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 1,
-  },
-  stepperDisplay: {
-    flex: 1, height: 44, borderRadius: 8, borderWidth: 1.5,
-    alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 4,
-  },
-  stepperValue: { fontSize: 20, fontWeight: "700" as const },
-  stepperUnit:  { fontSize: 11, fontWeight: "500" as const, marginTop: 2 },
-  lotHint:      { fontSize: 11, textAlign: "center" },
-
   // Entry price controls
   labelRow:    { flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, marginBottom: 5 },
   modeSwitch:  { flexDirection: "row" as const, padding: 3, borderRadius: 8, gap: 2 },
@@ -642,8 +542,6 @@ const styles = StyleSheet.create({
   posSideText:  { fontSize: 10, fontWeight: "700" as const },
   posSymbol:    { fontSize: 13, fontWeight: "700" as const },
   posLev:       { fontSize: 12, fontWeight: "600" as const },
-  lotBadge:     { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
-  lotBadgeText: { fontSize: 10, fontWeight: "600" as const },
   closeBtn:     { borderRadius: 6, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5 },
   closeBtnText: { fontSize: 12, fontWeight: "600" as const },
   posRow:       { flexDirection: "row", justifyContent: "space-between" },

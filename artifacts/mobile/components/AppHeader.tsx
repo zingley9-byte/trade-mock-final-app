@@ -27,8 +27,6 @@ const PROFILE_KEY = "trademock_profile_image";
 const COIN_COLORS: Record<string, string> = {
   BTCUSDT: "#F7931A", ETHUSDT: "#627EEA", BNBUSDT: "#F0B90B",
   DOGEUSDT: "#C2A633", SOLUSDT: "#9945FF",
-  NIFTY50: "#1a7ef7", SENSEX: "#e84040",
-  BANKNIFTY: "#16a34a", BANKEX: "#7c3aed",
 };
 
 // Settings search items
@@ -202,10 +200,8 @@ export default function AppHeader() {
                           <Text style={[styles.resultLabel, { color: colors.foreground }]}>{ticker}</Text>
                           <Text style={[styles.resultSub, { color: colors.mutedForeground }]}>{sym.name}</Text>
                         </View>
-                        <View style={[styles.typeBadge, { backgroundColor: sym.type === "crypto" ? "#f59e0b22" : "#1a7ef722" }]}>
-                          <Text style={[styles.typeText, { color: sym.type === "crypto" ? "#f59e0b" : "#1a7ef7" }]}>
-                            {sym.type === "crypto" ? "CRYPTO" : "INDIAN"}
-                          </Text>
+                        <View style={[styles.typeBadge, { backgroundColor: "#f59e0b22" }]}>
+                          <Text style={[styles.typeText, { color: "#f59e0b" }]}>CRYPTO</Text>
                         </View>
                         {price ? (
                           <Text style={[styles.resultPrice, { color: colors.foreground }]}>

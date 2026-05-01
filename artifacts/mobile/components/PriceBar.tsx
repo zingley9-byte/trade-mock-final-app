@@ -28,12 +28,7 @@ export default function PriceBar() {
     return p.toFixed(6);
   }
 
-  const currSymbol =
-    selectedSymbol.type === "indian"
-      ? "₹"
-      : currencyMode === "inr"
-      ? "₹"
-      : "$";
+  const currSymbol = currencyMode === "inr" ? "₹" : "$";
 
   return (
     <View style={[styles.bar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
