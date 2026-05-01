@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pro Trading Chart</title>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    body { margin:0; background:#0d1117; color:white; font-family:sans-serif; }
+    #topbar { padding:10px; background:#161b22; }
+    select { padding:5px; margin-right:10px; }
+    #chart { height:90vh; }
+  </style>
+</head>
+
+<body>
+
+<div id="topbar">
+  Market:
+  <select onchange="changeMarket(this.value)">
+    <option value="crypto">Crypto</option>
+    <option value="indian">Indian (Demo)</option>
+  </select>
+
+  Coin:
+  <select onchange="changeSymbol(this.value)">
+    <option value="btcusdt">BTC</option>
+    <option value="ethusdt">ETH</option>
+    <option value="solusdt">SOL</option>
+    <option value="dogeusdt">DOGE</option>
+  </select>
+</div>
+
+<div id="chart"></div>
+
+<script>
+// Chart setup
+const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+  width: window.innerWidth,
+  height: window.innerHeight - 50,
+  layout: { background: { color: '#0d1117' }, textColor: '#DDD' },
+  grid: { vertLines: { color: '#222' }, horzLines: { color: '#222' } },
+  crosshair: { mode: 1 }
+});
+
+let candleSeries = chart.addCandlestickSeries();
+
+let ws = null;
+let symbol = "btcusdt";
+let marketType = "crypto";
+
+// Load history
+async function loadHistory() {
+  const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol.toUpperCase()}&interval=1m&limit=100`);
+  const data = await res.json();
+
+  const candles = data.map(d => ({
+    time: d[0]/1000,
+    open:+d[1],
+    high:+d[2],
+    low:+d[3],
+    close:+d[4]
+  }));
+
+  candleSeries.setData(candles);
+}
+
+// CRYPTO WebSocket
+function startCrypto() {
+  if(ws) ws.close();
+
+  ws = new WebSocket(`wss://stream.binance.com:9443/ws/${symbol}@kline_1m`);
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    const k = msg.k;
+
+    candleSeries.update({
+      time: k.t/1000,
+      open:+k.o,
+      high:+k.h,
+      low:+k.l,
+      close:+k.c
+    });
+  };
+}
+
+// INDIAN DEMO (Fake but smooth)
+let demoPrice = 2500;
+
+function startIndianDemo() {
+  if(ws) ws.close();
+
+  setInterval(()=>{
+    let change = (Math.random()-0.5)*10;
+
+    let candle = {
+      time: Math.floor(Date.now()/1000),
+      open: demoPrice,
+      high: demoPrice + Math.random()*5,
+      low: demoPrice - Math.random()*5,
+      close: demoPrice + change
+    };
+
+    demoPrice = candle.close;
+    candleSeries.update(candle);
+
+  },1000);
+}
+
+// Change market
+function changeMarket(val){
+  marketType = val;
+  candleSeries.setData([]);
+
+  if(val === "crypto"){
+    loadHistory();
+    startCrypto();
+  } else {
+    startIndianDemo();
+  }
+}
+
+// Change coin
+function changeSymbol(val){
+  symbol = val;
+  if(marketType === "crypto"){
+    loadHistory();
+    startCrypto();
+  }
+}
+
+// Start
+loadHistory();
+startCrypto();
+
+// Resize
+window.addEventListener("resize", ()=>{
+  chart.applyOptions({ width: window.innerWidth });
+});
+</script>
+
+</body>
+</html>

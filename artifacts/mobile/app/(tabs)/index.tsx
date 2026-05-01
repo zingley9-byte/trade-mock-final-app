@@ -9,7 +9,7 @@ import {
   FlatList,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import CandlestickChart from "@/components/CandlestickChart";
+import LightweightChart from "@/components/LightweightChart";
 import SymbolSelector from "@/components/SymbolSelector";
 import TimeframeSelector from "@/components/TimeframeSelector";
 import PriceBar from "@/components/PriceBar";
@@ -120,6 +120,8 @@ export default function HomeScreen() {
     symbolPrices,
     symbolChanges,
     currencyMode,
+    theme,
+    timeframe,
   } = useTradingContext();
   const [chartExpanded, setChartExpanded] = useState(false);
   const chartH = chartExpanded ? SCREEN_HEIGHT * 0.65 : SCREEN_HEIGHT * 0.38;
@@ -165,11 +167,15 @@ export default function HomeScreen() {
         <TimeframeSelector />
       </View>
 
-      <View style={[styles.chartWrap, { height: chartH, backgroundColor: colors.chartBg }]}>
-        <CandlestickChart
-          candles={candles}
-          width={SCREEN_WIDTH}
+      <View style={[styles.chartWrap, { height: chartH }]}>
+        <LightweightChart
+          key={`${selectedSymbol.id}-${timeframe}`}
+          symbol={selectedSymbol.id}
+          symbolType={selectedSymbol.type}
+          timeframe={timeframe}
+          isDark={theme === "dark"}
           height={chartH}
+          candles={candles}
           chartType={chartType}
           bullColor={colors.bull}
           bearColor={colors.bear}
