@@ -266,6 +266,7 @@ export default function OrderPanel() {
       <View style={styles.inputSection}>
         <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Quantity</Text>
         <View style={[styles.inputBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          <Text style={[styles.inputPrefix, { color: colors.mutedForeground }]}>$</Text>
           <TextInput
             value={quantity}
             onChangeText={setQuantity}
@@ -273,6 +274,7 @@ export default function OrderPanel() {
             style={[styles.input, { color: colors.foreground }]}
             placeholder="0.01"
             placeholderTextColor={colors.mutedForeground}
+            selectTextOnFocus
           />
           <View style={styles.qtyBtns}>
             {["0.01", "0.1", "1"].map((q) => (
@@ -488,8 +490,9 @@ const styles = StyleSheet.create({
     borderRadius: 8, borderWidth: 1,
     paddingHorizontal: 12, paddingVertical: 10, gap: 8,
   },
-  inputValue: { fontSize: 15, flex: 1 },
-  input:      { flex: 1, fontSize: 15, padding: 0 },
+  inputValue:  { fontSize: 15, flex: 1 },
+  inputPrefix: { fontSize: 15, fontWeight: "600" as const, marginRight: 2 },
+  input:       { flex: 1, fontSize: 15, padding: 0 },
   qtyBtns:    { flexDirection: "row", gap: 4 },
   qtyBtn:     { paddingHorizontal: 8, paddingVertical: 4 },
   qtyBtnText: { fontSize: 11, fontWeight: "600" as const },
