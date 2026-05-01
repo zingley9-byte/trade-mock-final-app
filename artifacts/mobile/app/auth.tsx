@@ -5,7 +5,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Dimensions,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -22,12 +21,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
-  GoogleAuthProvider,
-  signInWithPopup,
 } from "firebase/auth";
-
-const { width } = Dimensions.get("window");
-const isWeb = Platform.OS === "web";
 
 async function saveUser(uid: string, email: string, name: string) {
   await AsyncStorage.setItem(TM_AUTH_KEY, JSON.stringify({ uid, email, name }));
@@ -46,12 +40,14 @@ export default function AuthScreen() {
   const glowAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  const nd = Platform.OS !== "web";
+
   useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: !isWeb }).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: nd }).start();
     Animated.loop(
       Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 2000, useNativeDriver: !isWeb }),
-        Animated.timing(glowAnim, { toValue: 0, duration: 2000, useNativeDriver: !isWeb }),
+        Animated.timing(glowAnim, { toValue: 1, duration: 2000, useNativeDriver: nd }),
+        Animated.timing(glowAnim, { toValue: 0, duration: 2000, useNativeDriver: nd }),
       ])
     ).start();
   }, []);
@@ -99,29 +95,6 @@ export default function AuthScreen() {
       router.replace("/(tabs)");
     } catch (e: any) {
       setError(parseFirebaseError(e?.code ?? ""));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGoogle() {
-    if (!isWeb) {
-      setError("Google sign-in is only available on web.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const fbAuth = getFirebaseAuth();
-      const provider = new GoogleAuthProvider();
-      const cred = await signInWithPopup(fbAuth, provider);
-      const user = cred.user;
-      await saveUser(user.uid, user.email ?? "", user.displayName ?? "Trader");
-      router.replace("/(tabs)");
-    } catch (e: any) {
-      if (e?.code !== "auth/popup-closed-by-user") {
-        setError(parseFirebaseError(e?.code ?? ""));
-      }
     } finally {
       setLoading(false);
     }
@@ -256,23 +229,6 @@ export default function AuthScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
 
-                <View style={styles.orRow}>
-                  <View style={styles.orLine} />
-                  <Text style={styles.orText}>OR</Text>
-                  <View style={styles.orLine} />
-                </View>
-
-                <TouchableOpacity
-                  style={styles.googleBtn}
-                  onPress={handleGoogle}
-                  activeOpacity={0.85}
-                  disabled={loading}
-                >
-                  <View style={styles.googleIconWrap}>
-                    <Text style={styles.googleIconText}>G</Text>
-                  </View>
-                  <Text style={styles.googleText}>Continue with Google</Text>
-                </TouchableOpacity>
               </View>
 
               <TouchableOpacity
@@ -392,35 +348,6 @@ const styles = StyleSheet.create({
   },
   mainBtnGrad: { paddingVertical: 16, alignItems: "center" },
   mainBtnText: { color: "#fff", fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
-  orRow: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 4 },
-  orLine: { flex: 1, height: 1, backgroundColor: "#1e293b" },
-  orText: { color: "#475569", fontSize: 12, fontWeight: "600" },
-  googleBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    backgroundColor: "#1e293b",
-    borderRadius: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  googleIconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  googleIconText: {
-    color: "#1a73e8",
-    fontSize: 14,
-    fontWeight: "900",
-    lineHeight: 24,
-  },
-  googleText: { color: "#e2e8f0", fontSize: 15, fontWeight: "600" },
   switchRow: {
     paddingVertical: 16,
     alignItems: "center",
