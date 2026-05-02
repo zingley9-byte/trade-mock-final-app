@@ -1,8 +1,13 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "uqpsI_WOa-Xmego0uJ_Gq"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
 title = "generated_image"
+
+[[outputs]]
+id = "54oKGUUfqr26ZUxv1Ebif"
+uri = "file://artifacts/mobile/assets/expo_qr.png"
+type = "image"
+title = "Expo Go QR Code"
