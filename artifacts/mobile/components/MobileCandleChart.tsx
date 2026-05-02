@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-  PanResponder, useWindowDimensions, Platform, Modal, Dimensions,
+  PanResponder, useWindowDimensions, Platform, Modal, Dimensions, StatusBar,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Svg, { Rect, Line, Text as SvgText, G, Polyline } from "react-native-svg";
@@ -785,9 +785,14 @@ export default function MobileCandleChart({
     </View>
   );
 
+  const sbH = StatusBar.currentHeight ?? 0;
+
   return isFS ? (
-    <Modal visible animationType="fade" statusBarTranslucent>
-      {chartContent}
+    <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setIsFS(false)}>
+      {/* Push content below the status bar so the top bar is not hidden */}
+      <View style={{ flex:1, paddingTop: sbH, backgroundColor: C.bg }}>
+        {chartContent}
+      </View>
     </Modal>
   ) : chartContent;
 }

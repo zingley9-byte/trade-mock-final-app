@@ -39,6 +39,7 @@ const IcFile     = () => <Svg><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12
 const IcRect     = () => <Svg><rect x="3" y="3" width="18" height="18" rx="2"/></Svg>;
 const IcHex      = () => <Svg><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/></Svg>;
 const IcMax      = () => <Svg><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></Svg>;
+const IcMin      = () => <Svg><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></Svg>;
 const IcCamera   = () => <Svg><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></Svg>;
 
 // Left sidebar icons
@@ -141,7 +142,15 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [webCurrent,   setWebCurrent]  = useState<any>(null);
   const [showWebDraw,  setShowWebDraw] = useState(true);
   const [drawTick,     setDrawTick]    = useState(0);  // bumped on chart pan/zoom so hlines repaint
+  const [isWebFS,      setIsWebFS]     = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Track browser fullscreen state
+  useEffect(() => {
+    const onFSChange = () => setIsWebFS(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFSChange);
+    return () => document.removeEventListener("fullscreenchange", onFSChange);
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -478,7 +487,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const ohlcvColor = ohlcv ? (isPos ? C.bull : C.bear) : C.bull;
 
   return (
-    <div ref={wrapperRef} style={{ display:"flex", flexDirection:"column", width:"100%", height, background:C.bg, fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", position:"relative", overflow:"hidden" }}>
+    <div ref={wrapperRef} style={{ display:"flex", flexDirection:"column", width:"100%", height: isWebFS ? "100dvh" : height, background:C.bg, fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", position:"relative", overflow:"hidden" }}>
 
       {/* ── Top toolbar ── */}
       <div style={{ height:TOP, display:"flex", alignItems:"center", background:C.panel, borderBottom:`1px solid ${C.border}`, paddingLeft:4, paddingRight:8, gap:2, flexShrink:0 }}>
@@ -520,7 +529,9 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         <TBtn title="Draw rectangle"><IcRect/></TBtn>
         <div style={{ width:1, height:22, background:C.border, margin:"0 3px" }}/>
         <TBtn title="Chart properties"><IcHex/></TBtn>
-        <TBtn title="Fullscreen" onClick={handleFullscreen}><IcMax/></TBtn>
+        <TBtn title={isWebFS ? "Exit Fullscreen" : "Fullscreen"} onClick={handleFullscreen} active={isWebFS}>
+          {isWebFS ? <IcMin/> : <IcMax/>}
+        </TBtn>
         <TBtn title="Take snapshot"><IcCamera/></TBtn>
       </div>
 
