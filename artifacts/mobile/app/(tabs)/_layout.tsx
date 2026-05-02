@@ -3,7 +3,6 @@ import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
-import { SymbolView } from "expo-symbols";
 
 import AppHeader from "@/components/AppHeader";
 import TradeFlashOverlay from "@/components/TradeFlashOverlay";
@@ -48,60 +47,35 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
-            tabBarIcon: ({ color, size }) =>
-              isIOS ? (
-                <SymbolView name="house.fill" tintColor={color} size={size} />
-              ) : (
-                <Feather name="home" size={22} color={color} />
-              ),
+            tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} />,
           }}
         />
         <Tabs.Screen
           name="trade"
           options={{
             title: "Trade",
-            tabBarIcon: ({ color, size }) =>
-              isIOS ? (
-                <SymbolView name="chart.xyaxis.line" tintColor={color} size={size} />
-              ) : (
-                <Feather name="zap" size={22} color={color} />
-              ),
+            tabBarIcon: ({ color }) => <Feather name="zap" size={22} color={color} />,
           }}
         />
         <Tabs.Screen
           name="charts"
           options={{
             title: "Charts",
-            tabBarIcon: ({ color, size }) =>
-              isIOS ? (
-                <SymbolView name="chart.bar.fill" tintColor={color} size={size} />
-              ) : (
-                <Feather name="bar-chart-2" size={22} color={color} />
-              ),
+            tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={22} color={color} />,
           }}
         />
         <Tabs.Screen
           name="portfolio"
           options={{
             title: "Portfolio",
-            tabBarIcon: ({ color, size }) =>
-              isIOS ? (
-                <SymbolView name="briefcase.fill" tintColor={color} size={size} />
-              ) : (
-                <Feather name="briefcase" size={22} color={color} />
-              ),
+            tabBarIcon: ({ color }) => <Feather name="briefcase" size={22} color={color} />,
           }}
         />
         <Tabs.Screen
           name="history"
           options={{
             title: "History",
-            tabBarIcon: ({ color, size }) =>
-              isIOS ? (
-                <SymbolView name="clock.arrow.circlepath" tintColor={color} size={size} />
-              ) : (
-                <Feather name="clock" size={22} color={color} />
-              ),
+            tabBarIcon: ({ color }) => <Feather name="clock" size={22} color={color} />,
           }}
         />
         <Tabs.Screen

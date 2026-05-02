@@ -5,7 +5,7 @@ module.exports = {
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/logo.png",
-    scheme: "mobile",
+    scheme: "trademock",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     splash: {
@@ -13,9 +13,22 @@ module.exports = {
       resizeMode: "contain",
       backgroundColor: "#000000",
     },
-    ios: { supportsTablet: false },
-    android: {},
-    web: { favicon: "./assets/images/logo.png" },
+    ios: {
+      supportsTablet: false,
+      bundleIdentifier: "com.trademock.app",
+    },
+    android: {
+      adaptiveIcon: {
+        foregroundImage: "./assets/images/logo.png",
+        backgroundColor: "#000000",
+      },
+      package: "com.trademock.app",
+    },
+    web: {
+      bundler: "metro",
+      output: "single",
+      favicon: "./assets/images/logo.png",
+    },
     plugins: [
       ["expo-router", { origin: "https://replit.com/" }],
       "expo-font",
