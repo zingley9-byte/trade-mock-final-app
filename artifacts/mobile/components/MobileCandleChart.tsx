@@ -152,9 +152,19 @@ export default function MobileCandleChart({
   const [isFS,             setIsFS]             = useState(false);
   const [openGroup,        setOpenGroup]        = useState<string|null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Actual measured container width (updated via onLayout — avoids screen-width mismatch on Android)
+  const [containerW, setContainerW] = useState(SW);
+
+  const onContainerLayout = useCallback((e: {nativeEvent:{layout:{width:number;height:number}}}) => {
+    if (!isFS) {
+      const w = e.nativeEvent.layout.width;
+      if (w > 10) setContainerW(w);
+    }
+  }, [isFS]);
+
   // fsPad = status-bar height + 12 px breathing room so the toolbar isn't flush against the edge
   const fsPad = isFS ? (StatusBar.currentHeight ?? 0) + 12 : 0;
-  const FSW = isFS ? Dimensions.get("window").width  : SW;
+  const FSW = isFS ? Dimensions.get("window").width : containerW;
   // Subtract fsPad so chartContent height fits exactly within Modal after top padding
   const FSH = isFS ? Dimensions.get("window").height - fsPad : height;
 
@@ -616,7 +626,7 @@ export default function MobileCandleChart({
   const topBarProps = {tf,setTf,showMenu:showTfMenu,setShowMenu:setShowTfMenu,isFS,onFS:()=>setIsFS(v=>!v)};
 
   if (loading) return (
-    <View style={[ss.root,{height:FSH,width:FSW},webTouch]}>
+    <View style={[ss.root,{height:FSH,width:isFS?FSW:"100%"},webTouch]} onLayout={onContainerLayout}>
       <ChartTopBar {...topBarProps}/>
       <View style={ss.center}>
         <ActivityIndicator color={C.bull} size="small"/>
@@ -626,7 +636,7 @@ export default function MobileCandleChart({
   );
 
   if (fetchError&&!vis.length) return (
-    <View style={[ss.root,{height:FSH,width:FSW},webTouch]}>
+    <View style={[ss.root,{height:FSH,width:isFS?FSW:"100%"},webTouch]} onLayout={onContainerLayout}>
       <ChartTopBar {...topBarProps}/>
       <View style={ss.center}>
         <Text style={{fontSize:24,color:C.warn}}>⚠</Text>
@@ -647,7 +657,7 @@ export default function MobileCandleChart({
 
   // ── Main chart content ─────────────────────────────────────────────────
   const chartContent = (
-    <View style={[ss.root,{height:FSH,width:FSW},webTouch]}>
+    <View style={[ss.root,{height:FSH,width:isFS?FSW:"100%"},webTouch]} onLayout={onContainerLayout}>
 
       {/* TOP TOOLBAR */}
       <ChartTopBar {...topBarProps}/>
@@ -957,7 +967,7 @@ function BotBtn({label}:{label:string}) {
 
 // ─── Styles ────────────────────────────────────────────────────────────────
 const ss = StyleSheet.create({
-  root:       { backgroundColor:C.bg, overflow:"hidden" },
+  root:       { backgroundColor:C.bg },
   center:     { flex:1, alignItems:"center", justifyContent:"center", gap:8 },
   dimTxt:     { color:C.dim, fontSize:12 },
   retryBtn:   { marginTop:4, backgroundColor:C.bull, paddingHorizontal:24, paddingVertical:9, borderRadius:6 },

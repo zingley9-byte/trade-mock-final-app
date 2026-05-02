@@ -459,9 +459,10 @@ export default function ChartsScreen() {
 
       {/* ── Content Area ── */}
       <View style={{ flex: 1 }} onLayout={onChartLayout}>
-        {subTab === "traded" && (
+        {/* Keep chart mounted to avoid re-fetching data every tab switch — just hide it */}
+        <View style={subTab === "traded" ? { flex: 1 } : { height: 0, overflow: "hidden" as const }}>
           <TradingViewChart symbol={selectedSymbol.id} height={chartHeight} />
-        )}
+        </View>
         {subTab === "orderbook" && (
           <OrderBook price={currentPrice} colors={colors} />
         )}
