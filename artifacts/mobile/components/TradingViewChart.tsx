@@ -481,8 +481,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
             </div>
           )}
 
-          {/* lightweight-charts mount point */}
-          <div ref={containerRef} style={{ width:"100%", height:"100%" }}/>
+          {/* lightweight-charts mount point — touch-action:none lets lw-charts own all pointer events */}
+          <div ref={containerRef} style={{ width:"100%", height:"100%", touchAction:"none" }}/>
         </div>
       </div>
 
