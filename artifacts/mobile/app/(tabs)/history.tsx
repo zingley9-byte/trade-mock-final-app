@@ -12,6 +12,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext, TradeHistory } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
+import CoinLogo from "@/components/CoinLogo";
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -79,6 +80,7 @@ export default function HistoryScreen() {
       >
         <View style={styles.cardTop}>
           <View style={styles.cardLeft}>
+            <CoinLogo symbolId={item.symbol.id} size={36} />
             <View
               style={[
                 styles.sideBadge,

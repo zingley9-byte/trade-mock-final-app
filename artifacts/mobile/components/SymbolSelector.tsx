@@ -12,6 +12,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { MarketSymbol, SYMBOLS, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
+import CoinLogo from "@/components/CoinLogo";
 
 export default function SymbolSelector() {
   const {
@@ -64,9 +65,7 @@ export default function SymbolSelector() {
         onPress={() => setOpen(true)}
         activeOpacity={0.7}
       >
-        <View style={[styles.badge, { backgroundColor: "#f59e0b22" }]}>
-          <Text style={[styles.badgeText, { color: "#f59e0b" }]}>CRYPTO</Text>
-        </View>
+        <CoinLogo symbolId={selectedSymbol.id} size={28} />
         <View>
           <Text style={[styles.symbolLabel, { color: colors.foreground }]}>
             {selectedSymbol.label}
@@ -130,6 +129,7 @@ export default function SymbolSelector() {
                   ]}
                   onPress={() => handleSelect(item)}
                 >
+                  <CoinLogo symbolId={item.id} size={36} />
                   <View style={styles.rowLeft}>
                     <Text style={[styles.rowLabel, { color: colors.foreground }]}>{item.label}</Text>
                     <Text style={[styles.rowName, { color: colors.mutedForeground }]}>{item.name}</Text>

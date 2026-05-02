@@ -13,6 +13,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
+import CoinLogo from "@/components/CoinLogo";
 
 const INITIAL_BALANCE = 1000000;
 
@@ -139,6 +140,7 @@ export default function PortfolioScreen() {
               >
                 <View style={styles.posTop}>
                   <View style={styles.posLeft}>
+                    <CoinLogo symbolId={pos.symbol.id} size={36} />
                     <View style={[styles.sideBadge, { backgroundColor: pos.side === "buy" ? colors.bullBg : colors.bearBg }]}>
                       <Text style={[styles.sideText, { color: pos.side === "buy" ? colors.bull : colors.bear }]}>
                         {pos.side === "buy" ? "LONG" : "SHORT"}
