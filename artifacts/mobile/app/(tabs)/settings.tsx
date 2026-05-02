@@ -403,7 +403,7 @@ export default function SettingsScreen() {
           value={notif.targetHit} onToggle={() => toggleNotif("targetHit")} colors={colors} />
         <ToggleRow icon="shield-outline" iconBg="#ef4444" label="Stop Loss Alert" sub="When stop-loss is triggered"
           value={notif.stopLoss} onToggle={() => toggleNotif("stopLoss")} colors={colors} />
-        <ToggleRow icon="rss-outline" iconBg="#8b5cf6" label="News Alert" sub="Market-moving news events"
+        <ToggleRow icon="newspaper-outline" iconBg="#8b5cf6" label="News Alert" sub="Market-moving news events"
           value={notif.newsAlert} onToggle={() => toggleNotif("newsAlert")} colors={colors} isLast />
       </View>
 

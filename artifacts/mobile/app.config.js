@@ -31,7 +31,14 @@ module.exports = {
     },
     plugins: [
       ["expo-router", { origin: "https://replit.com/" }],
-      "expo-font",
+      [
+        "expo-font",
+        {
+          fonts: [
+            "node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf",
+          ],
+        },
+      ],
       "expo-web-browser",
     ],
     experiments: {
