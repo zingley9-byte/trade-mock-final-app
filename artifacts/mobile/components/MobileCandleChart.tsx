@@ -789,9 +789,25 @@ export default function MobileCandleChart({
 
   return isFS ? (
     <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setIsFS(false)}>
-      {/* Push content below the status bar so the top bar is not hidden */}
       <View style={{ flex:1, paddingTop: sbH, backgroundColor: C.bg }}>
         {chartContent}
+        {/* Floating exit button — always visible regardless of toolbar state */}
+        <TouchableOpacity
+          onPress={() => setIsFS(false)}
+          style={{
+            position:"absolute", bottom:72, right:14,
+            backgroundColor: C.panel,
+            borderColor: C.gold, borderWidth:1.5,
+            borderRadius:22, paddingHorizontal:14, paddingVertical:9,
+            flexDirection:"row", alignItems:"center", gap:7,
+            zIndex:9999, opacity:0.96,
+            shadowColor:"#000", shadowOpacity:0.4, shadowRadius:8, shadowOffset:{width:0,height:2},
+            elevation:8,
+          }}
+        >
+          <Feather name="minimize-2" size={15} color={C.gold}/>
+          <Text style={{ color:C.gold, fontSize:13, fontWeight:"700", letterSpacing:0.2 }}>Exit</Text>
+        </TouchableOpacity>
       </View>
     </Modal>
   ) : chartContent;
