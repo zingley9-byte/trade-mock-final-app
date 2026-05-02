@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CoinLogo from "@/components/CoinLogo";
 import TradingViewChart from "@/components/TradingViewChart";
@@ -101,7 +101,7 @@ function OrderBook({ price, colors }: { price: number; colors: any }) {
           <Text style={{ color: price > 0 ? colors.bull : colors.bear, fontSize: 15, fontWeight: "700" as const }}>
             {fmtRaw(price)}
           </Text>
-          <Feather name="arrow-down" size={14} color={colors.bear} />
+          <Ionicons name="arrow-down-outline" size={14} color={colors.bear} />
         </View>
 
         {/* Bids (green) */}
@@ -214,7 +214,7 @@ function QuickTradeModal({
         {/* Lot size stepper */}
         <View style={[qt.lotRow, { backgroundColor: colors.muted, borderRadius: 12 }]}>
           <TouchableOpacity onPress={() => setLots((l) => Math.max(1, l - 1))} style={qt.stepBtn}>
-            <Feather name="minus" size={18} color={colors.foreground} />
+            <Ionicons name="remove-outline" size={18} color={colors.foreground} />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: "center" }}>
             <Text style={[qt.lotsNum, { color: colors.foreground }]}>{lots}</Text>
@@ -223,7 +223,7 @@ function QuickTradeModal({
             </Text>
           </View>
           <TouchableOpacity onPress={() => setLots((l) => l + 1)} style={qt.stepBtn}>
-            <Feather name="plus" size={18} color={colors.foreground} />
+            <Ionicons name="add-outline" size={18} color={colors.foreground} />
           </TouchableOpacity>
         </View>
 
@@ -413,7 +413,7 @@ export default function ChartsScreen() {
               <Text style={[s.symbolName, { color: colors.foreground }]}>
                 {ticker}USDT
               </Text>
-              <Feather name="chevron-down" size={13} color={colors.mutedForeground} />
+              <Ionicons name="chevron-down-outline" size={13} color={colors.mutedForeground} />
             </View>
             <Text style={[s.symbolSub, { color: colors.mutedForeground }]}>
               {selectedSymbol.name} Perpetual
@@ -433,7 +433,7 @@ export default function ChartsScreen() {
         </View>
 
         <TouchableOpacity style={[s.gearBtn, { backgroundColor: colors.muted }]}>
-          <Feather name="settings" size={15} color={colors.mutedForeground} />
+          <Ionicons name="settings-outline" size={15} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
 
@@ -453,7 +453,7 @@ export default function ChartsScreen() {
           })}
         </ScrollView>
         <TouchableOpacity style={[s.navGear, { backgroundColor: colors.muted }]}>
-          <Feather name="settings" size={14} color={colors.mutedForeground} />
+          <Ionicons name="settings-outline" size={14} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
 
@@ -491,7 +491,7 @@ export default function ChartsScreen() {
             style={[s.lotTicker, { backgroundColor: colors.muted, borderRadius: 6 }]}
           >
             <Text style={[s.lotTickerText, { color: colors.foreground }]}>{ticker}</Text>
-            <Feather name="chevron-down" size={11} color={colors.mutedForeground} />
+            <Ionicons name="chevron-down-outline" size={11} color={colors.mutedForeground} />
           </TouchableOpacity>
         </View>
 

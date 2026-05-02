@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAdmin } from "@/context/AdminContext";
 import { SYMBOLS } from "@/context/TradingContext";
@@ -39,7 +39,7 @@ export default function AdminDashboard() {
   if (!isAdmin) {
     return (
       <View style={[s.center, { backgroundColor: ADMIN_BG }]}>
-        <Feather name="lock" size={48} color={BEAR} />
+        <Ionicons name="lock-closed-outline" size={48} color={BEAR} />
         <Text style={s.deniedTitle}>Access Denied</Text>
         <Text style={s.deniedSub}>You don't have admin privileges.</Text>
         <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
@@ -56,18 +56,18 @@ export default function AdminDashboard() {
 
   const stats = [
     { label: "Total Users",       value: users.length.toString(),      icon: "users",          color: "#3b82f6" },
-    { label: "Active Users",      value: activeUsers.toString(),        icon: "user-check",     color: BULL },
-    { label: "Blocked",           value: blockedCount.toString(),       icon: "user-x",         color: BEAR },
+    { label: "Active Users",      value: activeUsers.toString(),        icon: "person-add-outline",     color: BULL },
+    { label: "Blocked",           value: blockedCount.toString(),       icon: "person-remove-outline",         color: BEAR },
     { label: "Total Trades",      value: totalTrades.toString(),        icon: "activity",       color: "#f59e0b" },
-    { label: "Total P&L",         value: `${totalPnl >= 0 ? "+" : ""}₹${Math.abs(totalPnl).toFixed(0)}`, icon: "trending-up", color: totalPnl >= 0 ? BULL : BEAR },
-    { label: "Announcements",     value: announcements.filter((a) => a.active).length.toString(), icon: "bell", color: "#8b5cf6" },
+    { label: "Total P&L",         value: `${totalPnl >= 0 ? "+" : ""}₹${Math.abs(totalPnl).toFixed(0)}`, icon: "trending-up-outline", color: totalPnl >= 0 ? BULL : BEAR },
+    { label: "Announcements",     value: announcements.filter((a) => a.active).length.toString(), icon: "notifications-outline", color: "#8b5cf6" },
     { label: "Coins Listed",      value: SYMBOLS.length.toString(),     icon: "layers",         color: "#f59e0b" },
   ];
 
   const menuItems = [
     { label: "Users",          icon: "users",       route: "/admin/users",         color: "#3b82f6", sub: `${users.length} registered` },
     { label: "Coins",          icon: "layers",      route: "/admin/coins",         color: "#f59e0b", sub: `${SYMBOLS.length} listed` },
-    { label: "Announcements",  icon: "bell",        route: "/admin/announcements", color: "#8b5cf6", sub: `${announcements.length} total` },
+    { label: "Announcements",  icon: "notifications-outline",        route: "/admin/announcements", color: "#8b5cf6", sub: `${announcements.length} total` },
   ];
 
   return (
@@ -75,14 +75,14 @@ export default function AdminDashboard() {
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backIcon}>
-          <Feather name="arrow-left" size={20} color={FG} />
+          <Ionicons name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
         <View>
           <Text style={s.headerTitle}>Admin Panel</Text>
           <Text style={s.headerSub}>Trade Mock Control Center</Text>
         </View>
         <View style={s.adminBadge}>
-          <Feather name="shield" size={12} color={PRIMARY} />
+          <Ionicons name="shield-outline" size={12} color={PRIMARY} />
           <Text style={s.adminBadgeText}>ADMIN</Text>
         </View>
       </View>
@@ -95,7 +95,7 @@ export default function AdminDashboard() {
           {stats.map((st) => (
             <View key={st.label} style={s.statCard}>
               <View style={[s.statIcon, { backgroundColor: st.color + "22" }]}>
-                <Feather name={st.icon as any} size={16} color={st.color} />
+                <Ionicons name={st.icon as any} size={16} color={st.color} />
               </View>
               <Text style={[s.statValue, { color: st.color }]}>{st.value}</Text>
               <Text style={s.statLabel}>{st.label}</Text>
@@ -114,13 +114,13 @@ export default function AdminDashboard() {
               activeOpacity={0.7}
             >
               <View style={[s.menuIcon, { backgroundColor: item.color + "22" }]}>
-                <Feather name={item.icon as any} size={18} color={item.color} />
+                <Ionicons name={item.icon as any} size={18} color={item.color} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.menuLabel}>{item.label}</Text>
                 <Text style={s.menuSub}>{item.sub}</Text>
               </View>
-              <Feather name="chevron-right" size={16} color={MUTED} />
+              <Ionicons name="chevron-forward-outline" size={16} color={MUTED} />
             </TouchableOpacity>
           ))}
         </View>

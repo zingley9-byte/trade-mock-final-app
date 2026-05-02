@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { MarketSymbol, SYMBOLS, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import CoinLogo from "@/components/CoinLogo";
@@ -74,7 +74,7 @@ export default function SymbolSelector() {
             {isPositive ? "+" : ""}{priceChange24h.toFixed(2)}%
           </Text>
         </View>
-        <Feather name="chevron-down" size={14} color={colors.mutedForeground} />
+        <Ionicons name="chevron-down-outline" size={14} color={colors.mutedForeground} />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => { setOpen(false); setQuery(""); }}>
@@ -83,13 +83,13 @@ export default function SymbolSelector() {
           <View style={styles.sheetHeader}>
             <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Select Crypto</Text>
             <TouchableOpacity onPress={() => { setOpen(false); setQuery(""); }}>
-              <Feather name="x" size={22} color={colors.mutedForeground} />
+              <Ionicons name="close-outline" size={22} color={colors.mutedForeground} />
             </TouchableOpacity>
           </View>
 
           {/* Search */}
           <View style={[styles.searchBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-            <Feather name="search" size={15} color={colors.mutedForeground} />
+            <Ionicons name="search-outline" size={15} color={colors.mutedForeground} />
             <TextInput
               value={query}
               onChangeText={setQuery}
@@ -102,7 +102,7 @@ export default function SymbolSelector() {
             />
             {query.length > 0 && (
               <TouchableOpacity onPress={() => setQuery("")}>
-                <Feather name="x-circle" size={15} color={colors.mutedForeground} />
+                <Ionicons name="close-circle-outline" size={15} color={colors.mutedForeground} />
               </TouchableOpacity>
             )}
           </View>
@@ -141,7 +141,7 @@ export default function SymbolSelector() {
                     </Text>
                   </View>
                   {isSelected && (
-                    <Feather name="check" size={16} color={colors.primary} style={{ marginLeft: 8 }} />
+                    <Ionicons name="checkmark-outline" size={16} color={colors.primary} style={{ marginLeft: 8 }} />
                   )}
                 </TouchableOpacity>
               );

@@ -18,7 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SYMBOLS, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
@@ -36,14 +36,14 @@ const COIN_COLORS: Record<string, string> = {
 
 // Settings search items
 const SETTINGS_ITEMS = [
-  { id: "s_settings", label: "Settings", sub: "All settings", icon: "settings" as const, action: "settings" },
-  { id: "s_profile", label: "Profile", sub: "Edit name & avatar", icon: "user" as const, action: "settings" },
-  { id: "s_notif", label: "Notifications", sub: "Price & trade alerts", icon: "bell" as const, action: "settings" },
-  { id: "s_privacy", label: "Privacy & Security", sub: "Lock, biometric", icon: "lock" as const, action: "settings" },
-  { id: "s_appearance", label: "Appearance", sub: "Theme, font, chart", icon: "sliders" as const, action: "settings" },
-  { id: "s_learning", label: "Learning Mode", sub: "Tips & education", icon: "book-open" as const, action: "settings" },
-  { id: "s_backup", label: "Backup & Sync", sub: "Export trades", icon: "upload-cloud" as const, action: "settings" },
-  { id: "s_support", label: "Support", sub: "Bug report, WhatsApp", icon: "help-circle" as const, action: "settings" },
+  { id: "s_settings", label: "Settings", sub: "All settings", icon: "settings-outline" as const, action: "settings" },
+  { id: "s_profile", label: "Profile", sub: "Edit name & avatar", icon: "person-outline" as const, action: "settings" },
+  { id: "s_notif", label: "Notifications", sub: "Price & trade alerts", icon: "notifications-outline" as const, action: "settings" },
+  { id: "s_privacy", label: "Privacy & Security", sub: "Lock, biometric", icon: "lock-closed-outline" as const, action: "settings" },
+  { id: "s_appearance", label: "Appearance", sub: "Theme, font, chart", icon: "options-outline" as const, action: "settings" },
+  { id: "s_learning", label: "Learning Mode", sub: "Tips & education", icon: "book-outline" as const, action: "settings" },
+  { id: "s_backup", label: "Backup & Sync", sub: "Export trades", icon: "cloud-upload-outline" as const, action: "settings" },
+  { id: "s_support", label: "Support", sub: "Bug report, WhatsApp", icon: "help-circle-outline" as const, action: "settings" },
 ];
 
 export default function AppHeader() {
@@ -173,7 +173,7 @@ export default function AppHeader() {
       <View style={[styles.header, { backgroundColor: colors.header, borderBottomColor: colors.border, paddingTop: topPad + 8 }]}>
         {/* Search bar */}
         <View style={[styles.searchWrap, { backgroundColor: colors.muted, borderColor: searchFocused ? colors.primary : "transparent" }]}>
-          <Feather name="search" size={15} color={searchFocused ? colors.primary : colors.mutedForeground} />
+          <Ionicons name="search-outline" size={15} color={searchFocused ? colors.primary : colors.mutedForeground} />
           <TextInput
             ref={searchRef}
             style={[styles.searchInput, { color: colors.foreground }]}
@@ -186,7 +186,7 @@ export default function AppHeader() {
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Feather name="x" size={13} color={colors.mutedForeground} />
+              <Ionicons name="close-outline" size={13} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
         </View>
@@ -207,7 +207,7 @@ export default function AppHeader() {
             style={[styles.iconBtn, { backgroundColor: colors.muted }]}
             onPress={() => { markAllRead(); setAlertsOpen(true); }}
           >
-            <Feather name="bell" size={16} color={colors.foreground} />
+            <Ionicons name="notifications-outline" size={16} color={colors.foreground} />
             {unreadCount > 0 && (
               <View style={[styles.badge, { backgroundColor: colors.bear }]}>
                 <Text style={styles.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
@@ -222,7 +222,7 @@ export default function AppHeader() {
             {profileImage ? (
               <Image source={{ uri: profileImage }} style={styles.avatarImg} />
             ) : (
-              <Feather name="user" size={16} color={colors.foreground} />
+              <Ionicons name="person-outline" size={16} color={colors.foreground} />
             )}
           </TouchableOpacity>
         </View>
@@ -244,7 +244,7 @@ export default function AppHeader() {
               {searchResults.coins.length > 0 && (
                 <>
                   <View style={[styles.resultHeader, { borderBottomColor: colors.border }]}>
-                    <Feather name="bar-chart-2" size={11} color={colors.mutedForeground} />
+                    <Ionicons name="bar-chart-outline" size={11} color={colors.mutedForeground} />
                     <Text style={[styles.resultHeaderText, { color: colors.mutedForeground }]}>MARKETS</Text>
                   </View>
                   {searchResults.coins.map((sym) => {
@@ -280,7 +280,7 @@ export default function AppHeader() {
               {searchResults.settings.length > 0 && (
                 <>
                   <View style={[styles.resultHeader, { borderBottomColor: colors.border }]}>
-                    <Feather name="settings" size={11} color={colors.mutedForeground} />
+                    <Ionicons name="settings-outline" size={11} color={colors.mutedForeground} />
                     <Text style={[styles.resultHeaderText, { color: colors.mutedForeground }]}>SETTINGS</Text>
                   </View>
                   {searchResults.settings.map((item) => (
@@ -291,13 +291,13 @@ export default function AppHeader() {
                       activeOpacity={0.7}
                     >
                       <View style={[styles.resultIcon, { backgroundColor: colors.muted }]}>
-                        <Feather name={item.icon} size={13} color={colors.mutedForeground} />
+                        <Ionicons name={item.icon} size={13} color={colors.mutedForeground} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.resultLabel, { color: colors.foreground }]}>{item.label}</Text>
                         <Text style={[styles.resultSub, { color: colors.mutedForeground }]}>{item.sub}</Text>
                       </View>
-                      <Feather name="chevron-right" size={13} color={colors.mutedForeground} />
+                      <Ionicons name="chevron-forward-outline" size={13} color={colors.mutedForeground} />
                     </TouchableOpacity>
                   ))}
                 </>
@@ -316,11 +316,11 @@ export default function AppHeader() {
               <Image source={{ uri: profileImage }} style={styles.avatarLargeImg} />
             ) : (
               <View style={[styles.avatarPlaceholder, { backgroundColor: colors.muted }]}>
-                <Feather name="user" size={28} color={colors.mutedForeground} />
+                <Ionicons name="person-outline" size={28} color={colors.mutedForeground} />
               </View>
             )}
             <View style={[styles.editBadge, { backgroundColor: colors.primary }]}>
-              <Feather name="camera" size={10} color="#fff" />
+              <Ionicons name="camera-outline" size={10} color="#fff" />
             </View>
           </TouchableOpacity>
 
@@ -330,7 +330,7 @@ export default function AppHeader() {
 
           <View style={styles.menuRow}>
             <View style={styles.menuLeft}>
-              <Feather name={isDark ? "moon" : "sun"} size={16} color={colors.foreground} />
+              <Ionicons name={isDark ? "moon" : "sun"} size={16} color={colors.foreground} />
               <Text style={[styles.menuText, { color: colors.foreground }]}>Dark Mode</Text>
             </View>
             <Switch
@@ -343,35 +343,35 @@ export default function AppHeader() {
 
           <TouchableOpacity style={styles.menuRow} onPress={() => { setProfileOpen(false); router.push("/(tabs)/settings"); }}>
             <View style={styles.menuLeft}>
-              <Feather name="settings" size={16} color={colors.foreground} />
+              <Ionicons name="settings-outline" size={16} color={colors.foreground} />
               <Text style={[styles.menuText, { color: colors.foreground }]}>Settings</Text>
             </View>
-            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            <Ionicons name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
           <TouchableOpacity style={styles.menuRow} onPress={handleShare}>
             <View style={styles.menuLeft}>
-              <Feather name="share-2" size={16} color="#10b981" />
+              <Ionicons name="share-social-outline" size={16} color="#10b981" />
               <Text style={[styles.menuText, { color: colors.foreground }]}>Share with Friends</Text>
             </View>
-            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            <Ionicons name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuRow} onPress={openFeedback}>
             <View style={styles.menuLeft}>
-              <Feather name="message-circle" size={16} color="#6366f1" />
+              <Ionicons name="chatbubble-outline" size={16} color="#6366f1" />
               <Text style={[styles.menuText, { color: colors.foreground }]}>Feedback</Text>
             </View>
-            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            <Ionicons name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
           <TouchableOpacity style={styles.menuRow} onPress={handleLogout}>
             <View style={styles.menuLeft}>
-              <Feather name="log-out" size={16} color={colors.bear} />
+              <Ionicons name="log-out-outline" size={16} color={colors.bear} />
               <Text style={[styles.menuText, { color: colors.bear }]}>Logout</Text>
             </View>
           </TouchableOpacity>
@@ -394,10 +394,10 @@ export default function AppHeader() {
             ) : (
               <>
                 <View style={styles.fbHeader}>
-                  <Feather name="message-circle" size={18} color="#6366f1" />
+                  <Ionicons name="chatbubble-outline" size={18} color="#6366f1" />
                   <Text style={[styles.fbTitle, { color: colors.foreground }]}>Send Feedback</Text>
                   <TouchableOpacity onPress={() => setFeedbackOpen(false)} style={{ marginLeft: "auto" }}>
-                    <Feather name="x" size={20} color={colors.mutedForeground} />
+                    <Ionicons name="close-outline" size={20} color={colors.mutedForeground} />
                   </TouchableOpacity>
                 </View>
 
@@ -427,7 +427,7 @@ export default function AppHeader() {
                   onPress={submitFeedback}
                   activeOpacity={0.8}
                 >
-                  <Feather name="send" size={15} color="#fff" />
+                  <Ionicons name="send-outline" size={15} color="#fff" />
                   <Text style={styles.fbBtnText}>Submit Feedback</Text>
                 </TouchableOpacity>
               </>

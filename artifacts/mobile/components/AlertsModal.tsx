@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useAlerts, PriceAlert } from "@/context/AlertsContext";
 import { useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
@@ -82,7 +82,7 @@ export default function AlertsModal({ visible, onClose }: Props) {
           </Text>
         </View>
         <TouchableOpacity onPress={() => removeAlert(item.id)} style={styles.deleteBtn}>
-          <Feather name="trash-2" size={16} color={colors.mutedForeground} />
+          <Ionicons name="trash-outline" size={16} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
     );
@@ -101,11 +101,11 @@ export default function AlertsModal({ visible, onClose }: Props) {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Feather name="bell" size={18} color={colors.foreground} />
+            <Ionicons name="notifications-outline" size={18} color={colors.foreground} />
             <Text style={[styles.title, { color: colors.foreground }]}>Price Alerts</Text>
           </View>
           <TouchableOpacity onPress={onClose}>
-            <Feather name="x" size={22} color={colors.mutedForeground} />
+            <Ionicons name="close-outline" size={22} color={colors.mutedForeground} />
           </TouchableOpacity>
         </View>
 
@@ -115,7 +115,7 @@ export default function AlertsModal({ visible, onClose }: Props) {
             style={[styles.permBanner, { backgroundColor: "#f59e0b22", borderColor: "#f59e0b44" }]}
             onPress={requestPermission}
           >
-            <Feather name="bell-off" size={14} color="#f59e0b" />
+            <Ionicons name="notifications-off-outline" size={14} color="#f59e0b" />
             <Text style={[styles.permText, { color: "#f59e0b" }]}>
               {notifPermission === "denied"
                 ? "Notifications blocked — enable in settings"
@@ -173,7 +173,7 @@ export default function AlertsModal({ visible, onClose }: Props) {
             style={[styles.addBtn, { backgroundColor: condition === "above" ? colors.bull : colors.bear }]}
             onPress={handleAdd}
           >
-            <Feather name="bell" size={14} color="#fff" />
+            <Ionicons name="notifications-outline" size={14} color="#fff" />
             <Text style={styles.addBtnText}>Set Alert</Text>
           </TouchableOpacity>
         </View>
@@ -192,7 +192,7 @@ export default function AlertsModal({ visible, onClose }: Props) {
 
         {alerts.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <Feather name="bell" size={32} color={colors.mutedForeground} />
+            <Ionicons name="notifications-outline" size={32} color={colors.mutedForeground} />
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No alerts set</Text>
           </View>
         ) : (

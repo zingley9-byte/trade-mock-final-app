@@ -9,7 +9,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
   PanResponder, useWindowDimensions, Platform, Modal, Dimensions, StatusBar,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import Svg, { Rect, Line, Text as SvgText, G, Polyline } from "react-native-svg";
 
 // ─── Theme ─────────────────────────────────────────────────────────────────
@@ -98,33 +98,33 @@ function IcCandleRN({color}:{color:string}) {
 type MToolItem  = { id:string|null; label:string; icon:string };
 type MToolGroup = { id:string; label:string; icon:string; toggle?:boolean; items:MToolItem[] };
 const MOBILE_TOOL_GROUPS: Array<MToolGroup | "sep"> = [
-  { id:"cursor",   icon:"crosshair",   label:"Cursor",
-    items:[{id:null,label:"Default cursor",icon:"mouse-pointer"},{id:"cursor",label:"Crosshair",icon:"crosshair"}]},
-  { id:"lines",    icon:"trending-up", label:"Trend Line Tools",
-    items:[{id:"trendline",label:"Trend line",icon:"trending-up"},{id:"trendline",label:"Ray",icon:"arrow-up-right"},{id:"trendline",label:"Extended line",icon:"minus"},{id:"hline",label:"Horizontal line",icon:"minus"},{id:"hline",label:"Vertical line",icon:"more-vertical"},{id:"channel",label:"Parallel channel",icon:"align-justify"}]},
-  { id:"fib",      icon:"git-merge",   label:"Fibonacci Tools",
-    items:[{id:"trendline",label:"Fib retracement",icon:"git-branch"},{id:"trendline",label:"Fib extension",icon:"git-merge"},{id:"channel",label:"Fib channel",icon:"layers"},{id:"trendline",label:"Pitchfork",icon:"triangle"},{id:"trendline",label:"Gann box",icon:"grid"}]},
-  { id:"patterns", icon:"activity",    label:"Pattern Tools",
-    items:[{id:"brush",label:"XABCD pattern",icon:"activity"},{id:"brush",label:"Triangle pattern",icon:"triangle"},{id:"brush",label:"Head & shoulders",icon:"bar-chart-2"},{id:"brush",label:"Elliott wave",icon:"radio"},{id:"brush",label:"Cypher pattern",icon:"zap"}]},
-  { id:"forecast", icon:"target",      label:"Forecast & Measure",
-    items:[{id:"ruler",label:"Long position",icon:"arrow-up"},{id:"ruler",label:"Short position",icon:"arrow-down"},{id:"ruler",label:"Price range",icon:"align-center"},{id:"ruler",label:"Date range",icon:"calendar"},{id:"ruler",label:"Risk reward",icon:"percent"}]},
-  { id:"brush",    icon:"edit-2",      label:"Brush Tools",
-    items:[{id:"brush",label:"Brush",icon:"edit-2"},{id:"brush",label:"Highlighter",icon:"feather"},{id:"brush",label:"Curve",icon:"git-commit"},{id:"brush",label:"Arrow",icon:"arrow-right"}]},
-  { id:"text",     icon:"type",        label:"Text Tools",
-    items:[{id:"text",label:"Text",icon:"type"},{id:"text",label:"Note",icon:"file-text"},{id:"text",label:"Price label",icon:"tag"},{id:"text",label:"Callout",icon:"message-circle"}]},
-  { id:"emoji",    icon:"smile",       label:"Emoji & Icons",
-    items:[{id:"emoji",label:"Emoji",icon:"smile"},{id:"emoji",label:"Icon marker",icon:"star"},{id:"emoji",label:"Flag marker",icon:"flag"},{id:"emoji",label:"Star marker",icon:"award"}]},
-  { id:"ruler",    icon:"tool",        label:"Ruler Tools",
-    items:[{id:"ruler",label:"Measure distance",icon:"move"},{id:"ruler",label:"Measure price change",icon:"trending-up"},{id:"ruler",label:"Measure bars count",icon:"bar-chart"}]},
-  { id:"zoom",     icon:"zoom-in",     label:"Zoom Tools",
-    items:[{id:"zoom",label:"Zoom in",icon:"zoom-in"},{id:"zoom",label:"Zoom out",icon:"zoom-out"},{id:null,label:"Reset zoom",icon:"maximize-2"}]},
+  { id:"cursor",   icon:"locate-outline",   label:"Cursor",
+    items:[{id:null,label:"Default cursor",icon:"hand-right-outline"},{id:"cursor",label:"Crosshair",icon:"locate-outline"}]},
+  { id:"lines",    icon:"trending-up-outline", label:"Trend Line Tools",
+    items:[{id:"trendline",label:"Trend line",icon:"trending-up-outline"},{id:"trendline",label:"Ray",icon:"arrow-up-outline"},{id:"trendline",label:"Extended line",icon:"remove-outline"},{id:"hline",label:"Horizontal line",icon:"remove-outline"},{id:"hline",label:"Vertical line",icon:"ellipsis-vertical-outline"},{id:"channel",label:"Parallel channel",icon:"reorder-three-outline"}]},
+  { id:"fib",      icon:"git-merge-outline",   label:"Fibonacci Tools",
+    items:[{id:"trendline",label:"Fib retracement",icon:"git-branch-outline"},{id:"trendline",label:"Fib extension",icon:"git-merge-outline"},{id:"channel",label:"Fib channel",icon:"layers-outline"},{id:"trendline",label:"Pitchfork",icon:"triangle-outline"},{id:"trendline",label:"Gann box",icon:"grid-outline"}]},
+  { id:"patterns", icon:"pulse-outline",    label:"Pattern Tools",
+    items:[{id:"brush",label:"XABCD pattern",icon:"pulse-outline"},{id:"brush",label:"Triangle pattern",icon:"triangle-outline"},{id:"brush",label:"Head & shoulders",icon:"bar-chart-outline"},{id:"brush",label:"Elliott wave",icon:"radio-outline"},{id:"brush",label:"Cypher pattern",icon:"flash-outline"}]},
+  { id:"forecast", icon:"locate-outline",      label:"Forecast & Measure",
+    items:[{id:"ruler",label:"Long position",icon:"arrow-up-outline"},{id:"ruler",label:"Short position",icon:"arrow-down-outline"},{id:"ruler",label:"Price range",icon:"reorder-four-outline"},{id:"ruler",label:"Date range",icon:"calendar-outline"},{id:"ruler",label:"Risk reward",icon:"calculator-outline"}]},
+  { id:"brush",    icon:"pencil-outline",      label:"Brush Tools",
+    items:[{id:"brush",label:"Brush",icon:"pencil-outline"},{id:"brush",label:"Highlighter",icon:"leaf-outline"},{id:"brush",label:"Curve",icon:"git-commit-outline"},{id:"brush",label:"Arrow",icon:"arrow-forward-outline"}]},
+  { id:"text",     icon:"text-outline",        label:"Text Tools",
+    items:[{id:"text",label:"Text",icon:"text-outline"},{id:"text",label:"Note",icon:"document-text-outline"},{id:"text",label:"Price label",icon:"pricetag-outline"},{id:"text",label:"Callout",icon:"chatbubble-outline"}]},
+  { id:"emoji",    icon:"happy-outline",       label:"Emoji & Icons",
+    items:[{id:"emoji",label:"Emoji",icon:"happy-outline"},{id:"emoji",label:"Icon marker",icon:"star-outline"},{id:"emoji",label:"Flag marker",icon:"flag-outline"},{id:"emoji",label:"Star marker",icon:"trophy-outline"}]},
+  { id:"ruler",    icon:"construct-outline",        label:"Ruler Tools",
+    items:[{id:"ruler",label:"Measure distance",icon:"expand-outline"},{id:"ruler",label:"Measure price change",icon:"trending-up-outline"},{id:"ruler",label:"Measure bars count",icon:"bar-chart-outline"}]},
+  { id:"zoom",     icon:"add-circle-outline",     label:"Zoom Tools",
+    items:[{id:"zoom",label:"Zoom in",icon:"add-circle-outline"},{id:"zoom",label:"Zoom out",icon:"remove-circle-outline"},{id:null,label:"Reset zoom",icon:"expand-outline"}]},
   "sep",
-  { id:"magnet",   icon:"anchor",      label:"Magnet Mode",  toggle:true,
-    items:[{id:"magnet",label:"Strong magnet",icon:"anchor"},{id:"magnet",label:"Weak magnet",icon:"anchor"},{id:null,label:"Magnet off",icon:"x-circle"}]},
-  { id:"lock",     icon:"lock",        label:"Lock Drawings",toggle:true,
-    items:[{id:"lock",label:"Lock all drawings",icon:"lock"},{id:"lockedit",label:"Lock & edit",icon:"edit"},{id:null,label:"Unlock all",icon:"unlock"}]},
-  { id:"eye",      icon:"eye",         label:"Visibility",   toggle:true,
-    items:[{id:"eye",label:"Hide drawings",icon:"eye-off"},{id:"eye",label:"Show drawings",icon:"eye"},{id:"clear",label:"Delete all drawings",icon:"trash-2"}]},
+  { id:"magnet",   icon:"anchor-outline",      label:"Magnet Mode",  toggle:true,
+    items:[{id:"magnet",label:"Strong magnet",icon:"anchor-outline"},{id:"magnet",label:"Weak magnet",icon:"anchor-outline"},{id:null,label:"Magnet off",icon:"close-circle-outline"}]},
+  { id:"lock",     icon:"lock-closed-outline",        label:"Lock Drawings",toggle:true,
+    items:[{id:"lock",label:"Lock all drawings",icon:"lock-closed-outline"},{id:"lockedit",label:"Lock & edit",icon:"create-outline"},{id:null,label:"Unlock all",icon:"lock-open-outline"}]},
+  { id:"eye",      icon:"eye-outline",         label:"Visibility",   toggle:true,
+    items:[{id:"eye",label:"Hide drawings",icon:"eye-off-outline"},{id:"eye",label:"Show drawings",icon:"eye-outline"},{id:"clear",label:"Delete all drawings",icon:"trash-outline"}]},
 ];
 
 // ─── Tool hint strings ─────────────────────────────────────────────────────
@@ -706,7 +706,7 @@ export default function MobileCandleChart({
                         backgroundColor: active?C.gold:"transparent",
                         borderWidth:1, borderColor:active?C.gold:C.border,
                       }}/>
-                      <Feather name={item.icon as any} size={12} color={active?C.gold:item.id==="clear"?C.bear:C.dim}/>
+                      <Ionicons name={item.icon as any} size={12} color={active?C.gold:item.id==="clear"?C.bear:C.dim}/>
                       <Text style={{color:active?C.gold:item.id==="clear"?C.bear:C.text, fontSize:12, fontWeight:"500" as const, flex:1}}>
                         {item.label}
                       </Text>
@@ -754,7 +754,7 @@ export default function MobileCandleChart({
             onPress={()=>{setSidebarCollapsed(v=>!v); setOpenGroup(null);}}
             style={{width:sidebarW, height:24, alignItems:"center", justifyContent:"center", marginBottom:2}}
           >
-            <Feather name={sidebarCollapsed?"chevron-right":"chevron-left"} size={11} color={C.dim}/>
+            <Ionicons name={sidebarCollapsed?"chevron-forward-outline":"chevron-back-outline"} size={11} color={C.dim}/>
           </TouchableOpacity>
           {/* Group buttons (scrollable) */}
           {!sidebarCollapsed && (
@@ -769,7 +769,7 @@ export default function MobileCandleChart({
                     onPress={()=>setOpenGroup(prev=>prev===g.id?null:g.id)}
                     style={[ss.toolBtn, isGrpActive&&ss.toolBtnActive, {position:"relative"}]}
                   >
-                    <Feather name={g.icon as any} size={15} color={isGrpActive?C.gold:C.dim}/>
+                    <Ionicons name={g.icon as any} size={15} color={isGrpActive?C.gold:C.dim}/>
                     {/* Tiny corner triangle */}
                     <View style={{position:"absolute",right:3,bottom:4}}>
                       <View style={{width:4,height:3,borderLeftWidth:2,borderRightWidth:2,borderBottomWidth:0,borderTopWidth:3,borderLeftColor:"transparent",borderRightColor:"transparent",borderTopColor:isGrpActive?C.gold:"#4a4e5a"}}/>
@@ -882,11 +882,11 @@ export default function MobileCandleChart({
 
       {/* BOTTOM BAR */}
       <View style={[ss.botBar,{borderTopColor:C.border}]}>
-        <Feather name="calendar" size={11} color={C.dim}/>
+        <Ionicons name="calendar-outline" size={11} color={C.dim}/>
         <Text style={ss.istTxt}>{istTime} UTC+5:30</Text>
         {drawings.length>0 && (
           <TouchableOpacity onPress={()=>setDrawings([])} style={ss.clearBtn} hitSlop={{top:8,bottom:8,left:8,right:8}}>
-            <Feather name="trash-2" size={11} color={C.dim}/>
+            <Ionicons name="trash-outline" size={11} color={C.dim}/>
           </TouchableOpacity>
         )}
         <View style={{flex:1}}/>
@@ -917,7 +917,7 @@ export default function MobileCandleChart({
             elevation:8,
           }}
         >
-          <Feather name="minimize-2" size={15} color={C.gold}/>
+          <Ionicons name="contract-outline" size={15} color={C.gold}/>
           <Text style={{ color:C.gold, fontSize:13, fontWeight:"700", letterSpacing:0.2 }}>Exit</Text>
         </TouchableOpacity>
       </View>
@@ -933,22 +933,22 @@ function ChartTopBar({tf,setTf,showMenu,setShowMenu,isFS,onFS}:{
 }) {
   return (
     <View style={[ss.topBar,{borderBottomColor:C.border}]}>
-      <TbBtn><Feather name="plus" size={16} color={C.dim}/></TbBtn>
+      <TbBtn><Ionicons name="add-outline" size={16} color={C.dim}/></TbBtn>
       <View style={[ss.tbSep,{backgroundColor:C.border}]}/>
       <TouchableOpacity style={ss.tfPickerBtn} onPress={()=>setShowMenu(!showMenu)}>
         <Text style={ss.tfPickerTxt}>{tf}</Text>
-        <Feather name="chevron-down" size={10} color={C.dim}/>
+        <Ionicons name="chevron-down-outline" size={10} color={C.dim}/>
       </TouchableOpacity>
       <View style={[ss.tbSep,{backgroundColor:C.border}]}/>
       <TbBtn><IcCandleRN color={C.dim}/></TbBtn>
       <TbBtn><Text style={ss.fxTxt}>fx</Text></TbBtn>
-      <TbBtn><Feather name="layout" size={15} color={C.dim}/></TbBtn>
+      <TbBtn><Ionicons name="grid-outline" size={15} color={C.dim}/></TbBtn>
       <View style={{flex:1}}/>
-      <TbBtn><Feather name="sliders" size={15} color={C.dim}/></TbBtn>
+      <TbBtn><Ionicons name="options-outline" size={15} color={C.dim}/></TbBtn>
       <TouchableOpacity style={ss.tbBtn} onPress={onFS}>
-        <Feather name={isFS?"minimize":"maximize"} size={15} color={isFS?C.gold:C.dim}/>
+        <Ionicons name={isFS?"contract-outline":"expand-outline"} size={15} color={isFS?C.gold:C.dim}/>
       </TouchableOpacity>
-      <TbBtn><Feather name="camera" size={15} color={C.dim}/></TbBtn>
+      <TbBtn><Ionicons name="camera-outline" size={15} color={C.dim}/></TbBtn>
     </View>
   );
 }

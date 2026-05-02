@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import TradingViewChart from "@/components/TradingViewChart";
 import SymbolSelector from "@/components/SymbolSelector";
 import PriceBar from "@/components/PriceBar";
@@ -124,7 +124,7 @@ export default function HomeScreen() {
           <View style={styles.watchRight}>
             {showSearch ? (
               <View style={[styles.searchBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-                <Feather name="search" size={12} color={colors.mutedForeground} />
+                <Ionicons name="search-outline" size={12} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.searchInput, { color: colors.foreground }]}
                   placeholder="Search..."
@@ -134,7 +134,7 @@ export default function HomeScreen() {
                   autoFocus
                 />
                 <TouchableOpacity onPress={() => { setSearchQuery(""); setShowSearch(false); }}>
-                  <Feather name="x" size={12} color={colors.mutedForeground} />
+                  <Ionicons name="close-outline" size={12} color={colors.mutedForeground} />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -142,7 +142,7 @@ export default function HomeScreen() {
                 <Text style={[styles.headerCol, { color: colors.mutedForeground }]}>Price</Text>
                 <Text style={[styles.headerCol, { color: colors.mutedForeground }]}>24h%</Text>
                 <TouchableOpacity onPress={() => setShowSearch(true)} style={styles.searchBtn}>
-                  <Feather name="search" size={13} color={colors.mutedForeground} />
+                  <Ionicons name="search-outline" size={13} color={colors.mutedForeground} />
                 </TouchableOpacity>
               </>
             )}
@@ -152,7 +152,7 @@ export default function HomeScreen() {
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
           {visibleSymbols.length === 0 ? (
             <View style={styles.emptySearch}>
-              <Feather name="search" size={24} color={colors.mutedForeground} />
+              <Ionicons name="search-outline" size={24} color={colors.mutedForeground} />
               <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No results for "{searchQuery}"</Text>
             </View>
           ) : (

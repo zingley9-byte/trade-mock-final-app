@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext, TradeHistory } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
@@ -225,7 +225,7 @@ export default function HistoryScreen() {
       {/* ── Trade list ─────────────────────────────────────────────────────── */}
       {filtered.length === 0 ? (
         <View style={styles.empty}>
-          <Feather name="clock" size={40} color={colors.mutedForeground} />
+          <Ionicons name="time-outline" size={40} color={colors.mutedForeground} />
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
             {tradeHistory.length === 0 ? "No trades yet" : "No trades match filter"}
           </Text>

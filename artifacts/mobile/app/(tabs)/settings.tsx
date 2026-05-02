@@ -16,7 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
@@ -67,14 +67,14 @@ function RowItem({
       { backgroundColor: colors.card },
     ]}>
       <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
-        <Feather name={icon as any} size={15} color="#fff" />
+        <Ionicons name={icon as any} size={15} color="#fff" />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowLabel, { color: colors.foreground }]}>{label}</Text>
         {sub && <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{sub}</Text>}
       </View>
       {right}
-      {showChevron && <Feather name="chevron-right" size={15} color={colors.mutedForeground} style={{ marginLeft: 4 }} />}
+      {showChevron && <Ionicons name="chevron-forward-outline" size={15} color={colors.mutedForeground} style={{ marginLeft: 4 }} />}
     </View>
   );
   return onPress ? (
@@ -174,7 +174,7 @@ function FontSizeModal({
                 <Text style={[styles.pickerLabel, { color: colors.foreground }]}>{o.label}</Text>
                 <Text style={[styles.pickerSub, { color: colors.mutedForeground }]}>{o.desc}</Text>
               </View>
-              {value === o.key && <Feather name="check" size={16} color={colors.primary} />}
+              {value === o.key && <Ionicons name="checkmark-outline" size={16} color={colors.primary} />}
             </TouchableOpacity>
           ))}
         </View>
@@ -207,7 +207,7 @@ function ChartBgModal({
                 <Text style={[styles.pickerLabel, { color: colors.foreground }]}>{o.label}</Text>
                 <Text style={[styles.pickerSub, { color: colors.mutedForeground }]}>{o.desc}</Text>
               </View>
-              {value === o.key && <Feather name="check" size={16} color={colors.primary} />}
+              {value === o.key && <Ionicons name="checkmark-outline" size={16} color={colors.primary} />}
             </TouchableOpacity>
           ))}
         </View>
@@ -368,11 +368,11 @@ export default function SettingsScreen() {
             <Image source={{ uri: avatar }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: colors.muted }]}>
-              <Feather name="user" size={30} color={colors.mutedForeground} />
+              <Ionicons name="person-outline" size={30} color={colors.mutedForeground} />
             </View>
           )}
           <View style={[styles.cameraBadge, { backgroundColor: colors.primary }]}>
-            <Feather name="camera" size={10} color="#fff" />
+            <Ionicons name="camera-outline" size={10} color="#fff" />
           </View>
         </TouchableOpacity>
         <View style={styles.profileInfo}>
@@ -389,7 +389,7 @@ export default function SettingsScreen() {
           style={[styles.editBtn, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "40" }]}
           onPress={() => setEditProfileOpen(true)}
         >
-          <Feather name="edit-2" size={13} color={colors.primary} />
+          <Ionicons name="pencil-outline" size={13} color={colors.primary} />
           <Text style={[styles.editBtnText, { color: colors.primary }]}>Edit</Text>
         </TouchableOpacity>
       </View>
@@ -397,26 +397,26 @@ export default function SettingsScreen() {
       {/* ─── Notifications ─── */}
       <SectionHeader title="Notifications" colors={colors} />
       <View style={styles.section}>
-        <ToggleRow icon="bell" iconBg="#3b82f6" label="Price Alert" sub="Notify on major price moves"
+        <ToggleRow icon="notifications-outline" iconBg="#3b82f6" label="Price Alert" sub="Notify on major price moves"
           value={notif.priceAlert} onToggle={() => toggleNotif("priceAlert")} colors={colors} isFirst />
-        <ToggleRow icon="target" iconBg="#10b981" label="Target Hit Alert" sub="When take-profit is reached"
+        <ToggleRow icon="locate-outline" iconBg="#10b981" label="Target Hit Alert" sub="When take-profit is reached"
           value={notif.targetHit} onToggle={() => toggleNotif("targetHit")} colors={colors} />
-        <ToggleRow icon="shield" iconBg="#ef4444" label="Stop Loss Alert" sub="When stop-loss is triggered"
+        <ToggleRow icon="shield-outline" iconBg="#ef4444" label="Stop Loss Alert" sub="When stop-loss is triggered"
           value={notif.stopLoss} onToggle={() => toggleNotif("stopLoss")} colors={colors} />
-        <ToggleRow icon="rss" iconBg="#8b5cf6" label="News Alert" sub="Market-moving news events"
+        <ToggleRow icon="rss-outline" iconBg="#8b5cf6" label="News Alert" sub="Market-moving news events"
           value={notif.newsAlert} onToggle={() => toggleNotif("newsAlert")} colors={colors} isLast />
       </View>
 
       {/* ─── Privacy ─── */}
       <SectionHeader title="Privacy & Security" colors={colors} />
       <View style={styles.section}>
-        <ToggleRow icon="lock" iconBg="#f59e0b" label="App Lock PIN" sub="Require PIN to open app"
+        <ToggleRow icon="lock-closed-outline" iconBg="#f59e0b" label="App Lock PIN" sub="Require PIN to open app"
           value={privacy.appLock} onToggle={() => togglePrivacy("appLock")} colors={colors} isFirst />
-        <ToggleRow icon="cpu" iconBg="#6366f1" label="Biometric Lock" sub="Fingerprint / Face ID"
+        <ToggleRow icon="hardware-chip-outline" iconBg="#6366f1" label="Biometric Lock" sub="Fingerprint / Face ID"
           value={privacy.biometric} onToggle={() => togglePrivacy("biometric")} colors={colors} />
-        <ToggleRow icon="eye-off" iconBg="#64748b" label="Hide Balance" sub="Mask portfolio value"
+        <ToggleRow icon="eye-off-outline" iconBg="#64748b" label="Hide Balance" sub="Mask portfolio value"
           value={privacy.hideBalance} onToggle={() => togglePrivacy("hideBalance")} colors={colors} />
-        <ToggleRow icon="camera-off" iconBg="#dc2626" label="Screenshot Protection" sub="Prevent screenshots"
+        <ToggleRow icon="camera-outline" iconBg="#dc2626" label="Screenshot Protection" sub="Prevent screenshots"
           value={privacy.screenshotProtection} onToggle={() => togglePrivacy("screenshotProtection")} colors={colors} isLast />
       </View>
 
@@ -425,12 +425,12 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <ToggleRow icon={isDark ? "moon" : "sun"} iconBg={isDark ? "#1e293b" : "#f59e0b"} label="Dark Mode"
           value={isDark} onToggle={(v) => setTheme(v ? "dark" : "light")} colors={colors} isFirst />
-        <RowItem icon="type" iconBg="#0ea5e9" label="Font Size" colors={colors}
+        <RowItem icon="text-outline" iconBg="#0ea5e9" label="Font Size" colors={colors}
           right={<Text style={[styles.valueText, { color: colors.mutedForeground }]}>{fontLabel}</Text>}
           showChevron onPress={() => setFontSizeOpen(true)} />
-        <ToggleRow icon="grid" iconBg="#7c3aed" label="Compact Mode" sub="Denser layout"
+        <ToggleRow icon="grid-outline" iconBg="#7c3aed" label="Compact Mode" sub="Denser layout"
           value={appearance.compactMode} onToggle={(v) => setAppearanceKey("compactMode", v)} colors={colors} />
-        <RowItem icon="image" iconBg="#0d9488" label="Chart Background" colors={colors}
+        <RowItem icon="image-outline" iconBg="#0d9488" label="Chart Background" colors={colors}
           right={<Text style={[styles.valueText, { color: colors.mutedForeground }]}>{chartBgLabel}</Text>}
           showChevron onPress={() => setChartBgOpen(true)} isLast />
       </View>
@@ -438,38 +438,38 @@ export default function SettingsScreen() {
       {/* ─── Learning Mode ─── */}
       <SectionHeader title="Learning Mode" colors={colors} />
       <View style={styles.section}>
-        <ToggleRow icon="book-open" iconBg="#f59e0b" label="Beginner Tips" sub="Helpful hints for new traders"
+        <ToggleRow icon="book-outline" iconBg="#f59e0b" label="Beginner Tips" sub="Helpful hints for new traders"
           value={learning.beginnerTips} onToggle={() => toggleLearning("beginnerTips")} colors={colors} isFirst />
-        <ToggleRow icon="info" iconBg="#3b82f6" label="Trade Explanation" sub="Explain each trade step"
+        <ToggleRow icon="information-circle-outline" iconBg="#3b82f6" label="Trade Explanation" sub="Explain each trade step"
           value={learning.tradeExplanation} onToggle={() => toggleLearning("tradeExplanation")} colors={colors} />
-        <ToggleRow icon="alert-triangle" iconBg="#ef4444" label="Risk Education" sub="Show risk warnings"
+        <ToggleRow icon="warning-outline" iconBg="#ef4444" label="Risk Education" sub="Show risk warnings"
           value={learning.riskEducation} onToggle={() => toggleLearning("riskEducation")} colors={colors} />
-        <ToggleRow icon="clock" iconBg="#10b981" label="Practice Reminders" sub="Daily practice nudges"
+        <ToggleRow icon="time-outline" iconBg="#10b981" label="Practice Reminders" sub="Daily practice nudges"
           value={learning.practiceReminders} onToggle={() => toggleLearning("practiceReminders")} colors={colors} isLast />
       </View>
 
       {/* ─── Backup & Sync ─── */}
       <SectionHeader title="Backup & Sync" colors={colors} />
       <View style={styles.section}>
-        <RowItem icon="upload-cloud" iconBg="#0ea5e9" label="Backup Demo Trades" sub="Save trades to cloud"
+        <RowItem icon="cloud-upload-outline" iconBg="#0ea5e9" label="Backup Demo Trades" sub="Save trades to cloud"
           colors={colors} showChevron onPress={handleBackup} isFirst />
-        <RowItem icon="refresh-cw" iconBg="#6366f1" label="Sync Profile Data" sub="Last synced: Today"
+        <RowItem icon="refresh-outline" iconBg="#6366f1" label="Sync Profile Data" sub="Last synced: Today"
           colors={colors} showChevron
           onPress={() => Alert.alert("Sync", "Profile data synced successfully!")} />
-        <RowItem icon="download" iconBg="#10b981" label="Export Trade History CSV"
+        <RowItem icon="download-outline" iconBg="#10b981" label="Export Trade History CSV"
           sub="Download all trades as .csv" colors={colors} showChevron onPress={handleExportCSV} isLast />
       </View>
 
       {/* ─── Support ─── */}
       <SectionHeader title="Support" colors={colors} />
       <View style={styles.section}>
-        <RowItem icon="alert-circle" iconBg="#ef4444" label="Report Bug"
+        <RowItem icon="alert-circle-outline" iconBg="#ef4444" label="Report Bug"
           sub="Found an issue? Tell us" colors={colors} showChevron onPress={handleReportBug} isFirst />
-        <RowItem icon="zap" iconBg="#f59e0b" label="Request Feature"
+        <RowItem icon="flash-outline" iconBg="#f59e0b" label="Request Feature"
           sub="Suggest something new" colors={colors} showChevron onPress={handleFeatureRequest} />
-        <RowItem icon="message-circle" iconBg="#25D366" label="WhatsApp Support"
+        <RowItem icon="chatbubble-outline" iconBg="#25D366" label="WhatsApp Support"
           sub="Chat with us on WhatsApp" colors={colors} showChevron onPress={handleWhatsApp} />
-        <RowItem icon="star" iconBg="#eab308" label="Rate App"
+        <RowItem icon="star-outline" iconBg="#eab308" label="Rate App"
           sub="Love Trade Mock? Rate us!" colors={colors} showChevron onPress={handleRateApp} isLast />
       </View>
 
@@ -484,13 +484,13 @@ export default function SettingsScreen() {
               activeOpacity={0.8}
             >
               <View style={[styles.adminIconWrap, { backgroundColor: "#7c3aed22" }]}>
-                <Feather name="shield" size={18} color="#7c3aed" />
+                <Ionicons name="shield-outline" size={18} color="#7c3aed" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.adminBtnLabel, { color: "#7c3aed" }]}>Admin Panel</Text>
                 <Text style={[styles.adminBtnSub, { color: colors.mutedForeground }]}>Manage users, coins & announcements</Text>
               </View>
-              <Feather name="chevron-right" size={16} color="#7c3aed" />
+              <Ionicons name="chevron-forward-outline" size={16} color="#7c3aed" />
             </TouchableOpacity>
           </View>
         </>

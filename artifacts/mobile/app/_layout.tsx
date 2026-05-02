@@ -5,7 +5,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -38,7 +38,6 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     // Vector icon fonts — must be pre-loaded so chart toolbar + tab icons
     // render correctly on Android (blank squares appear when font is missing)
-    ...Feather.font,
     ...Ionicons.font,
     // App text fonts
     Inter_400Regular,

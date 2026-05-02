@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Announcement, useAdmin } from "@/context/AdminContext";
 
@@ -34,9 +34,9 @@ const TYPE_COLORS: Record<AType, string> = {
 };
 
 const TYPE_ICONS: Record<AType, string> = {
-  info: "info",
-  warning: "alert-triangle",
-  success: "check-circle",
+  info: "information-circle-outline",
+  warning: "warning-outline",
+  success: "checkmark-circle-outline",
 };
 
 export default function AdminAnnouncements() {
@@ -71,7 +71,7 @@ export default function AdminAnnouncements() {
       <View style={s.card}>
         <View style={s.cardTop}>
           <View style={[s.typeIcon, { backgroundColor: color + "22" }]}>
-            <Feather name={TYPE_ICONS[a.type] as any} size={16} color={color} />
+            <Ionicons name={TYPE_ICONS[a.type] as any} size={16} color={color} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.cardTitle}>{a.title}</Text>
@@ -85,7 +85,7 @@ export default function AdminAnnouncements() {
             style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
           />
           <TouchableOpacity onPress={() => handleDelete(a)} style={{ padding: 4 }}>
-            <Feather name="trash-2" size={16} color={BEAR} />
+            <Ionicons name="trash-outline" size={16} color={BEAR} />
           </TouchableOpacity>
         </View>
         <Text style={s.cardMsg}>{a.message}</Text>
@@ -102,18 +102,18 @@ export default function AdminAnnouncements() {
     <View style={[s.root, { paddingTop: insets.top }]}>
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
-          <Feather name="arrow-left" size={20} color={FG} />
+          <Ionicons name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Announcements ({announcements.length})</Text>
         <TouchableOpacity style={s.addBtn} onPress={() => setAddModal(true)}>
-          <Feather name="plus" size={16} color="#fff" />
+          <Ionicons name="add-outline" size={16} color="#fff" />
           <Text style={s.addBtnText}>New</Text>
         </TouchableOpacity>
       </View>
 
       {announcements.length === 0 ? (
         <View style={s.center}>
-          <Feather name="bell-off" size={40} color={MUTED} />
+          <Ionicons name="notifications-off-outline" size={40} color={MUTED} />
           <Text style={s.emptyText}>No announcements yet</Text>
           <TouchableOpacity style={s.emptyBtn} onPress={() => setAddModal(true)}>
             <Text style={s.emptyBtnText}>Create First Announcement</Text>
@@ -145,7 +145,7 @@ export default function AdminAnnouncements() {
                   style={[s.typeBtn, aType === t && { backgroundColor: TYPE_COLORS[t] + "33", borderColor: TYPE_COLORS[t] }]}
                   onPress={() => setAType(t)}
                 >
-                  <Feather name={TYPE_ICONS[t] as any} size={14} color={aType === t ? TYPE_COLORS[t] : MUTED} />
+                  <Ionicons name={TYPE_ICONS[t] as any} size={14} color={aType === t ? TYPE_COLORS[t] : MUTED} />
                   <Text style={[s.typeBtnText, { color: aType === t ? TYPE_COLORS[t] : MUTED }]}>
                     {t.charAt(0).toUpperCase() + t.slice(1)}
                   </Text>
@@ -173,7 +173,7 @@ export default function AdminAnnouncements() {
             />
 
             <TouchableOpacity style={s.confirmBtn} onPress={handleCreate} activeOpacity={0.85}>
-              <Feather name="send" size={16} color="#fff" />
+              <Ionicons name="send-outline" size={16} color="#fff" />
               <Text style={s.confirmText}>Publish Announcement</Text>
             </TouchableOpacity>
           </ScrollView>

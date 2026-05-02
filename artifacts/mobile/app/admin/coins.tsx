@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SYMBOLS } from "@/context/TradingContext";
 import { useAdmin } from "@/context/AdminContext";
@@ -78,20 +78,20 @@ export default function AdminCoins() {
     <View style={[s.root, { paddingTop: insets.top }]}>
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
-          <Feather name="arrow-left" size={20} color={FG} />
+          <Ionicons name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Coins ({allCoins.length})</Text>
         <TouchableOpacity
           style={s.addBtn}
           onPress={() => setAddModal(true)}
         >
-          <Feather name="plus" size={16} color="#fff" />
+          <Ionicons name="add-outline" size={16} color="#fff" />
           <Text style={s.addBtnText}>Add</Text>
         </TouchableOpacity>
       </View>
 
       <View style={s.searchWrap}>
-        <Feather name="search" size={15} color={MUTED} />
+        <Ionicons name="search-outline" size={15} color={MUTED} />
         <TextInput
           style={s.searchInput}
           placeholder="Search coins…"
@@ -103,7 +103,7 @@ export default function AdminCoins() {
         />
         {query.length > 0 && (
           <TouchableOpacity onPress={() => setQuery("")}>
-            <Feather name="x" size={14} color={MUTED} />
+            <Ionicons name="close-outline" size={14} color={MUTED} />
           </TouchableOpacity>
         )}
       </View>
@@ -130,7 +130,7 @@ export default function AdminCoins() {
               onPress={() => handleRemove(item.id, item.name)}
               style={s.removeBtn}
             >
-              <Feather name="trash-2" size={16} color={(item as any).isDefault ? MUTED : BEAR} />
+              <Ionicons name="trash-outline" size={16} color={(item as any).isDefault ? MUTED : BEAR} />
             </TouchableOpacity>
           </View>
         )}
@@ -162,7 +162,7 @@ export default function AdminCoins() {
             autoCapitalize="words"
           />
           <TouchableOpacity style={s.confirmBtn} onPress={handleAdd} activeOpacity={0.85}>
-            <Feather name="plus" size={16} color="#fff" />
+            <Ionicons name="add-outline" size={16} color="#fff" />
             <Text style={s.confirmText}>Add Coin</Text>
           </TouchableOpacity>
         </View>
