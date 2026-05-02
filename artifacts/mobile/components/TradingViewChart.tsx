@@ -126,12 +126,22 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const wsRef          = useRef<WebSocket | null>(null);
   const tfRef          = useRef("5m");
   const symRef         = useRef(symbol);
+  const loadIdRef      = useRef(0);
+  const retryDelayRef  = useRef(3000);
+  const retryTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef     = useRef(true);
 
-  const [timeframe,  setTfState]  = useState("5m");
-  const [showTfMenu, setShowTf]   = useState(false);
-  const [activeTool, setActiveTool] = useState<string | null>(null);
-  const [ohlcv, setOhlcv]         = useState<{o:number;h:number;l:number;c:number;v:number;ch:number;chp:number}|null>(null);
+  const [timeframe,    setTfState]    = useState("5m");
+  const [showTfMenu,   setShowTf]     = useState(false);
+  const [activeTool,   setActiveTool] = useState<string | null>(null);
+  const [ohlcv,        setOhlcv]      = useState<{o:number;h:number;l:number;c:number;v:number;ch:number;chp:number}|null>(null);
   const [volCollapsed, setVolCollapsed] = useState(false);
+  const [wsStatus,     setWsStatus]   = useState<"connecting"|"live"|"reconnecting"|"error">("connecting");
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const istTime = useIST();
 
@@ -252,18 +262,55 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       }
     } catch {}
 
-    // WebSocket live
-    const ws = new WebSocket(`wss://data-stream.binance.vision/ws/${binSym.toLowerCase()}@kline_${binInterval}`);
-    wsRef.current = ws;
-    ws.onmessage = (evt) => {
-      const k = JSON.parse(evt.data).k;
-      if (!candleRef.current) return;
-      const c = { time: Math.floor(k.t/1000) as any, open:+k.o, high:+k.h, low:+k.l, close:+k.c, volume:+k.v };
-      candleRef.current.update(c);
-      if (volRef.current) {
-        volRef.current.update({ time: c.time, value: c.volume, color: c.close >= c.open ? C.bull+"60" : C.bear+"60" });
-      }
-    };
+    // WebSocket live — with auto-retry and exponential backoff
+    const loadId = ++loadIdRef.current;
+    retryDelayRef.current = 3000;
+
+    function connectWS() {
+      if (!mountedRef.current || loadIdRef.current !== loadId) return;
+      if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+      wsRef.current?.close();
+      wsRef.current = null;
+
+      setWsStatus("connecting");
+      const ws = new WebSocket(`wss://data-stream.binance.vision/ws/${binSym.toLowerCase()}@kline_${binInterval}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (!mountedRef.current || loadIdRef.current !== loadId) return;
+        setWsStatus("live");
+        retryDelayRef.current = 3000;
+      };
+
+      ws.onmessage = (evt) => {
+        if (!mountedRef.current || loadIdRef.current !== loadId) return;
+        try {
+          const k = JSON.parse(evt.data).k;
+          if (!candleRef.current) return;
+          const c = { time: Math.floor(k.t/1000) as any, open:+k.o, high:+k.h, low:+k.l, close:+k.c, volume:+k.v };
+          candleRef.current.update(c);
+          if (volRef.current) {
+            volRef.current.update({ time: c.time, value: c.volume, color: c.close >= c.open ? C.bull+"60" : C.bear+"60" });
+          }
+        } catch {}
+      };
+
+      ws.onerror = () => {
+        if (!mountedRef.current || loadIdRef.current !== loadId) return;
+        setWsStatus("error");
+        // onclose always follows onerror; retry happens there
+      };
+
+      ws.onclose = () => {
+        if (!mountedRef.current || loadIdRef.current !== loadId) return;
+        setWsStatus("reconnecting");
+        const delay = retryDelayRef.current;
+        retryDelayRef.current = Math.min(delay * 2, 30000);
+        retryTimerRef.current = setTimeout(connectWS, delay);
+      };
+    }
+
+    connectWS();
   }, [volCollapsed]);
 
   // Reinit on symbol/timeframe change
@@ -272,8 +319,10 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     tfRef.current  = timeframe;
     initChart(symbol, timeframe);
     return () => {
+      if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
       wsRef.current?.close();
       wsRef.current = null;
+      loadIdRef.current++; // invalidate in-flight connectWS callbacks
       try { chartRef.current?.remove(); } catch {}
       chartRef.current = null;
     };
@@ -449,6 +498,13 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           <span style={{ color:C.text, fontVariantNumeric:"tabular-nums" }}>{istTime} UTC+5:30</span>
         </div>
         <div style={{ flex:1 }}/>
+        {/* WS status badge */}
+        <span style={{
+          fontSize:10, fontWeight:"700",
+          color: wsStatus==="live" ? C.bull : wsStatus==="reconnecting" ? "#f59e0b" : wsStatus==="error" ? C.bear : C.dim,
+        }}>
+          {wsStatus==="live" ? "● LIVE" : wsStatus==="reconnecting" ? "↻ Reconnecting…" : wsStatus==="error" ? "✕ WS Error" : "○ Connecting…"}
+        </span>
         <BotBtn label="%" />
         <BotBtn label="log" />
         <BotBtn label="auto" />
