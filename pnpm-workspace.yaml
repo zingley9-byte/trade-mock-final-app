@@ -158,14 +158,12 @@ overrides:
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.27.3"
-  # ── Security vulnerability fixes ──────────────────────────────────────────
-  # brace-expansion: zero-step ReDoS / memory exhaustion (CVE-2026-33750)
-  brace-expansion: ">=2.0.3"
-  # picomatch: ReDoS via extglob + Method injection (CVE-2026-33671, CVE-2026-33672)
-  picomatch: ">=2.3.2"
-  # path-to-regexp: ReDoS via wildcards / optional groups (CVE-2026-4923, CVE-2026-4926)
-  path-to-regexp: ">=8.4.0"
-  # postcss: XSS via unescaped </style> (CVE-2026-*)
-  postcss: ">=8.5.10"
-  # yaml: Stack overflow via deeply nested collections
-  yaml: ">=2.8.3"
+  # Security: fix vulnerable transitive dependencies
+  picomatch@2: "^2.3.2"
+  picomatch@4: "^4.0.4"
+  path-to-regexp: "^8.4.0"
+  lodash: "^4.18.0"
+  brace-expansion@2: "^2.0.3"
+  yaml: "^2.8.3"
+  postcss: "^8.5.10"
+  uuid: "^14.0.0"
