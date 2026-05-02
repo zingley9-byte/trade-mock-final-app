@@ -40,6 +40,12 @@ const IcRect     = () => <Svg><rect x="3" y="3" width="18" height="18" rx="2"/><
 const IcHex      = () => <Svg><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/></Svg>;
 const IcMax      = () => <Svg><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></Svg>;
 const IcMin      = () => <Svg><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></Svg>;
+// Drawing toolbar icons
+const IcFib      = () => <Svg size={16}><line x1="3" y1="5" x2="21" y2="5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="3" y1="20" x2="21" y2="20"/></Svg>;
+const IcForecast = () => <Svg size={16}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="8"/><line x1="22" y1="12" x2="16" y2="12"/></Svg>;
+const IcZoomOut  = () => <Svg size={16}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></Svg>;
+const IcTextT    = () => <Svg size={16}><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></Svg>;
+const IcSmileI   = () => <Svg size={16}><circle cx="12" cy="12" r="10"/><path d="M8 13s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></Svg>;
 const IcCamera   = () => <Svg><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></Svg>;
 
 // Left sidebar icons
@@ -58,23 +64,37 @@ const IcEye      = () => <Svg size={16}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11
 const IcCalendar = () => <Svg size={14}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="7.01" y2="14"/><line x1="12" y1="14" x2="17" y2="14"/></Svg>;
 const IcChevUp   = () => <Svg size={12}><polyline points="18 15 12 9 6 15"/></Svg>;
 
-// ─── Left toolbar definition ──────────────────────────────────────────────────
-const LEFT_TOOLS = [
-  { id:"crosshair", Icon: IcCrosshair },
-  { id:"trendline", Icon: IcTrend },
-  { id:"hline",     Icon: IcHLine },
-  { id:"pattern",   Icon: IcPattern },
-  { id:"nodes",     Icon: IcNodes },
-  { id:"brush",     Icon: IcBrush },
-  { id:"text",      Icon: () => <span style={{fontSize:14,fontWeight:"700",fontFamily:"serif",lineHeight:"1"}}>T</span> },
-  { id:"smile",     Icon: () => <span style={{fontSize:13}}>☺</span> },
-  { id:"ruler",     Icon: IcRuler },
-  { id:"zoom",      Icon: IcZoomIn },
-  { id:"sep" } as any,
-  { id:"magnet",    Icon: IcMagnet },
-  { id:"lockedit",  Icon: IcLockEdit },
-  { id:"lock",      Icon: IcLock },
-  { id:"eye",       Icon: IcEye },
+// ─── Drawing toolbar groups ───────────────────────────────────────────────────
+type WToolItem  = { id: string|null; label: string };
+type WToolGroup = { id:string; label:string; Icon:()=>React.ReactElement; toggle?:boolean; items:WToolItem[] };
+const WEB_TOOL_GROUPS: Array<WToolGroup | "sep"> = [
+  { id:"cursor",   label:"Cursor",              Icon:IcCrosshair,
+    items:[{id:null,label:"Default cursor"},{id:"crosshair",label:"Crosshair"}]},
+  { id:"lines",    label:"Trend Line Tools",    Icon:IcTrend,
+    items:[{id:"trendline",label:"Trend line"},{id:"trendline",label:"Ray"},{id:"trendline",label:"Extended line"},{id:"hline",label:"Horizontal line"},{id:"hline",label:"Vertical line"},{id:"trendline",label:"Parallel channel"}]},
+  { id:"fib",      label:"Fibonacci Tools",     Icon:IcFib,
+    items:[{id:"trendline",label:"Fib retracement"},{id:"trendline",label:"Fib extension"},{id:"trendline",label:"Fib channel"},{id:"trendline",label:"Pitchfork"},{id:"trendline",label:"Gann box"}]},
+  { id:"patterns", label:"Pattern Tools",       Icon:IcPattern,
+    items:[{id:"brush",label:"XABCD pattern"},{id:"brush",label:"Triangle pattern"},{id:"brush",label:"Head & shoulders"},{id:"brush",label:"Elliott wave"},{id:"brush",label:"Cypher pattern"}]},
+  { id:"forecast", label:"Forecast & Measure",  Icon:IcForecast,
+    items:[{id:"ruler",label:"Long position"},{id:"ruler",label:"Short position"},{id:"ruler",label:"Price range"},{id:"ruler",label:"Date range"},{id:"ruler",label:"Risk reward"}]},
+  { id:"brush",    label:"Brush Tools",         Icon:IcBrush,
+    items:[{id:"brush",label:"Brush"},{id:"brush",label:"Highlighter"},{id:"brush",label:"Curve"},{id:"brush",label:"Arrow marker"}]},
+  { id:"text",     label:"Text Tools",          Icon:IcTextT,
+    items:[{id:"text",label:"Text"},{id:"text",label:"Note"},{id:"text",label:"Price label"},{id:"text",label:"Callout"}]},
+  { id:"emoji",    label:"Emoji & Icons",       Icon:IcSmileI,
+    items:[{id:"smile",label:"Emoji"},{id:"smile",label:"Icon marker"},{id:"smile",label:"Flag marker"},{id:"smile",label:"Star marker"}]},
+  { id:"ruler",    label:"Ruler Tools",         Icon:IcRuler,
+    items:[{id:"ruler",label:"Measure distance"},{id:"ruler",label:"Measure price change"},{id:"ruler",label:"Measure bars count"}]},
+  { id:"zoom",     label:"Zoom Tools",          Icon:IcZoomIn,
+    items:[{id:"zoom",label:"Zoom in"},{id:"zoom",label:"Zoom out"},{id:null,label:"Reset zoom"}]},
+  "sep",
+  { id:"magnet",   label:"Magnet Mode",         Icon:IcMagnet, toggle:true,
+    items:[{id:"magnet",label:"Strong magnet"},{id:"magnet",label:"Weak magnet"},{id:null,label:"Magnet off"}]},
+  { id:"lock",     label:"Lock Drawings",       Icon:IcLock, toggle:true,
+    items:[{id:"lock",label:"Lock all drawings"},{id:"lockedit",label:"Lock & edit"},{id:null,label:"Unlock all"}]},
+  { id:"eye",      label:"Visibility",          Icon:IcEye, toggle:true,
+    items:[{id:"eye",label:"Hide drawings"},{id:"eye",label:"Show drawings"},{id:"clear",label:"Delete all drawings"}]},
 ];
 
 // ─── Binance helpers ──────────────────────────────────────────────────────────
@@ -142,8 +162,12 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [webCurrent,   setWebCurrent]  = useState<any>(null);
   const [showWebDraw,  setShowWebDraw] = useState(true);
   const [drawTick,     setDrawTick]    = useState(0);  // bumped on chart pan/zoom so hlines repaint
-  const [isWebFS,      setIsWebFS]     = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [isWebFS,          setIsWebFS]          = useState(false);
+  const [openGroup,        setOpenGroup]        = useState<string|null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [submenuTop,       setSubmenuTop]       = useState(0);
+  const wrapperRef  = useRef<HTMLDivElement>(null);
+  const sidebarRef  = useRef<HTMLDivElement>(null);
 
   // Track browser fullscreen state
   useEffect(() => {
@@ -359,8 +383,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
   function handleToolClick(id: string) {
-    if (id === "eye") { setShowWebDraw(v => !v); return; }
-    if (TOGGLE_TOOLS.has(id)) return;  // magnet/lock visual-only toggles handled by activeTool
+    if (id === "eye")   { setShowWebDraw(v => !v); return; }
+    if (id === "clear") { setWebDrawings([]); return; }
     setActiveTool(prev => prev === id ? null : id);
   }
   function isToolActive(id: string) {
@@ -538,42 +562,138 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       {/* ── Body: sidebar + chart ── */}
       <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
 
-        {/* Left sidebar */}
-        <div style={{
-          width:LEFT, background:C.panel, borderRight:`1px solid ${C.border}`,
-          display:"flex", flexDirection:"column", alignItems:"center",
-          paddingTop:6, paddingBottom:6, gap:1, flexShrink:0, overflowY:"auto",
-        }}>
-          {LEFT_TOOLS.map((t,i) => {
-            if (t.id === "sep") return <div key={i} style={{ width:28, height:1, background:C.border, margin:"4px 0" }}/>;
-            const Icon = t.Icon!;
-            const active = isToolActive(t.id);
+        {/* ── TradingView-style left drawing toolbar ── */}
+        <div
+          ref={sidebarRef}
+          style={{
+            width: sidebarCollapsed ? 14 : LEFT,
+            background: C.panel, borderRight: `1px solid ${C.border}`,
+            display: "flex", flexDirection: "column", alignItems: "center",
+            paddingTop: 4, paddingBottom: 6,
+            flexShrink: 0, position: "relative", overflow: "visible",
+            transition: "width 0.15s ease", zIndex: 10,
+          }}
+          onMouseLeave={() => setOpenGroup(null)}
+        >
+          {/* Collapse / expand toggle */}
+          <button
+            onClick={() => { setSidebarCollapsed(v => !v); setOpenGroup(null); }}
+            title={sidebarCollapsed ? "Expand toolbar" : "Collapse toolbar"}
+            style={{
+              width: sidebarCollapsed ? 14 : 34, height: 22,
+              background: "none", border: "none", cursor: "pointer", color: C.dim,
+              display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 2,
+            }}
+          >
+            <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              {sidebarCollapsed
+                ? <polyline points="9 18 15 12 9 6"/>
+                : <polyline points="15 18 9 12 15 6"/>}
+            </svg>
+          </button>
+
+          {/* Group icon buttons */}
+          {!sidebarCollapsed && WEB_TOOL_GROUPS.map((grp, gi) => {
+            if (grp === "sep") return (
+              <div key={`sep${gi}`} style={{ width:28, height:1, background:C.border, margin:"3px 0" }}/>
+            );
+            const g = grp as WToolGroup;
+            const isGrpActive = g.items.some(it => it.id !== null && it.id !== "clear" && isToolActive(it.id));
+            const Icon = g.Icon;
             return (
-              <button key={t.id} onClick={()=>handleToolClick(t.id)} title={t.id} style={{
-                width:34, height:32, background: active ? C.gold+"22" : "none",
-                border:"none", borderRadius:5, cursor:"pointer",
-                color: active ? C.gold : C.dim,
-                display:"flex", alignItems:"center", justifyContent:"center",
-                transition:"color .15s,background .15s",
-              }}
-              onMouseEnter={e=>{ if(!active)(e.currentTarget as HTMLButtonElement).style.color=C.text; }}
-              onMouseLeave={e=>{ if(!active)(e.currentTarget as HTMLButtonElement).style.color=C.dim; }}
+              <button
+                key={g.id}
+                title={g.label}
+                onMouseEnter={(e) => {
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const sr   = sidebarRef.current?.getBoundingClientRect();
+                  setSubmenuTop(rect.top - (sr?.top ?? 0));
+                  setOpenGroup(g.id);
+                  if (!isGrpActive) (e.currentTarget as HTMLElement).style.color = C.text;
+                }}
+                onMouseLeave={(e) => {
+                  if (!isGrpActive) (e.currentTarget as HTMLElement).style.color = C.dim;
+                }}
+                style={{
+                  width:34, height:32, position:"relative",
+                  background: isGrpActive ? C.gold+"22" : "none",
+                  border:"none", borderRadius:5, cursor:"pointer",
+                  color: isGrpActive ? C.gold : C.dim,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  transition:"color .15s,background .15s",
+                }}
               >
                 <Icon/>
+                <svg width={4} height={3} viewBox="0 0 4 3" style={{position:"absolute",right:3,bottom:5}}
+                  fill={isGrpActive ? C.gold : "#4a4e5a"}>
+                  <polygon points="0,0 4,0 2,3"/>
+                </svg>
               </button>
             );
           })}
-          {webDrawings.length > 0 && (
-            <button
-              onClick={()=>setWebDrawings([])}
-              title="Clear drawings"
-              style={{ width:34, height:28, background:"none", border:"none", borderRadius:5, cursor:"pointer", color:C.dim, display:"flex", alignItems:"center", justifyContent:"center", marginTop:4 }}
-              onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.color=C.bear;}}
-              onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.color=C.dim;}}
-            >
-              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-            </button>
-          )}
+
+          {/* Submenu flyout panel */}
+          {openGroup && !sidebarCollapsed && (() => {
+            const grp = WEB_TOOL_GROUPS.find(g => typeof g === "object" && (g as WToolGroup).id === openGroup) as WToolGroup | undefined;
+            if (!grp) return null;
+            return (
+              <div
+                onMouseEnter={() => setOpenGroup(openGroup)}
+                style={{
+                  position:"absolute", left:LEFT, top:Math.max(4, submenuTop),
+                  background:C.panel, border:`1px solid ${C.border}`,
+                  borderRadius:6, minWidth:188, zIndex:1000,
+                  boxShadow:"0 6px 24px rgba(0,0,0,0.45)",
+                  padding:"4px 0",
+                }}
+              >
+                {/* Group label header */}
+                <div style={{
+                  padding:"5px 12px 5px", fontSize:10, fontWeight:700,
+                  color:C.dim, textTransform:"uppercase" as const, letterSpacing:0.6,
+                  borderBottom:`1px solid ${C.border}`, marginBottom:2,
+                }}>
+                  {grp.label}
+                </div>
+                {/* Sub-tool items */}
+                {grp.items.map((item, ii) => {
+                  const active = item.id !== null && item.id !== "clear" && isToolActive(item.id);
+                  return (
+                    <button key={ii}
+                      onClick={() => {
+                        if (item.id === "clear") { setWebDrawings([]); }
+                        else if (item.id !== null) { handleToolClick(item.id); }
+                        else { setActiveTool(null); }
+                        setOpenGroup(null);
+                      }}
+                      onMouseEnter={e => {
+                        if (!active) (e.currentTarget as HTMLElement).style.background = "#ffffff0d";
+                      }}
+                      onMouseLeave={e => {
+                        (e.currentTarget as HTMLElement).style.background = active ? C.gold+"22" : "none";
+                      }}
+                      style={{
+                        display:"flex", alignItems:"center", width:"100%",
+                        padding:"7px 12px",
+                        background: active ? C.gold+"22" : "none",
+                        border:"none", cursor:"pointer",
+                        color: active ? C.gold : item.id === "clear" ? C.bear : C.text,
+                        fontSize:12, textAlign:"left" as const, gap:8,
+                        transition:"background .1s",
+                      }}
+                    >
+                      <span style={{
+                        width:6, height:6, borderRadius:"50%", flexShrink:0,
+                        background: active ? C.gold : "transparent",
+                        border:`1px solid ${active ? C.gold : C.border}`,
+                      }}/>
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Chart container — explicit height so lightweight-charts can measure */}

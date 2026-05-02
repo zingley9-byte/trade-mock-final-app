@@ -6,7 +6,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
   PanResponder, useWindowDimensions, Platform, Modal, Dimensions, StatusBar,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
@@ -94,36 +94,45 @@ function IcCandleRN({color}:{color:string}) {
   );
 }
 
-// ─── Left toolbar definition ───────────────────────────────────────────────
-// toggle:true → stays active alongside drawing tools (independent state)
-const LEFT_TOOLS: Array<{id:string; icon:string; toggle?:boolean} | {id:"sep"}> = [
-  {id:"cursor",   icon:"crosshair"},
-  {id:"trendline",icon:"trending-up"},
-  {id:"hline",    icon:"minus"},
-  {id:"channel",  icon:"align-justify"},
-  {id:"brush",    icon:"edit-2"},
-  {id:"text",     icon:"type"},
-  {id:"emoji",    icon:"smile"},
-  {id:"ruler",    icon:"tool"},
-  {id:"zoom",     icon:"zoom-in"},
-  {id:"sep"},
-  {id:"magnet",   icon:"anchor",   toggle:true},
-  {id:"lockedit", icon:"edit",     toggle:true},
-  {id:"lock",     icon:"lock",     toggle:true},
-  {id:"eye",      icon:"eye",      toggle:true},
+// ─── Drawing toolbar groups ───────────────────────────────────────────────
+type MToolItem  = { id:string|null; label:string; icon:string };
+type MToolGroup = { id:string; label:string; icon:string; toggle?:boolean; items:MToolItem[] };
+const MOBILE_TOOL_GROUPS: Array<MToolGroup | "sep"> = [
+  { id:"cursor",   icon:"crosshair",   label:"Cursor",
+    items:[{id:null,label:"Default cursor",icon:"mouse-pointer"},{id:"cursor",label:"Crosshair",icon:"crosshair"}]},
+  { id:"lines",    icon:"trending-up", label:"Trend Line Tools",
+    items:[{id:"trendline",label:"Trend line",icon:"trending-up"},{id:"trendline",label:"Ray",icon:"arrow-up-right"},{id:"trendline",label:"Extended line",icon:"minus"},{id:"hline",label:"Horizontal line",icon:"minus"},{id:"hline",label:"Vertical line",icon:"more-vertical"},{id:"channel",label:"Parallel channel",icon:"align-justify"}]},
+  { id:"fib",      icon:"git-merge",   label:"Fibonacci Tools",
+    items:[{id:"trendline",label:"Fib retracement",icon:"git-branch"},{id:"trendline",label:"Fib extension",icon:"git-merge"},{id:"channel",label:"Fib channel",icon:"layers"},{id:"trendline",label:"Pitchfork",icon:"triangle"},{id:"trendline",label:"Gann box",icon:"grid"}]},
+  { id:"patterns", icon:"activity",    label:"Pattern Tools",
+    items:[{id:"brush",label:"XABCD pattern",icon:"activity"},{id:"brush",label:"Triangle pattern",icon:"triangle"},{id:"brush",label:"Head & shoulders",icon:"bar-chart-2"},{id:"brush",label:"Elliott wave",icon:"radio"},{id:"brush",label:"Cypher pattern",icon:"zap"}]},
+  { id:"forecast", icon:"target",      label:"Forecast & Measure",
+    items:[{id:"ruler",label:"Long position",icon:"arrow-up"},{id:"ruler",label:"Short position",icon:"arrow-down"},{id:"ruler",label:"Price range",icon:"align-center"},{id:"ruler",label:"Date range",icon:"calendar"},{id:"ruler",label:"Risk reward",icon:"percent"}]},
+  { id:"brush",    icon:"edit-2",      label:"Brush Tools",
+    items:[{id:"brush",label:"Brush",icon:"edit-2"},{id:"brush",label:"Highlighter",icon:"feather"},{id:"brush",label:"Curve",icon:"git-commit"},{id:"brush",label:"Arrow",icon:"arrow-right"}]},
+  { id:"text",     icon:"type",        label:"Text Tools",
+    items:[{id:"text",label:"Text",icon:"type"},{id:"text",label:"Note",icon:"file-text"},{id:"text",label:"Price label",icon:"tag"},{id:"text",label:"Callout",icon:"message-circle"}]},
+  { id:"emoji",    icon:"smile",       label:"Emoji & Icons",
+    items:[{id:"emoji",label:"Emoji",icon:"smile"},{id:"emoji",label:"Icon marker",icon:"star"},{id:"emoji",label:"Flag marker",icon:"flag"},{id:"emoji",label:"Star marker",icon:"award"}]},
+  { id:"ruler",    icon:"tool",        label:"Ruler Tools",
+    items:[{id:"ruler",label:"Measure distance",icon:"move"},{id:"ruler",label:"Measure price change",icon:"trending-up"},{id:"ruler",label:"Measure bars count",icon:"bar-chart"}]},
+  { id:"zoom",     icon:"zoom-in",     label:"Zoom Tools",
+    items:[{id:"zoom",label:"Zoom in",icon:"zoom-in"},{id:"zoom",label:"Zoom out",icon:"zoom-out"},{id:null,label:"Reset zoom",icon:"maximize-2"}]},
+  "sep",
+  { id:"magnet",   icon:"anchor",      label:"Magnet Mode",  toggle:true,
+    items:[{id:"magnet",label:"Strong magnet",icon:"anchor"},{id:"magnet",label:"Weak magnet",icon:"anchor"},{id:null,label:"Magnet off",icon:"x-circle"}]},
+  { id:"lock",     icon:"lock",        label:"Lock Drawings",toggle:true,
+    items:[{id:"lock",label:"Lock all drawings",icon:"lock"},{id:"lockedit",label:"Lock & edit",icon:"edit"},{id:null,label:"Unlock all",icon:"unlock"}]},
+  { id:"eye",      icon:"eye",         label:"Visibility",   toggle:true,
+    items:[{id:"eye",label:"Hide drawings",icon:"eye-off"},{id:"eye",label:"Show drawings",icon:"eye"},{id:"clear",label:"Delete all drawings",icon:"trash-2"}]},
 ];
 
 // ─── Tool hint strings ─────────────────────────────────────────────────────
 const TOOL_HINTS: Record<string,string> = {
-  cursor:   "Touch to move crosshair",
-  trendline:"Drag to draw trend line",
-  hline:    "Tap to place price level",
-  channel:  "Drag to draw channel",
-  brush:    "Drag to draw freehand",
-  text:     "Tap to add text label",
-  emoji:    "Tap to add pin marker",
-  ruler:    "Drag to measure price",
-  zoom:     "Drag to zoom in",
+  cursor:"Touch to move crosshair", trendline:"Drag to draw trend line",
+  hline:"Tap to place price level", channel:"Drag to draw channel",
+  brush:"Drag to draw freehand", text:"Tap to add text label",
+  emoji:"Tap to add pin marker", ruler:"Drag to measure price", zoom:"Drag to zoom in",
 };
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -140,14 +149,17 @@ export default function MobileCandleChart({
   const istTime = useIST();
 
   // ── Fullscreen override ────────────────────────────────────────────────
-  const [isFS, setIsFS] = useState(false);
+  const [isFS,             setIsFS]             = useState(false);
+  const [openGroup,        setOpenGroup]        = useState<string|null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // fsPad = status-bar height + 12 px breathing room so the toolbar isn't flush against the edge
   const fsPad = isFS ? (StatusBar.currentHeight ?? 0) + 12 : 0;
   const FSW = isFS ? Dimensions.get("window").width  : SW;
   // Subtract fsPad so chartContent height fits exactly within Modal after top padding
   const FSH = isFS ? Dimensions.get("window").height - fsPad : height;
 
-  const chartW = FSW - LEFT_W;
+  const sidebarW = sidebarCollapsed ? 10 : LEFT_W;
+  const chartW = FSW - sidebarW;
   const plotW  = chartW - PRICE_W;
   const chartH = FSH  - TOP_H - BOT_H;
   const areaH  = chartH - TIME_H;
@@ -496,8 +508,21 @@ export default function MobileCandleChart({
     if (id==="lock")     { setLockOn(v=>!v); return; }
     if (id==="lockedit") { setEditLock(v=>!v); return; }
     if (id==="eye")      { setShowDraw(v=>!v); return; }
+    if (id==="clear")    { setDrawings([]); return; }
     setDrawTool(prev=>prev===id?null:id as DrawTool);
   };
+
+  // Y offset of an open-group's button within the sidebar (for submenu positioning)
+  const openGroupY = useMemo(()=>{
+    if (!openGroup) return 0;
+    let y = 26;
+    for (const g of MOBILE_TOOL_GROUPS) {
+      if (g==="sep") { y+=9; continue; }
+      if ((g as MToolGroup).id===openGroup) return y;
+      y+=34;
+    }
+    return 0;
+  },[openGroup]);
 
   // ── SVG drawing renderers ──────────────────────────────────────────────
   function renderDraw(d:Drawing, i:number) {
@@ -627,6 +652,63 @@ export default function MobileCandleChart({
       {/* TOP TOOLBAR */}
       <ChartTopBar {...topBarProps}/>
 
+      {/* Drawing tool submenu */}
+      {openGroup && (
+        <View style={[ss.menuLayer,{zIndex:200}]} pointerEvents="box-none">
+          <TouchableOpacity style={ss.backdrop} onPress={()=>setOpenGroup(null)}/>
+          {(()=>{
+            const grp = MOBILE_TOOL_GROUPS.find(g=>typeof g==="object"&&(g as MToolGroup).id===openGroup) as MToolGroup|undefined;
+            if (!grp) return null;
+            return (
+              <View style={{
+                position:"absolute", left:sidebarW+2, top:TOP_H+openGroupY,
+                backgroundColor:C.panel, borderRadius:7, borderWidth:1, borderColor:C.border,
+                width:188, zIndex:201, paddingVertical:4,
+                shadowColor:"#000", shadowOpacity:0.45, shadowRadius:10, shadowOffset:{width:0,height:3},
+                elevation:10,
+              }}>
+                {/* Group label */}
+                <View style={{paddingHorizontal:12, paddingVertical:5, borderBottomWidth:1, borderBottomColor:C.border, marginBottom:2}}>
+                  <Text style={{color:C.dim, fontSize:10, fontWeight:"700" as const, letterSpacing:0.6, textTransform:"uppercase" as const}}>
+                    {grp.label}
+                  </Text>
+                </View>
+                {/* Sub-tool list */}
+                {grp.items.map((item,ii)=>{
+                  const active = item.id!==null&&item.id!=="clear"&&isActive(item.id);
+                  return (
+                    <TouchableOpacity key={ii}
+                      onPress={()=>{
+                        if (item.id==="clear") { setDrawings([]); }
+                        else if (item.id!==null) { handleToolPress(item.id); }
+                        else { setDrawTool(null); }
+                        setOpenGroup(null);
+                      }}
+                      style={{
+                        flexDirection:"row", alignItems:"center",
+                        paddingHorizontal:12, paddingVertical:9,
+                        backgroundColor:active?C.gold+"22":"transparent",
+                        gap:8,
+                      }}
+                    >
+                      <View style={{
+                        width:6, height:6, borderRadius:3,
+                        backgroundColor: active?C.gold:"transparent",
+                        borderWidth:1, borderColor:active?C.gold:C.border,
+                      }}/>
+                      <Feather name={item.icon as any} size={12} color={active?C.gold:item.id==="clear"?C.bear:C.dim}/>
+                      <Text style={{color:active?C.gold:item.id==="clear"?C.bear:C.text, fontSize:12, fontWeight:"500" as const, flex:1}}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            );
+          })()}
+        </View>
+      )}
+
       {/* TF dropdown */}
       {showTfMenu && (
         <View style={ss.menuLayer} pointerEvents="box-none">
@@ -655,19 +737,38 @@ export default function MobileCandleChart({
       {/* BODY */}
       <View style={[ss.body,webTouch]}>
 
-        {/* LEFT TOOLBAR */}
-        <View style={[ss.leftBar,{borderRightColor:C.border}]}>
-          {LEFT_TOOLS.map((t,i)=>{
-            if (t.id==="sep") return <View key={`sep${i}`} style={[ss.toolSep,{backgroundColor:C.border}]}/>;
-            const tool = t as {id:string;icon:string};
-            const active = isActive(tool.id);
-            return (
-              <TouchableOpacity key={tool.id} onPress={()=>handleToolPress(tool.id)}
-                style={[ss.toolBtn, active&&ss.toolBtnActive]}>
-                <Feather name={tool.icon as any} size={15} color={active?C.gold:C.dim}/>
-              </TouchableOpacity>
-            );
-          })}
+        {/* ── TradingView-style left drawing toolbar ── */}
+        <View style={[ss.leftBar,{borderRightColor:C.border, width:sidebarW}]}>
+          {/* Collapse / expand toggle */}
+          <TouchableOpacity
+            onPress={()=>{setSidebarCollapsed(v=>!v); setOpenGroup(null);}}
+            style={{width:sidebarW, height:24, alignItems:"center", justifyContent:"center", marginBottom:2}}
+          >
+            <Feather name={sidebarCollapsed?"chevron-right":"chevron-left"} size={11} color={C.dim}/>
+          </TouchableOpacity>
+          {/* Group buttons (scrollable) */}
+          {!sidebarCollapsed && (
+            <ScrollView showsVerticalScrollIndicator={false} style={{flex:1}}>
+              {MOBILE_TOOL_GROUPS.map((grp,gi)=>{
+                if (grp==="sep") return <View key={`sep${gi}`} style={[ss.toolSep,{backgroundColor:C.border,marginVertical:3}]}/>;
+                const g = grp as MToolGroup;
+                const isGrpActive = g.items.some(it=>it.id!==null&&it.id!=="clear"&&isActive(it.id));
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    onPress={()=>setOpenGroup(prev=>prev===g.id?null:g.id)}
+                    style={[ss.toolBtn, isGrpActive&&ss.toolBtnActive, {position:"relative"}]}
+                  >
+                    <Feather name={g.icon as any} size={15} color={isGrpActive?C.gold:C.dim}/>
+                    {/* Tiny corner triangle */}
+                    <View style={{position:"absolute",right:3,bottom:4}}>
+                      <View style={{width:4,height:3,borderLeftWidth:2,borderRightWidth:2,borderBottomWidth:0,borderTopWidth:3,borderLeftColor:"transparent",borderRightColor:"transparent",borderTopColor:isGrpActive?C.gold:"#4a4e5a"}}/>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
         </View>
 
         {/* CHART SVG */}
