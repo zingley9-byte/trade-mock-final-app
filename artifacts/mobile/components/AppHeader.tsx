@@ -4,10 +4,12 @@ import React, { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -49,11 +51,15 @@ export default function AppHeader() {
   const { theme, setTheme, currencyMode, setCurrencyMode, setSelectedSymbol, symbolPrices } = useTradingContext();
 
   const { unreadCount, markAllRead } = useAlerts();
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileOpen, setProfileOpen]   = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery]   = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen]     = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackSent, setFeedbackSent] = useState(false);
   const searchRef = useRef<TextInput>(null);
   const isDark = theme === "dark";
 
@@ -104,6 +110,45 @@ export default function AppHeader() {
       setProfileImage(uri);
       await AsyncStorage.setItem(PROFILE_KEY, uri);
     }
+  }
+
+  async function handleShare() {
+    setProfileOpen(false);
+    const shareText = "🔥 TradeMock — Practice trading FREE with ₹10,00,000 virtual money!\nLearn crypto trading without any risk 🚀";
+    const shareUrl  = Platform.OS === "web"
+      ? (typeof window !== "undefined" ? window.location.href : "https://trademock.app")
+      : "https://trademock.app";
+
+    if (Platform.OS === "web" && typeof navigator !== "undefined" && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title: "TradeMock", text: shareText, url: shareUrl });
+      } catch {}
+      return;
+    }
+
+    if (Platform.OS === "web") {
+      const waUrl = `https://wa.me/?text=${encodeURIComponent(shareText + "\n" + shareUrl)}`;
+      window.open(waUrl, "_blank");
+      return;
+    }
+
+    try {
+      await Share.share({ message: shareText + "\n" + shareUrl });
+    } catch {}
+  }
+
+  function openFeedback() {
+    setProfileOpen(false);
+    setFeedbackText("");
+    setFeedbackRating(0);
+    setFeedbackSent(false);
+    setFeedbackOpen(true);
+  }
+
+  function submitFeedback() {
+    if (feedbackRating === 0 && feedbackText.trim() === "") return;
+    setFeedbackSent(true);
+    setTimeout(() => setFeedbackOpen(false), 1800);
   }
 
   function handleLogout() {
@@ -308,6 +353,24 @@ export default function AppHeader() {
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
+          <TouchableOpacity style={styles.menuRow} onPress={handleShare}>
+            <View style={styles.menuLeft}>
+              <Feather name="share-2" size={16} color="#10b981" />
+              <Text style={[styles.menuText, { color: colors.foreground }]}>Share with Friends</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuRow} onPress={openFeedback}>
+            <View style={styles.menuLeft}>
+              <Feather name="message-circle" size={16} color="#6366f1" />
+              <Text style={[styles.menuText, { color: colors.foreground }]}>Feedback</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
           <TouchableOpacity style={styles.menuRow} onPress={handleLogout}>
             <View style={styles.menuLeft}>
               <Feather name="log-out" size={16} color={colors.bear} />
@@ -315,6 +378,64 @@ export default function AppHeader() {
             </View>
           </TouchableOpacity>
         </View>
+      </Modal>
+
+      {/* ─── Feedback Modal ─── */}
+      <Modal visible={feedbackOpen} transparent animationType="fade" onRequestClose={() => setFeedbackOpen(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.fbKav}
+        >
+          <Pressable style={[styles.profileBackdrop, { backgroundColor: colors.overlay }]} onPress={() => setFeedbackOpen(false)} />
+          <View style={[styles.fbSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {feedbackSent ? (
+              <View style={styles.fbThanks}>
+                <Text style={styles.fbThanksEmoji}>❤️</Text>
+                <Text style={[styles.fbThanksText, { color: colors.foreground }]}>Thanks for your feedback!</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.fbHeader}>
+                  <Feather name="message-circle" size={18} color="#6366f1" />
+                  <Text style={[styles.fbTitle, { color: colors.foreground }]}>Send Feedback</Text>
+                  <TouchableOpacity onPress={() => setFeedbackOpen(false)} style={{ marginLeft: "auto" }}>
+                    <Feather name="x" size={20} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={[styles.fbLabel, { color: colors.mutedForeground }]}>How would you rate TradeMock?</Text>
+                <View style={styles.starsRow}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <TouchableOpacity key={star} onPress={() => setFeedbackRating(star)} activeOpacity={0.7}>
+                      <Text style={[styles.star, { color: star <= feedbackRating ? "#f59e0b" : colors.border }]}>★</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.fbLabel, { color: colors.mutedForeground }]}>Tell us more (optional)</Text>
+                <TextInput
+                  style={[styles.fbInput, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
+                  placeholder="Your thoughts, suggestions, bugs…"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={feedbackText}
+                  onChangeText={setFeedbackText}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+
+                <TouchableOpacity
+                  style={[styles.fbBtn, { backgroundColor: feedbackRating > 0 || feedbackText.trim() ? "#6366f1" : colors.muted }]}
+                  onPress={submitFeedback}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="send" size={15} color="#fff" />
+                  <Text style={styles.fbBtnText}>Submit Feedback</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -412,4 +533,31 @@ const styles = StyleSheet.create({
   },
   menuLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   menuText: { fontSize: 14, fontWeight: "500" },
+
+  // Feedback modal
+  fbKav:    { flex: 1, justifyContent: "center", alignItems: "center" },
+  fbSheet: {
+    width: "88%", borderRadius: 18, borderWidth: 1,
+    padding: 20, zIndex: 200,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25, shadowRadius: 20, elevation: 20,
+  },
+  fbHeader:    { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 18 },
+  fbTitle:     { fontSize: 16, fontWeight: "700" as const },
+  fbLabel:     { fontSize: 12, fontWeight: "600" as const, marginBottom: 8, marginTop: 4 },
+  starsRow:    { flexDirection: "row", gap: 6, marginBottom: 16 },
+  star:        { fontSize: 36 },
+  fbInput: {
+    borderWidth: 1, borderRadius: 10,
+    padding: 12, fontSize: 14, minHeight: 90,
+    marginBottom: 16,
+  },
+  fbBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 13, borderRadius: 12,
+  },
+  fbBtnText:   { color: "#fff", fontSize: 15, fontWeight: "700" as const },
+  fbThanks:    { alignItems: "center", paddingVertical: 28, gap: 10 },
+  fbThanksEmoji: { fontSize: 40 },
+  fbThanksText:  { fontSize: 16, fontWeight: "700" as const },
 });
