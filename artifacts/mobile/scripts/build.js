@@ -96,7 +96,7 @@ function prepareDirectories(timestamp) {
 }
 
 function clearMetroCache() {
-  console.log("Clearing Metro cache...");
+  console.log("Clearing Metro cache and stale locks...");
 
   const cacheDirs = [
     path.join(projectRoot, ".metro-cache"),
@@ -109,10 +109,31 @@ function clearMetroCache() {
     }
   }
 
+  // Remove stale Metro lock/socket files from /tmp
+  try {
+    const tmpFiles = fs.readdirSync("/tmp");
+    for (const f of tmpFiles) {
+      if (f.startsWith("metro-")) {
+        try { fs.rmSync(path.join("/tmp", f), { recursive: true, force: true }); } catch {}
+      }
+    }
+  } catch {}
+
+  // Kill any lingering Metro / Expo processes
+  try {
+    const { execSync } = require("child_process");
+    execSync("pkill -f 'expo start' || true", { stdio: "ignore" });
+    execSync("pkill -f 'metro' || true", { stdio: "ignore" });
+  } catch {}
+
+  // Brief pause to let killed processes release ports
+  const end = Date.now() + 1500;
+  while (Date.now() < end) { /* spin */ }
+
   console.log("Cache cleared");
 }
 
-const METRO_PORT = 8082;
+const METRO_PORT = 9000;
 
 async function checkMetroHealth() {
   try {
