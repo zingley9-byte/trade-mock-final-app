@@ -137,6 +137,11 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [ohlcv,        setOhlcv]      = useState<{o:number;h:number;l:number;c:number;v:number;ch:number;chp:number}|null>(null);
   const [volCollapsed, setVolCollapsed] = useState(false);
   const [wsStatus,     setWsStatus]   = useState<"connecting"|"live"|"reconnecting"|"error">("connecting");
+  const [webDrawings,  setWebDrawings] = useState<any[]>([]);
+  const [webCurrent,   setWebCurrent]  = useState<any>(null);
+  const [showWebDraw,  setShowWebDraw] = useState(true);
+  const [drawTick,     setDrawTick]    = useState(0);  // bumped on chart pan/zoom so hlines repaint
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -215,6 +220,13 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       });
       volRef.current = vs;
     }
+
+    // Repaint price-based drawings (hlines) when chart scrolls/zooms
+    try {
+      chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+        if (mountedRef.current) setDrawTick(t => t + 1);
+      });
+    } catch {}
 
     // Crosshair move → OHLCV overlay
     chart.subscribeCrosshairMove((param: any) => {
@@ -328,13 +340,145 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     };
   }, [symbol, timeframe, initChart]);
 
+  // ── SVG drawing overlay helpers ──────────────────────────────────────────
+  const DRAW_TOOLS = new Set(["crosshair","trendline","hline","brush","text","smile","ruler","zoom","pattern","nodes"]);
+  const TOGGLE_TOOLS = new Set(["magnet","lockedit","lock","eye"]);
+  const isDrawActive = activeTool && DRAW_TOOLS.has(activeTool) && activeTool !== "crosshair";
+
+  function getSvgXY(e: React.MouseEvent<SVGSVGElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  function handleToolClick(id: string) {
+    if (id === "eye") { setShowWebDraw(v => !v); return; }
+    if (TOGGLE_TOOLS.has(id)) return;  // magnet/lock visual-only toggles handled by activeTool
+    setActiveTool(prev => prev === id ? null : id);
+  }
+  function isToolActive(id: string) {
+    if (id === "eye") return !showWebDraw;
+    return activeTool === id;
+  }
+  function handleSvgDown(e: React.MouseEvent<SVGSVGElement>) {
+    const { x, y } = getSvgXY(e);
+    if (activeTool === "hline") {
+      const price = candleRef.current?.coordinateToPrice(y);
+      if (price != null) setWebDrawings(d => [...d, { type:"hline", price }]);
+      setActiveTool(null); return;
+    }
+    if (activeTool === "trendline" || activeTool === "ruler") {
+      setWebCurrent({ type: activeTool, x1:x, y1:y, x2:x, y2:y }); return;
+    }
+    if (activeTool === "brush") {
+      setWebCurrent({ type:"brush", pts:[x,y], x1:x, y1:y, x2:x, y2:y }); return;
+    }
+    if (activeTool === "text") {
+      setWebDrawings(d => [...d, { type:"text", x, y }]);
+      setActiveTool(null); return;
+    }
+    if (activeTool === "smile") {
+      setWebDrawings(d => [...d, { type:"emoji", x, y }]);
+      setActiveTool(null); return;
+    }
+  }
+  function handleSvgMove(e: React.MouseEvent<SVGSVGElement>) {
+    if (!webCurrent) return;
+    const { x, y } = getSvgXY(e);
+    if (webCurrent.type === "brush") {
+      setWebCurrent((c:any) => ({ ...c, x2:x, y2:y, pts:[...c.pts,x,y] }));
+    } else {
+      setWebCurrent((c:any) => ({ ...c, x2:x, y2:y }));
+    }
+  }
+  function handleSvgUp(e: React.MouseEvent<SVGSVGElement>) {
+    if (!webCurrent) return;
+    const { x, y } = getSvgXY(e);
+    const cd = { ...webCurrent, x2:x, y2:y };
+    if (cd.type === "brush") {
+      if (cd.pts.length > 4) setWebDrawings(d => [...d, { type:"brush", pts:cd.pts }]);
+    } else if (cd.type === "ruler") {
+      if (Math.abs(cd.y2 - cd.y1) > 4) setWebDrawings(d => [...d, cd]);
+    } else {
+      if (Math.abs(cd.x2-cd.x1) > 5 || Math.abs(cd.y2-cd.y1) > 5) setWebDrawings(d => [...d, cd]);
+    }
+    setWebCurrent(null);
+    setActiveTool(null);
+  }
+  function handleFullscreen() {
+    const el = wrapperRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) el.requestFullscreen?.().catch(() => {});
+    else document.exitFullscreen?.();
+  }
+  function renderWebDraw(d: any, i: number) {
+    void drawTick; // dependency — causes repaint when chart pans so hlines follow price
+    if (d.type === "hline") {
+      const py = candleRef.current?.priceToCoordinate(d.price);
+      if (py == null || py < -10 || py > chartH + 10) return null;
+      return (
+        <g key={i}>
+          <line x1={0} y1={py} x2={9999} y2={py} stroke={C.gold} strokeWidth={1} strokeDasharray="4 2"/>
+          <rect x={4} y={py-9} width={82} height={18} rx={3} fill={C.panel} stroke={C.border}/>
+          <text x={8} y={py+4} style={{ fontSize:10, fill:C.gold, fontFamily:"monospace" }}>{fmt(d.price,2)}</text>
+        </g>
+      );
+    }
+    if (d.type === "trendline")
+      return <line key={i} x1={d.x1} y1={d.y1} x2={d.x2} y2={d.y2} stroke={C.gold} strokeWidth={1.5}/>;
+    if (d.type === "ruler") {
+      const mx=(d.x1+d.x2)/2, my=(d.y1+d.y2)/2;
+      const p1 = candleRef.current?.coordinateToPrice(d.y1) ?? 0;
+      const p2 = candleRef.current?.coordinateToPrice(d.y2) ?? 0;
+      const pct = p1 ? ((Math.abs(p2-p1)/Math.abs(p1))*100).toFixed(2) : "0.00";
+      return (
+        <g key={i}>
+          <line x1={Math.min(d.x1,d.x2)} y1={d.y1} x2={Math.max(d.x1,d.x2)} y2={d.y1} stroke={C.gold} strokeWidth={1}/>
+          <line x1={d.x2} y1={d.y1} x2={d.x2} y2={d.y2} stroke={C.gold} strokeWidth={1}/>
+          <line x1={Math.min(d.x1,d.x2)} y1={d.y2} x2={Math.max(d.x1,d.x2)} y2={d.y2} stroke={C.gold} strokeWidth={1}/>
+          <rect x={mx-30} y={my-9} width={60} height={18} rx={3} fill={C.panel} stroke={C.border}/>
+          <text x={mx} y={my+4} style={{ fontSize:10, fill:C.gold, textAnchor:"middle" as const }}>{pct}%</text>
+        </g>
+      );
+    }
+    if (d.type === "brush") {
+      const pts = d.pts as number[];
+      if (pts.length < 4) return null;
+      let path = "";
+      for (let j=0; j<pts.length; j+=2) path += `${j===0?"M":"L"}${pts[j]},${pts[j+1]} `;
+      return <path key={i} d={path.trim()} stroke={C.gold} strokeWidth={1.5} fill="none"/>;
+    }
+    if (d.type === "text")  return <text key={i} x={d.x} y={d.y} style={{ fontSize:14, fill:C.gold, fontWeight:"bold" }}>A</text>;
+    if (d.type === "emoji") return <text key={i} x={d.x} y={d.y} style={{ fontSize:18 }}>★</text>;
+    return null;
+  }
+  function renderWebCurrent() {
+    if (!webCurrent) return null;
+    const cd = webCurrent;
+    if (cd.type === "trendline")
+      return <line x1={cd.x1} y1={cd.y1} x2={cd.x2} y2={cd.y2} stroke={C.gold} strokeWidth={1} strokeDasharray="4 2"/>;
+    if (cd.type === "ruler") return (
+      <g>
+        <line x1={Math.min(cd.x1,cd.x2)} y1={cd.y1} x2={Math.max(cd.x1,cd.x2)} y2={cd.y1} stroke={C.gold} strokeWidth={1} strokeDasharray="3 2"/>
+        <line x1={cd.x2} y1={cd.y1} x2={cd.x2} y2={cd.y2} stroke={C.gold} strokeWidth={1}/>
+        <line x1={Math.min(cd.x1,cd.x2)} y1={cd.y2} x2={Math.max(cd.x1,cd.x2)} y2={cd.y2} stroke={C.gold} strokeWidth={1} strokeDasharray="3 2"/>
+      </g>
+    );
+    if (cd.type === "brush") {
+      const pts = cd.pts as number[];
+      if (pts.length < 4) return null;
+      let path = "";
+      for (let j=0; j<pts.length; j+=2) path += `${j===0?"M":"L"}${pts[j]},${pts[j+1]} `;
+      return <path d={path.trim()} stroke={C.gold} strokeWidth={1.5} fill="none" strokeDasharray="4 2"/>;
+    }
+    return null;
+  }
+
   function selectTf(tf: string) { setTfState(tf); setShowTf(false); }
 
   const isPos = (ohlcv?.chp ?? 0) >= 0;
   const ohlcvColor = ohlcv ? (isPos ? C.bull : C.bear) : C.bull;
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", width:"100%", height, background:C.bg, fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", position:"relative", overflow:"hidden" }}>
+    <div ref={wrapperRef} style={{ display:"flex", flexDirection:"column", width:"100%", height, background:C.bg, fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", position:"relative", overflow:"hidden" }}>
 
       {/* ── Top toolbar ── */}
       <div style={{ height:TOP, display:"flex", alignItems:"center", background:C.panel, borderBottom:`1px solid ${C.border}`, paddingLeft:4, paddingRight:8, gap:2, flexShrink:0 }}>
@@ -376,7 +520,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         <TBtn title="Draw rectangle"><IcRect/></TBtn>
         <div style={{ width:1, height:22, background:C.border, margin:"0 3px" }}/>
         <TBtn title="Chart properties"><IcHex/></TBtn>
-        <TBtn title="Fullscreen"><IcMax/></TBtn>
+        <TBtn title="Fullscreen" onClick={handleFullscreen}><IcMax/></TBtn>
         <TBtn title="Take snapshot"><IcCamera/></TBtn>
       </div>
 
@@ -392,9 +536,9 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           {LEFT_TOOLS.map((t,i) => {
             if (t.id === "sep") return <div key={i} style={{ width:28, height:1, background:C.border, margin:"4px 0" }}/>;
             const Icon = t.Icon!;
-            const active = activeTool === t.id;
+            const active = isToolActive(t.id);
             return (
-              <button key={t.id} onClick={()=>setActiveTool(active?null:t.id)} title={t.id} style={{
+              <button key={t.id} onClick={()=>handleToolClick(t.id)} title={t.id} style={{
                 width:34, height:32, background: active ? C.gold+"22" : "none",
                 border:"none", borderRadius:5, cursor:"pointer",
                 color: active ? C.gold : C.dim,
@@ -408,6 +552,17 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
               </button>
             );
           })}
+          {webDrawings.length > 0 && (
+            <button
+              onClick={()=>setWebDrawings([])}
+              title="Clear drawings"
+              style={{ width:34, height:28, background:"none", border:"none", borderRadius:5, cursor:"pointer", color:C.dim, display:"flex", alignItems:"center", justifyContent:"center", marginTop:4 }}
+              onMouseEnter={e=>{(e.currentTarget as HTMLButtonElement).style.color=C.bear;}}
+              onMouseLeave={e=>{(e.currentTarget as HTMLButtonElement).style.color=C.dim;}}
+            >
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          )}
         </div>
 
         {/* Chart container — explicit height so lightweight-charts can measure */}
@@ -483,6 +638,34 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
 
           {/* lightweight-charts mount point — touch-action:none lets lw-charts own all pointer events */}
           <div ref={containerRef} style={{ width:"100%", height:"100%", touchAction:"none" }}/>
+
+          {/* ── SVG drawing overlay ── */}
+          <svg
+            style={{
+              position:"absolute", top:0, left:0, width:"100%", height:"100%", overflow:"visible",
+              pointerEvents: isDrawActive ? "all" : "none",
+              cursor: isDrawActive ? "crosshair" : "default",
+            }}
+            onMouseDown={handleSvgDown}
+            onMouseMove={handleSvgMove}
+            onMouseUp={handleSvgUp}
+          >
+            {showWebDraw && webDrawings.map((d,i) => renderWebDraw(d,i))}
+            {renderWebCurrent()}
+          </svg>
+          {/* Hint text — HTML positioned over the SVG overlay */}
+          {isDrawActive && !webCurrent && (
+            <div style={{
+              position:"absolute", top:"50%", left:"50%",
+              transform:"translate(-50%,-50%)",
+              background:C.panel, border:`1px solid ${C.border}`,
+              borderRadius:6, padding:"4px 14px",
+              fontSize:11, color:C.gold, pointerEvents:"none",
+              whiteSpace:"nowrap", zIndex:20,
+            }}>
+              {activeTool==="trendline"?"Drag to draw line":activeTool==="ruler"?"Drag to measure":activeTool==="brush"?"Drag to draw freehand":"Click to place"}
+            </div>
+          )}
         </div>
       </div>
 
@@ -522,11 +705,12 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
 }
 
 // ── small reusable button ────────────────────────────────────────────────────
-function TBtn({ children, title, active }: { children: React.ReactNode; title?: string; active?: boolean }) {
+function TBtn({ children, title, active, onClick }: { children: React.ReactNode; title?: string; active?: boolean; onClick?: ()=>void }) {
   const [hov, setHov] = React.useState(false);
   return (
     <button
       title={title}
+      onClick={onClick}
       onMouseEnter={()=>setHov(true)}
       onMouseLeave={()=>setHov(false)}
       style={{
