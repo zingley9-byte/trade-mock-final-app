@@ -69,6 +69,18 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="charts"
+          options={{
+            title: "Charts",
+            tabBarIcon: ({ color, size }) =>
+              isIOS ? (
+                <SymbolView name="chart.bar.fill" tintColor={color} size={size} />
+              ) : (
+                <Feather name="bar-chart-2" size={22} color={color} />
+              ),
+          }}
+        />
+        <Tabs.Screen
           name="portfolio"
           options={{
             title: "Portfolio",
