@@ -1,12 +1,22 @@
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 
 import AppHeader from "@/components/AppHeader";
 import TradeFlashOverlay from "@/components/TradeFlashOverlay";
 import { useColors } from "@/hooks/useColors";
+
+type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
+
+const TAB_ICONS: Record<string, [IoniconsName, IoniconsName]> = {
+  index:     ["home",      "home-outline"],
+  trade:     ["flash",     "flash-outline"],
+  charts:    ["bar-chart", "bar-chart-outline"],
+  portfolio: ["briefcase", "briefcase-outline"],
+  history:   ["time",      "time-outline"],
+};
 
 export default function TabLayout() {
   const colors = useColors();
@@ -47,35 +57,45 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
-            tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} />,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? TAB_ICONS.index[0] : TAB_ICONS.index[1]} size={24} color={color} />
+            ),
           }}
         />
         <Tabs.Screen
           name="trade"
           options={{
             title: "Trade",
-            tabBarIcon: ({ color }) => <Feather name="zap" size={22} color={color} />,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? TAB_ICONS.trade[0] : TAB_ICONS.trade[1]} size={24} color={color} />
+            ),
           }}
         />
         <Tabs.Screen
           name="charts"
           options={{
             title: "Charts",
-            tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={22} color={color} />,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? TAB_ICONS.charts[0] : TAB_ICONS.charts[1]} size={24} color={color} />
+            ),
           }}
         />
         <Tabs.Screen
           name="portfolio"
           options={{
             title: "Portfolio",
-            tabBarIcon: ({ color }) => <Feather name="briefcase" size={22} color={color} />,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? TAB_ICONS.portfolio[0] : TAB_ICONS.portfolio[1]} size={24} color={color} />
+            ),
           }}
         />
         <Tabs.Screen
           name="history"
           options={{
             title: "History",
-            tabBarIcon: ({ color }) => <Feather name="clock" size={22} color={color} />,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? TAB_ICONS.history[0] : TAB_ICONS.history[1]} size={24} color={color} />
+            ),
           }}
         />
         <Tabs.Screen
