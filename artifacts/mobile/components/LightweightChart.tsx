@@ -4,6 +4,8 @@ import { Feather } from "@expo/vector-icons";
 import CandlestickChart from "./CandlestickChart";
 import { Candle } from "@/context/TradingContext";
 
+export type DrawingTool = "hline" | "trendline" | "support" | "resistance" | "fib";
+
 export interface IndicatorConfig {
   ema9: boolean;
   ema20: boolean;
@@ -11,6 +13,7 @@ export interface IndicatorConfig {
   bb: boolean;
   rsi: boolean;
   macd: boolean;
+  volume: boolean;
 }
 
 export interface Props {
@@ -26,11 +29,13 @@ export interface Props {
   textColor?: string;
   gridColor?: string;
   bgColor?: string;
-  chartType?: "candle" | "line";
-  showVolume?: boolean;
+  chartType?: "candle" | "line" | "area";
   indicators?: IndicatorConfig;
   isFullscreen?: boolean;
   onFullscreenToggle?: () => void;
+  drawingTool?: DrawingTool | null;
+  onDrawingComplete?: () => void;
+  clearDrawingsKey?: number;
 }
 
 function buildInterval(tf: string): string {
@@ -117,6 +122,10 @@ function calcMACD(closes: number[], fast = 12, slow = 26, sig = 9) {
   return { macdLine, signalLine, histogram };
 }
 
+type DrawingEntry =
+  | { type: "priceline"; seriesRef: any; line: any }
+  | { type: "series"; series: any };
+
 interface ChartState {
   chart: any;
   lc: any;
@@ -127,35 +136,59 @@ interface ChartState {
     rsi: any; macdL: any; macdS: any; macdH: any;
   };
   data: any[];
+  drawings: DrawingEntry[];
 }
 
 function WebChart({
   symbol, symbolType, timeframe = "15m", isDark = true, height = 320,
-  onPriceUpdate, chartType = "candle", showVolume = true, indicators,
+  onPriceUpdate, chartType = "candle", indicators,
   isFullscreen = false, onFullscreenToggle,
+  drawingTool, onDrawingComplete, clearDrawingsKey,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const st = useRef<ChartState>({
     chart: null, lc: null,
     series: { candle: null, vol: null, ema9: null, ema20: null, sma20: null, bbMid: null, bbUp: null, bbLow: null, rsi: null, macdL: null, macdS: null, macdH: null },
     data: [],
+    drawings: [],
   });
   const wsRef = useRef<WebSocket | null>(null);
   const ivRef = useRef<any>(null);
   const indicatorsRef = useRef(indicators);
+  const drawingToolRef = useRef(drawingTool);
+  const drawingClicksRef = useRef<{ time: any; price: number }[]>([]);
+  const onDrawingCompleteRef = useRef(onDrawingComplete);
   const [legend, setLegend] = useState<{ o?: string; h?: string; l?: string; c?: string } | null>(null);
 
   useEffect(() => { indicatorsRef.current = indicators; }, [indicators]);
+  useEffect(() => { drawingToolRef.current = drawingTool; drawingClicksRef.current = []; }, [drawingTool]);
+  useEffect(() => { onDrawingCompleteRef.current = onDrawingComplete; }, [onDrawingComplete]);
 
   const bg = isDark ? "#0b0e17" : "#ffffff";
   const tc = isDark ? "#94a3b8" : "#374151";
   const gc = isDark ? "#1e293b" : "#e2e8f0";
   const up = "#00c896", dn = "#ff4d4d";
 
+  const clearDrawings = useCallback(() => {
+    const s = st.current;
+    if (!s.chart) return;
+    for (const d of s.drawings) {
+      try {
+        if (d.type === "priceline") d.seriesRef.removePriceLine(d.line);
+        else s.chart.removeSeries(d.series);
+      } catch {}
+    }
+    s.drawings = [];
+  }, []);
+
+  useEffect(() => {
+    clearDrawings();
+  }, [clearDrawingsKey, clearDrawings]);
+
   const removeAllIndicators = useCallback(() => {
     const s = st.current;
     if (!s.chart) return;
-    (["ema9", "ema20", "sma20", "bbMid", "bbUp", "bbLow", "rsi", "macdL", "macdS", "macdH"] as const).forEach((k) => {
+    (["ema9", "ema20", "sma20", "bbMid", "bbUp", "bbLow", "rsi", "macdL", "macdS", "macdH", "vol"] as const).forEach((k) => {
       if (s.series[k]) { try { s.chart.removeSeries(s.series[k]); } catch {} s.series[k] = null; }
     });
   }, []);
@@ -166,15 +199,34 @@ function WebChart({
     const ind = indicatorsRef.current;
     const { LineSeries, HistogramSeries } = s.lc;
     const closes = s.data.map((c: any) => c.close);
-    const times = s.data.map((c: any) => c.time);
+    const times  = s.data.map((c: any) => c.time);
 
     removeAllIndicators();
+
+    const hasVolume = ind?.volume ?? true;
+    s.chart.priceScale("right").applyOptions({
+      scaleMargins: { top: 0.06, bottom: hasVolume ? 0.22 : 0.04 },
+    });
+
+    if (hasVolume) {
+      const volSeries = s.chart.addSeries(HistogramSeries, {
+        color: "#26a69a50", priceScaleId: "vol",
+        priceFormat: { type: "volume" },
+      });
+      s.chart.priceScale("vol").applyOptions({
+        scaleMargins: { top: 0.82, bottom: 0 }, visible: false,
+      });
+      volSeries.setData(s.data.map((c: any) => ({
+        time: c.time, value: c.volume,
+        color: c.close >= c.open ? "#26a69a50" : "#ef444450",
+      })));
+      s.series.vol = volSeries;
+    }
 
     if (ind?.ema9) {
       const series = s.chart.addSeries(LineSeries, {
         color: "#f59e0b", lineWidth: 1, title: "EMA9",
-        priceLineVisible: false, lastValueVisible: false,
-        crosshairMarkerVisible: false,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
       series.setData(calcEMA(closes, 9).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
       s.series.ema9 = series;
@@ -183,8 +235,7 @@ function WebChart({
     if (ind?.ema20) {
       const series = s.chart.addSeries(LineSeries, {
         color: "#a78bfa", lineWidth: 1, title: "EMA20",
-        priceLineVisible: false, lastValueVisible: false,
-        crosshairMarkerVisible: false,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
       series.setData(calcEMA(closes, 20).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
       s.series.ema20 = series;
@@ -193,8 +244,7 @@ function WebChart({
     if (ind?.sma20) {
       const series = s.chart.addSeries(LineSeries, {
         color: "#38bdf8", lineWidth: 1, title: "SMA20",
-        priceLineVisible: false, lastValueVisible: false,
-        crosshairMarkerVisible: false,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
       series.setData(calcSMA(closes, 20).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
       s.series.sma20 = series;
@@ -204,24 +254,19 @@ function WebChart({
       const { mid, upper, lower } = calcBB(closes, 20, 2);
       const bbMid = s.chart.addSeries(LineSeries, {
         color: "#94a3b8", lineWidth: 1, title: "BB Mid",
-        priceLineVisible: false, lastValueVisible: false,
-        crosshairMarkerVisible: false,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
       bbMid.setData(mid.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
       s.series.bbMid = bbMid;
-
       const bbUp = s.chart.addSeries(LineSeries, {
         color: "#3b82f660", lineWidth: 1, title: "BB Upper",
-        priceLineVisible: false, lastValueVisible: false,
-        crosshairMarkerVisible: false,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
       bbUp.setData(upper.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
       s.series.bbUp = bbUp;
-
       const bbLow = s.chart.addSeries(LineSeries, {
         color: "#3b82f660", lineWidth: 1, title: "BB Lower",
-        priceLineVisible: false, lastValueVisible: false,
-        crosshairMarkerVisible: false,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
       bbLow.setData(lower.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
       s.series.bbLow = bbLow;
@@ -242,21 +287,18 @@ function WebChart({
     if (ind?.macd) {
       const { macdLine, signalLine, histogram } = calcMACD(closes);
       const pane = nextPane++;
-
       const macdL = s.chart.addSeries(LineSeries, {
         color: "#3b82f6", lineWidth: 1.5, title: "MACD",
         priceLineVisible: false, lastValueVisible: false,
       }, pane);
       macdL.setData(macdLine.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
       s.series.macdL = macdL;
-
       const macdS = s.chart.addSeries(LineSeries, {
         color: "#f59e0b", lineWidth: 1, title: "Signal",
         priceLineVisible: false, lastValueVisible: false,
       }, pane);
       macdS.setData(signalLine.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
       s.series.macdS = macdS;
-
       const macdH = s.chart.addSeries(HistogramSeries, {
         title: "Histogram", priceLineVisible: false, lastValueVisible: false,
       }, pane);
@@ -276,7 +318,7 @@ function WebChart({
 
     async function init() {
       const lc = await import("lightweight-charts");
-      const { createChart, CrosshairMode, CandlestickSeries, HistogramSeries, LineSeries, AreaSeries } = lc as any;
+      const { createChart, CrosshairMode, CandlestickSeries, HistogramSeries, LineSeries, AreaSeries, LineStyle } = lc as any;
       if (destroyed || !containerRef.current) return;
 
       const chart = createChart(containerRef.current, {
@@ -285,10 +327,7 @@ function WebChart({
         layout: { background: { type: "solid" as any, color: bg }, textColor: tc },
         grid: { vertLines: { color: gc }, horzLines: { color: gc } },
         crosshair: { mode: CrosshairMode.Normal },
-        rightPriceScale: {
-          borderColor: gc,
-          scaleMargins: { top: 0.06, bottom: showVolume ? 0.22 : 0.04 },
-        },
+        rightPriceScale: { borderColor: gc, scaleMargins: { top: 0.06, bottom: 0.04 } },
         timeScale: { borderColor: gc, timeVisible: true, secondsVisible: false },
         handleScroll: true,
         handleScale: true,
@@ -304,23 +343,16 @@ function WebChart({
           borderUpColor: up, borderDownColor: dn,
           wickUpColor: up, wickDownColor: dn,
         });
+      } else if (chartType === "area") {
+        mainSeries = chart.addSeries(AreaSeries, {
+          lineColor: up, topColor: up + "55", bottomColor: up + "08", lineWidth: 2,
+        });
       } else {
         mainSeries = chart.addSeries(AreaSeries, {
-          lineColor: up, topColor: up + "40", bottomColor: up + "05", lineWidth: 2,
+          lineColor: up, topColor: "transparent", bottomColor: "transparent", lineWidth: 2,
         });
       }
       st.current.series.candle = mainSeries;
-
-      if (showVolume) {
-        const volSeries = chart.addSeries(HistogramSeries, {
-          color: "#26a69a50", priceScaleId: "vol",
-          priceFormat: { type: "volume" },
-        });
-        chart.priceScale("vol").applyOptions({
-          scaleMargins: { top: 0.82, bottom: 0 }, visible: false,
-        });
-        st.current.series.vol = volSeries;
-      }
 
       chart.subscribeCrosshairMove((param: any) => {
         if (!param?.time || !param?.seriesData) { setLegend(null); return; }
@@ -330,6 +362,64 @@ function WebChart({
           setLegend({ o: d.open?.toFixed(2), h: d.high?.toFixed(2), l: d.low?.toFixed(2), c: d.close?.toFixed(2) });
         } else {
           setLegend({ c: d.value?.toFixed(2) });
+        }
+      });
+
+      chart.subscribeClick((param: any) => {
+        const tool = drawingToolRef.current;
+        if (!tool || !param?.point || !param?.time) return;
+        const price = mainSeries.coordinateToPrice(param.point.y);
+        if (price == null) return;
+        const time = param.time;
+
+        if (tool === "hline" || tool === "support" || tool === "resistance") {
+          const color = tool === "support" ? "#00c896" : tool === "resistance" ? "#ff4d4d" : "#f59e0b";
+          const label = tool === "support" ? "S" : tool === "resistance" ? "R" : "HL";
+          const pl = mainSeries.createPriceLine({
+            price, color, lineWidth: 1,
+            lineStyle: LineStyle.Dashed,
+            title: label, axisLabelVisible: true,
+          });
+          st.current.drawings.push({ type: "priceline", seriesRef: mainSeries, line: pl });
+          onDrawingCompleteRef.current?.();
+        } else if (tool === "trendline") {
+          drawingClicksRef.current.push({ time, price });
+          if (drawingClicksRef.current.length === 2) {
+            const [p1, p2] = drawingClicksRef.current;
+            const trendSeries = chart.addSeries(LineSeries, {
+              color: "#f59e0b", lineWidth: 1.5,
+              priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+            });
+            trendSeries.setData([
+              { time: p1.time, value: p1.price },
+              { time: p2.time, value: p2.price },
+            ]);
+            st.current.drawings.push({ type: "series", series: trendSeries });
+            drawingClicksRef.current = [];
+            onDrawingCompleteRef.current?.();
+          }
+        } else if (tool === "fib") {
+          drawingClicksRef.current.push({ time, price });
+          if (drawingClicksRef.current.length === 2) {
+            const [p1, p2] = drawingClicksRef.current;
+            const diff = p2.price - p1.price;
+            const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+            const fibColors = ["#94a3b8", "#f59e0b", "#10b981", "#3b82f6", "#10b981", "#f59e0b", "#94a3b8"];
+            levels.forEach((level, i) => {
+              const fibPrice = p1.price + diff * level;
+              const pl = mainSeries.createPriceLine({
+                price: fibPrice,
+                color: fibColors[i],
+                lineWidth: 1,
+                lineStyle: LineStyle.Dotted,
+                title: `Fib ${(level * 100).toFixed(1)}%`,
+                axisLabelVisible: true,
+              });
+              st.current.drawings.push({ type: "priceline", seriesRef: mainSeries, line: pl });
+            });
+            drawingClicksRef.current = [];
+            onDrawingCompleteRef.current?.();
+          }
         }
       });
 
@@ -352,12 +442,6 @@ function WebChart({
             }));
             if (chartType === "candle") mainSeries.setData(candles);
             else mainSeries.setData(candles.map((c: any) => ({ time: c.time, value: c.close })));
-            if (showVolume && st.current.series.vol) {
-              st.current.series.vol.setData(candles.map((c: any) => ({
-                time: c.time, value: c.volume,
-                color: c.close >= c.open ? "#26a69a50" : "#ef444450",
-              })));
-            }
             st.current.data = candles;
             const last = candles[candles.length - 1];
             if (last && onPriceUpdate) onPriceUpdate(last.close);
@@ -374,7 +458,7 @@ function WebChart({
             const c = { time: Math.floor(k.t / 1000) as any, open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
             if (chartType === "candle") st.current.series.candle?.update(c);
             else st.current.series.candle?.update({ time: c.time, value: c.close });
-            if (showVolume && st.current.series.vol) {
+            if (st.current.series.vol) {
               st.current.series.vol.update({ time: c.time, value: c.volume, color: c.close >= c.open ? "#26a69a50" : "#ef444450" });
             }
             if (onPriceUpdate) onPriceUpdate(+k.c);
@@ -390,7 +474,12 @@ function WebChart({
       wsRef.current?.close();
       if (ivRef.current) clearInterval(ivRef.current);
       try { st.current.chart?.remove(); } catch {}
-      st.current = { chart: null, lc: null, series: { candle: null, vol: null, ema9: null, ema20: null, sma20: null, bbMid: null, bbUp: null, bbLow: null, rsi: null, macdL: null, macdS: null, macdH: null }, data: [] };
+      st.current = {
+        chart: null, lc: null,
+        series: { candle: null, vol: null, ema9: null, ema20: null, sma20: null, bbMid: null, bbUp: null, bbLow: null, rsi: null, macdL: null, macdS: null, macdH: null },
+        data: [],
+        drawings: [],
+      };
     };
   }, [symbol, timeframe, symbolType, chartType, height]);
 
@@ -404,15 +493,21 @@ function WebChart({
 
   useEffect(() => {
     if (st.current.chart && st.current.data.length) syncIndicators();
-  }, [indicators?.ema9, indicators?.ema20, indicators?.sma20, indicators?.bb, indicators?.rsi, indicators?.macd, syncIndicators]);
+  }, [
+    indicators?.ema9, indicators?.ema20, indicators?.sma20,
+    indicators?.bb, indicators?.rsi, indicators?.macd, indicators?.volume,
+    syncIndicators,
+  ]);
+
+  const cursorStyle = drawingTool ? "crosshair" : "default";
 
   const containerStyle: React.CSSProperties = isFullscreen
     ? { position: "fixed", inset: 0, zIndex: 9999, background: bg, display: "flex", flexDirection: "column" }
     : { width: "100%", height, overflow: "hidden", background: bg, position: "relative" };
 
   const innerStyle: React.CSSProperties = isFullscreen
-    ? { flex: 1, width: "100%" }
-    : { width: "100%", height: "100%" };
+    ? { flex: 1, width: "100%", cursor: cursorStyle }
+    : { width: "100%", height: "100%", cursor: cursorStyle };
 
   return (
     <div style={containerStyle}>
@@ -426,6 +521,18 @@ function WebChart({
           {legend.h && <span>H <b style={{ color: up }}>{legend.h}</b></span>}
           {legend.l && <span>L <b style={{ color: dn }}>{legend.l}</b></span>}
           {legend.c && <span>C <b>{legend.c}</b></span>}
+        </div>
+      )}
+      {drawingTool && (
+        <div style={{
+          position: "absolute", top: 6, right: 8, zIndex: 10,
+          background: "#f59e0b22", border: "1px solid #f59e0b60",
+          borderRadius: 6, padding: "3px 8px", fontSize: 11, color: "#f59e0b",
+          pointerEvents: "none", userSelect: "none",
+        }}>
+          {drawingTool === "trendline" || drawingTool === "fib"
+            ? `${drawingTool.toUpperCase()} — click point ${(drawingClicksRef.current?.length ?? 0) + 1}/2`
+            : `${drawingTool.toUpperCase()} — click to place`}
         </div>
       )}
       {isFullscreen && onFullscreenToggle && (
@@ -455,16 +562,13 @@ export default function LightweightChart(props: Props) {
     return (
       <Modal visible animationType="slide" onRequestClose={onFullscreenToggle}>
         <View style={{ flex: 1, backgroundColor: "#0b0e17" }}>
-          <TouchableOpacity
-            onPress={onFullscreenToggle}
-            style={styles.fsClose}
-          >
+          <TouchableOpacity onPress={onFullscreenToggle} style={styles.fsClose}>
             <Feather name="x" size={20} color="#fff" />
           </TouchableOpacity>
           <CandlestickChart
             candles={props.candles ?? []}
             height={Dimensions.get("window").height - 60}
-            chartType={props.chartType ?? "candle"}
+            chartType={props.chartType === "area" ? "line" : (props.chartType ?? "candle")}
             bullColor={props.bullColor ?? "#00c896"}
             bearColor={props.bearColor ?? "#ff4d4d"}
             textColor={props.textColor ?? "#64748b"}
@@ -481,7 +585,7 @@ export default function LightweightChart(props: Props) {
       <CandlestickChart
         candles={props.candles ?? []}
         height={height}
-        chartType={props.chartType ?? "candle"}
+        chartType={props.chartType === "area" ? "line" : (props.chartType ?? "candle")}
         bullColor={props.bullColor ?? "#00c896"}
         bearColor={props.bearColor ?? "#ff4d4d"}
         textColor={props.textColor ?? "#64748b"}

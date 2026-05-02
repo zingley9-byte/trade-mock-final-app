@@ -180,7 +180,7 @@ interface TradingContextType {
   candles: Candle[];
   timeframe: Timeframe;
   theme: "dark" | "light";
-  chartType: "candle" | "line";
+  chartType: "candle" | "line" | "area";
   leverage: number;
   isConnected: boolean;
   priceChange24h: number;
@@ -192,7 +192,7 @@ interface TradingContextType {
   setSelectedSymbol: (s: MarketSymbol) => void;
   setTimeframe: (t: Timeframe) => void;
   setTheme: (t: "dark" | "light") => void;
-  setChartType: (t: "candle" | "line") => void;
+  setChartType: (t: "candle" | "line" | "area") => void;
   setLeverage: (l: number) => void;
   setMarketFilter: (f: "crypto") => void;
   setCurrencyMode: (m: "usd" | "inr") => void;
@@ -266,7 +266,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [timeframe, setTimeframeState] = useState<Timeframe>("15m");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [chartType, setChartType] = useState<"candle" | "line">("candle");
+  const [chartType, setChartType] = useState<"candle" | "line" | "area">("candle");
   const [leverage, setLeverage] = useState(1);
   const [isConnected, setIsConnected] = useState(false);
   const [priceChange24h, setPriceChange24h] = useState(0);
