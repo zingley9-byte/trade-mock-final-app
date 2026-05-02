@@ -141,8 +141,11 @@ export default function MobileCandleChart({
 
   // ── Fullscreen override ────────────────────────────────────────────────
   const [isFS, setIsFS] = useState(false);
+  // fsPad = status-bar height + 12 px breathing room so the toolbar isn't flush against the edge
+  const fsPad = isFS ? (StatusBar.currentHeight ?? 0) + 12 : 0;
   const FSW = isFS ? Dimensions.get("window").width  : SW;
-  const FSH = isFS ? Dimensions.get("window").height : height;
+  // Subtract fsPad so chartContent height fits exactly within Modal after top padding
+  const FSH = isFS ? Dimensions.get("window").height - fsPad : height;
 
   const chartW = FSW - LEFT_W;
   const plotW  = chartW - PRICE_W;
@@ -785,11 +788,9 @@ export default function MobileCandleChart({
     </View>
   );
 
-  const sbH = StatusBar.currentHeight ?? 0;
-
   return isFS ? (
     <Modal visible animationType="fade" statusBarTranslucent onRequestClose={() => setIsFS(false)}>
-      <View style={{ flex:1, paddingTop: sbH, backgroundColor: C.bg }}>
+      <View style={{ flex:1, paddingTop: fsPad, backgroundColor: C.bg }}>
         {chartContent}
         {/* Floating exit button — always visible regardless of toolbar state */}
         <TouchableOpacity
