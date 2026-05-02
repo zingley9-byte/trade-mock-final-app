@@ -625,6 +625,18 @@ const styles = StyleSheet.create({
   pickerLabel: { fontSize: 14, fontWeight: "500" },
   pickerSub: { fontSize: 11, marginTop: 2 },
 
+  // Admin button
+  adminBtn: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, borderRadius: 14, borderWidth: 1,
+  },
+  adminIconWrap: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  adminBtnLabel: { fontSize: 14, fontWeight: "700" },
+  adminBtnSub: { fontSize: 11, marginTop: 2 },
+
   // Footer
   versionText: {
     textAlign: "center", fontSize: 11,
