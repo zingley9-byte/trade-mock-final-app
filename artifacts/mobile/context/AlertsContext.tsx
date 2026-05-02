@@ -8,14 +8,15 @@ import React, {
 } from "react";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 import { useTradingContext } from "./TradingContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface PriceAlert {
   id: string;
-  symbolId: string;       // e.g. "BTCUSDT"
-  symbolLabel: string;    // e.g. "BTC/USDT"
-  targetPrice: number;    // in USD
+  symbolId: string;
+  symbolLabel: string;
+  targetPrice: number;
   condition: "above" | "below";
   createdAt: number;
   triggered: boolean;
@@ -42,12 +43,31 @@ export function useAlerts() {
   return ctx;
 }
 
-// ── Notification helper (web + native) ────────────────────────────────────────
-async function sendNotification(title: string, body: string) {
-  if (Platform.OS === "web") {
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-      try { new Notification(title, { body, icon: "/favicon.ico" }); } catch {}
-    }
+// ── Expo Go detection ─────────────────────────────────────────────────────────
+// Push token registration was removed from Expo Go since SDK 53.
+// Even importing expo-notifications in Expo Go triggers DevicePushTokenAutoRegistration
+// which crashes on Android. We skip the import entirely in Expo Go.
+function isExpoGo(): boolean {
+  try {
+    return Constants.appOwnership === "expo";
+  } catch {
+    return false;
+  }
+}
+
+// ── Web Notification helper ────────────────────────────────────────────────────
+function sendWebNotification(title: string, body: string) {
+  if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+    try { new Notification(title, { body, icon: "/favicon.ico" }); } catch {}
+  }
+}
+
+// ── Native Notification helper ─────────────────────────────────────────────────
+// Only runs outside Expo Go (dev build / production)
+async function sendNativeNotification(title: string, body: string) {
+  if (isExpoGo()) {
+    // Expo Go: push notifications not supported — alert is still tracked in-app
+    console.log(`[Alert] ${title}: ${body}`);
     return;
   }
   try {
@@ -57,6 +77,15 @@ async function sendNotification(title: string, body: string) {
       trigger: null,
     });
   } catch {}
+}
+
+// ── Unified send ──────────────────────────────────────────────────────────────
+function sendNotification(title: string, body: string) {
+  if (Platform.OS === "web") {
+    sendWebNotification(title, body);
+  } else {
+    sendNativeNotification(title, body);
+  }
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -82,23 +111,47 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(alerts)).catch(() => {});
   }, [alerts]);
 
-  // ── Detect permission on mount ──────────────────────────────────────────
+  // ── Set up notifications on mount ────────────────────────────────────────
   useEffect(() => {
     if (Platform.OS === "web") {
       if (typeof window !== "undefined" && "Notification" in window) {
-        setNotifPermission(Notification.permission as any);
+        setNotifPermission(Notification.permission as "granted" | "denied" | "default");
       } else {
         setNotifPermission("unsupported");
       }
-    } else {
-      (async () => {
-        try {
-          const Notifs = await import("expo-notifications");
-          const { status } = await Notifs.getPermissionsAsync();
-          setNotifPermission(status === "granted" ? "granted" : status === "denied" ? "denied" : "default");
-        } catch { setNotifPermission("unsupported"); }
-      })();
+      return;
     }
+
+    if (isExpoGo()) {
+      // Push notifications disabled in Expo Go — local in-app alerts still work
+      console.log("[Notifications] Push notifications disabled in Expo Go");
+      setNotifPermission("unsupported");
+      return;
+    }
+
+    // Dev build / production only
+    (async () => {
+      try {
+        const Notifs = await import("expo-notifications");
+
+        Notifs.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+            shouldShowBanner: true,
+            shouldShowList: true,
+          }),
+        });
+
+        const { status } = await Notifs.getPermissionsAsync();
+        setNotifPermission(
+          status === "granted" ? "granted" : status === "denied" ? "denied" : "default"
+        );
+      } catch {
+        setNotifPermission("unsupported");
+      }
+    })();
   }, []);
 
   // ── Request permission ──────────────────────────────────────────────────
@@ -106,10 +159,11 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
     if (Platform.OS === "web") {
       if (typeof window !== "undefined" && "Notification" in window) {
         const p = await Notification.requestPermission();
-        setNotifPermission(p as any);
+        setNotifPermission(p as "granted" | "denied" | "default");
       }
       return;
     }
+    if (isExpoGo()) return;
     try {
       const Notifs = await import("expo-notifications");
       const { status } = await Notifs.requestPermissionsAsync();
