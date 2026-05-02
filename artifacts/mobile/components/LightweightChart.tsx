@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Platform, View, Text, StyleSheet, TouchableOpacity, Modal, Dimensions } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import CandlestickChart from "./CandlestickChart";
+import MobileCandleChart from "./MobileCandleChart";
 import { Candle } from "@/context/TradingContext";
 
 export type DrawingTool = "hline" | "trendline" | "support" | "resistance" | "fib";
@@ -561,19 +562,13 @@ export default function LightweightChart(props: Props) {
   if (isFullscreen) {
     return (
       <Modal visible animationType="slide" onRequestClose={onFullscreenToggle}>
-        <View style={{ flex: 1, backgroundColor: "#0b0e17" }}>
+        <View style={{ flex: 1, backgroundColor: "#131722" }}>
           <TouchableOpacity onPress={onFullscreenToggle} style={styles.fsClose}>
             <Feather name="x" size={20} color="#fff" />
           </TouchableOpacity>
-          <CandlestickChart
-            candles={props.candles ?? []}
+          <MobileCandleChart
+            symbol={props.symbol}
             height={Dimensions.get("window").height - 60}
-            chartType={props.chartType === "area" ? "line" : (props.chartType ?? "candle")}
-            bullColor={props.bullColor ?? "#00c896"}
-            bearColor={props.bearColor ?? "#ff4d4d"}
-            textColor={props.textColor ?? "#64748b"}
-            gridColor={props.gridColor ?? "rgba(100,116,139,0.15)"}
-            bgColor={props.bgColor ?? "transparent"}
           />
         </View>
       </Modal>
@@ -581,18 +576,10 @@ export default function LightweightChart(props: Props) {
   }
 
   return (
-    <View style={{ height, width: "100%" }}>
-      <CandlestickChart
-        candles={props.candles ?? []}
-        height={height}
-        chartType={props.chartType === "area" ? "line" : (props.chartType ?? "candle")}
-        bullColor={props.bullColor ?? "#00c896"}
-        bearColor={props.bearColor ?? "#ff4d4d"}
-        textColor={props.textColor ?? "#64748b"}
-        gridColor={props.gridColor ?? "rgba(100,116,139,0.15)"}
-        bgColor={props.bgColor ?? "transparent"}
-      />
-    </View>
+    <MobileCandleChart
+      symbol={props.symbol}
+      height={height}
+    />
   );
 }
 

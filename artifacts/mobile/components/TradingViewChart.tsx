@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Platform, View, Text } from "react-native";
+import MobileCandleChart from "./MobileCandleChart";
 
 // ─── Theme ───────────────────────────────────────────────────────────────────
 const C = {
@@ -505,11 +506,7 @@ function BotBtn({ label }: { label: string }) {
 export default function TradingViewChart({ symbol = "BTCUSDT", height }: { symbol?: string; height?: number }) {
   const h = height ?? 480;
   if (Platform.OS !== "web") {
-    return (
-      <View style={{ height:h, alignItems:"center", justifyContent:"center", backgroundColor:C.bg }}>
-        <Text style={{ color:C.dim, fontSize:13 }}>Chart available on web</Text>
-      </View>
-    );
+    return <MobileCandleChart symbol={symbol} height={h} />;
   }
   return <WebChart symbol={symbol} height={h} />;
 }
