@@ -16,6 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TradingProvider } from "@/context/TradingContext";
 import { AlertsProvider } from "@/context/AlertsContext";
+import { AdminProvider } from "@/context/AdminContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -43,16 +44,19 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <TradingProvider>
             <AlertsProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
-                  <Stack.Screen name="index" options={{ headerShown: false }} />
-                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                  <Stack.Screen name="auth" options={{ headerShown: false }} />
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                </Stack>
-              </KeyboardProvider>
-            </GestureHandlerRootView>
+              <AdminProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <KeyboardProvider>
+                    <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
+                      <Stack.Screen name="index" options={{ headerShown: false }} />
+                      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                      <Stack.Screen name="auth" options={{ headerShown: false }} />
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                      <Stack.Screen name="admin" options={{ headerShown: false }} />
+                    </Stack>
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </AdminProvider>
             </AlertsProvider>
           </TradingProvider>
         </QueryClientProvider>

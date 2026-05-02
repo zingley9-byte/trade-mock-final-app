@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
@@ -19,6 +20,7 @@ import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
+import { useAdmin, ADMIN_EMAIL } from "@/context/AdminContext";
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 const KEYS = {
@@ -219,6 +221,7 @@ export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { theme, setTheme } = useTradingContext();
+  const { isAdmin } = useAdmin();
   const isDark = theme === "dark";
 
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -469,6 +472,29 @@ export default function SettingsScreen() {
         <RowItem icon="star" iconBg="#eab308" label="Rate App"
           sub="Love Trade Mock? Rate us!" colors={colors} showChevron onPress={handleRateApp} isLast />
       </View>
+
+      {/* ─── Admin Panel (only visible to admin) ─── */}
+      {isAdmin && (
+        <>
+          <SectionHeader title="Administration" colors={colors} />
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={[styles.adminBtn, { backgroundColor: "#7c3aed18", borderColor: "#7c3aed44" }]}
+              onPress={() => router.push("/admin")}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.adminIconWrap, { backgroundColor: "#7c3aed22" }]}>
+                <Feather name="shield" size={18} color="#7c3aed" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.adminBtnLabel, { color: "#7c3aed" }]}>Admin Panel</Text>
+                <Text style={[styles.adminBtnSub, { color: colors.mutedForeground }]}>Manage users, coins & announcements</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color="#7c3aed" />
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
 
       {/* ─── App Version ─── */}
       <Text style={[styles.versionText, { color: colors.mutedForeground }]}>Trade Mock v1.0.0 · Practice. Learn. Trade.</Text>
