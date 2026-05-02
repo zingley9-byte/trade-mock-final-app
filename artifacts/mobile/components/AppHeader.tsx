@@ -1,4 +1,5 @@
 import * as ImagePicker from "expo-image-picker";
+import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import React, { useMemo, useRef, useState } from "react";
 import {
@@ -113,28 +114,25 @@ export default function AppHeader() {
   }
 
   async function handleShare() {
-    setProfileOpen(false);
     const shareText = "🔥 TradeMock — Practice trading FREE with ₹10,00,000 virtual money!\nLearn crypto trading without any risk 🚀";
-    const shareUrl  = Platform.OS === "web"
-      ? (typeof window !== "undefined" ? window.location.href : "https://trademock.app")
+    const shareUrl  = Platform.OS === "web" && typeof window !== "undefined"
+      ? window.location.href
       : "https://trademock.app";
+    const full = shareText + "\n" + shareUrl;
 
-    if (Platform.OS === "web" && typeof navigator !== "undefined" && (navigator as any).share) {
-      try {
-        await (navigator as any).share({ title: "TradeMock", text: shareText, url: shareUrl });
-      } catch {}
+    setProfileOpen(false);
+
+    if (Platform.OS !== "web") {
+      try { await Share.share({ message: full }); } catch {}
       return;
     }
 
-    if (Platform.OS === "web") {
-      const waUrl = `https://wa.me/?text=${encodeURIComponent(shareText + "\n" + shareUrl)}`;
-      window.open(waUrl, "_blank");
-      return;
-    }
-
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(full)}`;
     try {
-      await Share.share({ message: shareText + "\n" + shareUrl });
-    } catch {}
+      await Linking.openURL(waUrl);
+    } catch {
+      if (typeof window !== "undefined") window.open(waUrl, "_blank");
+    }
   }
 
   function openFeedback() {
