@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import LoadingCandleAnimation from "./LoadingCandleAnimation";
+import CoinLogo from "./CoinLogo";
 
 const C = {
   bg:       "#0A0A0A",
@@ -177,7 +178,7 @@ export default function MobileLandingPage() {
   }, []);
 
   const goDashboard = () => router.replace("/(tabs)");
-  const goAuth      = () => router.replace("/auth");
+  const goAuth      = () => router.push("/auth");
 
   if (!pricesLoaded) {
     return <LoadingCandleAnimation status="connecting" />;
@@ -208,8 +209,8 @@ export default function MobileLandingPage() {
             <TouchableOpacity style={s.menuLoginBtn} onPress={goAuth}>
               <Text style={s.menuLoginTxt}>Log In</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.menuStartBtn} onPress={goDashboard}>
-              <Text style={s.menuStartTxt}>Get Started</Text>
+            <TouchableOpacity style={s.menuStartBtn} onPress={goAuth}>
+              <Text style={s.menuStartTxt}>Sign Up</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -233,7 +234,7 @@ export default function MobileLandingPage() {
             <View style={s.heroLeft}>
               <Text style={s.h1}>Practice Trading{"\n"}<Text style={s.h1Yellow}>Without Risk</Text></Text>
               <Text style={s.sub}>Trade Mock helps you learn crypto trading with live charts, mock balance, portfolio, and history. Improve your skills before you trade real.</Text>
-              <TouchableOpacity style={s.btnPrimary} onPress={goDashboard}>
+              <TouchableOpacity style={s.btnPrimary} onPress={goAuth}>
                 <Text style={s.btnPrimaryTxt}>Get Started →</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.btnSecondary} onPress={goDashboard}>
@@ -287,10 +288,8 @@ export default function MobileLandingPage() {
             const pos = ch >= 0;
             return (
               <TouchableOpacity key={c.id} style={s.coinRow} onPress={goDashboard}>
-                <View style={[s.coinAvatar, { backgroundColor: c.color + "22" }]}>
-                  <Text style={[s.coinAvatarTxt, { color: c.color }]}>{c.id[0]}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
+                <CoinLogo symbolId={c.pair} size={36} />
+                <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={s.coinId}>{c.id}</Text>
                   <Text style={s.coinName}>{c.name}</Text>
                 </View>
@@ -354,7 +353,7 @@ export default function MobileLandingPage() {
               <Text style={s.ctaBannerSub}>Start your trading journey risk-free.</Text>
             </View>
           </View>
-          <TouchableOpacity style={s.ctaBannerBtn} onPress={goDashboard}>
+          <TouchableOpacity style={s.ctaBannerBtn} onPress={goAuth}>
             <Text style={s.ctaBannerBtnTxt}>Get Started →</Text>
           </TouchableOpacity>
         </View>

@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import LoadingCandleAnimation from "./LoadingCandleAnimation";
+import CoinLogo from "./CoinLogo";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -68,21 +69,8 @@ function fmtChg(c: number): string {
   return `${c >= 0 ? "+" : ""}${c.toFixed(2)}%`;
 }
 
-// ── Small coin avatar ─────────────────────────────────────────────────────────
-function CoinAvatar({ id, color }: { id: string; color: string }) {
-  return (
-    <View style={[av.wrap, { backgroundColor: color + "22", borderColor: color + "55" }]}>
-      <Text style={[av.txt, { color }]}>{id[0]}</Text>
-    </View>
-  );
-}
-const av = StyleSheet.create({
-  wrap: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", borderWidth: 1 },
-  txt:  { fontSize: 13, fontWeight: "800" as const },
-});
-
 // ── Navbar ────────────────────────────────────────────────────────────────────
-function NavBar({ onLogin, onStart }: { onLogin: () => void; onStart: () => void }) {
+function NavBar({ onLogin, onSignup }: { onLogin: () => void; onSignup: () => void }) {
   return (
     // sticky via inline style — not inside StyleSheet.create
     <View style={[nb.bar, { position: "sticky" as any, top: 0, zIndex: 100 }]}>
@@ -102,8 +90,8 @@ function NavBar({ onLogin, onStart }: { onLogin: () => void; onStart: () => void
           <TouchableOpacity style={nb.loginBtn} onPress={onLogin}>
             <Text style={nb.loginTxt}>Log In</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={nb.startBtn} onPress={onStart}>
-            <Text style={nb.startTxt}>Get Started</Text>
+          <TouchableOpacity style={nb.startBtn} onPress={onSignup}>
+            <Text style={nb.startTxt}>Sign Up</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -142,7 +130,7 @@ function CoinCard({ prices, changes }: { prices: Record<string, number>; changes
         const ch = changes[c.id] ?? 0;
         return (
           <TouchableOpacity key={c.id} style={cc.row} onPress={() => router.replace("/(tabs)")}>
-            <CoinAvatar id={c.id} color={c.color} />
+            <CoinLogo symbolId={c.pair} size={34} />
             <View style={{ flex: 1 }}>
               <Text style={cc.coinId}>{c.id}</Text>
               <Text style={cc.coinName}>{c.name}</Text>
@@ -316,7 +304,7 @@ export default function LandingPage() {
   }, []);
 
   const goDashboard = () => router.replace("/(tabs)");
-  const goAuth      = () => router.replace("/auth");
+  const goAuth      = () => router.push("/auth");
 
   if (!pricesLoaded) {
     return <LoadingCandleAnimation status="connecting" />;
@@ -331,7 +319,7 @@ export default function LandingPage() {
         showsVerticalScrollIndicator={false}
       >
         {/* Navbar */}
-        <NavBar onLogin={goAuth} onStart={goDashboard} />
+        <NavBar onLogin={goAuth} onSignup={goAuth} />
 
         {/* Hero */}
         <View style={s.hero}>
@@ -350,7 +338,7 @@ export default function LandingPage() {
                 Trade Mock helps you learn crypto trading with live charts, mock balance, portfolio, and history. Improve your skills before you trade real.
               </Text>
               <View style={s.ctaRow}>
-                <TouchableOpacity style={s.btnPrimary} onPress={goDashboard}>
+                <TouchableOpacity style={s.btnPrimary} onPress={goAuth}>
                   <Text style={s.btnPrimaryTxt}>Get Started →</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.btnSecondary} onPress={goDashboard}>
