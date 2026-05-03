@@ -804,13 +804,14 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
             onError={onError}
             onMsg={onMessage}
           />
-          {/* Native exit bar — bottom of fullscreen */}
+          {/* Small ✕ exit — top-right corner */}
           <TouchableOpacity
-            style={styles.fsExitBar}
+            style={styles.fsExitBtn}
             onPress={() => setIsFullscreen(false)}
-            activeOpacity={0.8}
+            activeOpacity={0.75}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Text style={styles.fsExitBarText}>✕  Exit Fullscreen</Text>
+            <Text style={styles.fsExitIcon}>✕</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -834,18 +835,17 @@ const styles = StyleSheet.create({
   errSub:     { color: "#787b86", fontSize: 12 },
   retryBtn:   { marginTop: 4, backgroundColor: "#26a69a", paddingHorizontal: 24, paddingVertical: 9, borderRadius: 6 },
   retryTxt:   { color: "#fff", fontSize: 13, fontWeight: "700" },
-  fsExitBar: {
+  fsExitBtn: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 52,
-    backgroundColor: "rgba(19,23,34,0.96)",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.08)",
+    top: 12,
+    right: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(30,34,47,0.82)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 99,
   },
-  fsExitBarText: { color: "#d1d4dc", fontSize: 14, fontWeight: "700" as const, letterSpacing: 0.4 },
+  fsExitIcon: { color: "#9598a1", fontSize: 13, fontWeight: "700" as const, lineHeight: 16 },
 });
