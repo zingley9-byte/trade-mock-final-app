@@ -1,8 +1,8 @@
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect } from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import SvgIcon from "@/components/SvgIcon";
 import { getFirebaseAuth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
@@ -11,9 +11,7 @@ import TradeFlashOverlay from "@/components/TradeFlashOverlay";
 import { useTradingContext } from "@/context/TradingContext";
 import { useAdmin } from "@/context/AdminContext";
 
-type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
-
-const TAB_ICONS: Record<string, [IoniconsName, IoniconsName]> = {
+const TAB_ICONS: Record<string, [string, string]> = {
   index:     ["home",      "home-outline"],
   trade:     ["flash",     "flash-outline"],
   charts:    ["bar-chart", "bar-chart-outline"],
@@ -106,7 +104,7 @@ export default function TabLayout() {
           options={{
             title: "Home",
             tabBarIcon: ({ focused }) => (
-              <Ionicons
+              <SvgIcon
                 name={focused ? TAB_ICONS.index[0] : TAB_ICONS.index[1]}
                 size={24}
                 color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
@@ -119,7 +117,7 @@ export default function TabLayout() {
           options={{
             title: "Trade",
             tabBarIcon: ({ focused }) => (
-              <Ionicons
+              <SvgIcon
                 name={focused ? TAB_ICONS.trade[0] : TAB_ICONS.trade[1]}
                 size={24}
                 color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
@@ -132,7 +130,7 @@ export default function TabLayout() {
           options={{
             title: "Charts",
             tabBarIcon: ({ focused }) => (
-              <Ionicons
+              <SvgIcon
                 name={focused ? TAB_ICONS.charts[0] : TAB_ICONS.charts[1]}
                 size={24}
                 color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
@@ -145,7 +143,7 @@ export default function TabLayout() {
           options={{
             title: "Portfolio",
             tabBarIcon: ({ focused }) => (
-              <Ionicons
+              <SvgIcon
                 name={focused ? TAB_ICONS.portfolio[0] : TAB_ICONS.portfolio[1]}
                 size={24}
                 color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
@@ -158,7 +156,7 @@ export default function TabLayout() {
           options={{
             title: "History",
             tabBarIcon: ({ focused }) => (
-              <Ionicons
+              <SvgIcon
                 name={focused ? TAB_ICONS.history[0] : TAB_ICONS.history[1]}
                 size={24}
                 color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
