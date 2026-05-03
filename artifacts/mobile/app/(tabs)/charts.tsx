@@ -12,6 +12,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import SvgIcon from "@/components/SvgIcon";
@@ -577,8 +578,10 @@ export default function ChartsScreen() {
     { key: "trades",    label: "Recent Trades" },
   ];
 
-  const tabBarH = Platform.OS === "web" ? 64 : 50 + insets.bottom;
-  const isWeb   = Platform.OS === "web";
+  const { width: winW } = useWindowDimensions();
+  const tabBarH      = Platform.OS === "web" ? 64 : 50 + insets.bottom;
+  // Only show desktop side-panel when screen is genuinely wide (tablet/desktop)
+  const isDesktopWeb = Platform.OS === "web" && winW >= 768;
 
   return (
     <View style={[s.root, { backgroundColor: colors.background, paddingBottom: tabBarH }]}>
@@ -646,8 +649,8 @@ export default function ChartsScreen() {
           )}
         </View>
 
-        {/* Desktop-only crypto panel (right side) */}
-        {isWeb && (
+        {/* Desktop-only crypto panel (right side, 768px+) */}
+        {isDesktopWeb && (
           <DesktopCryptoPanel
             colors={colors}
             symbolPrices={symbolPrices}

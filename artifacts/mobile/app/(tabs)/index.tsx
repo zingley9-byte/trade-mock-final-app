@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import SvgIcon from "@/components/SvgIcon";
@@ -86,7 +87,10 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
 
-  const chartH = Platform.OS === "web" ? Math.round(SH * 0.60) : Math.round(SH * 0.38);
+  const { width: winW } = useWindowDimensions();
+  // Mobile web (<768px) gets native-sized chart so watchlist stays visible
+  const isDesktopWeb = Platform.OS === "web" && winW >= 768;
+  const chartH = isDesktopWeb ? Math.round(SH * 0.60) : Math.round(SH * 0.38);
 
   const visibleSymbols = useMemo(() => {
     if (!searchQuery.trim()) return SYMBOLS;
@@ -107,11 +111,13 @@ export default function HomeScreen() {
       {/* Price bar */}
       <PriceBar />
 
-      {/* TradingView-style chart (self-contained with toolbars) */}
-      <TradingViewChart
-        symbol={selectedSymbol.id}
-        height={chartH}
-      />
+      {/* TradingView-style chart — constrain height so watchlist stays visible */}
+      <View style={{ height: chartH }}>
+        <TradingViewChart
+          symbol={selectedSymbol.id}
+          height={chartH}
+        />
+      </View>
 
       {/* Watchlist */}
       <View style={[styles.watchCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
