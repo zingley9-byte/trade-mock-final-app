@@ -12,6 +12,7 @@ import {
 import LoadingCandleAnimation from "./LoadingCandleAnimation";
 import { WebView } from "react-native-webview";
 import { LWC_SCRIPT } from "../lib/lwcScript";
+import * as ScreenOrientation from "expo-screen-orientation";
 
 interface Props {
   symbol?: string;
@@ -793,11 +794,11 @@ function initSidebarEvents() {
   sbBtn('sb-hide',    function(el)  { toggleHide(el); });
   sbBtn('sb-lock',    function(el)  { toggleLockAll(el); });
   sbBtn('sb-delete',  function()    { clearAllDrawings(); });
-  // Topbar reset button — touchend + click for Android reliability
+  // Topbar rotate button — sends message to React Native to open fullscreen landscape
   var resetBtn = document.getElementById('tb-reset');
   if (resetBtn) {
-    resetBtn.addEventListener('touchend', function(e) { e.preventDefault(); if(chart) chart.timeScale().fitContent(); }, {passive:false});
-    resetBtn.addEventListener('click', function() { if(chart) chart.timeScale().fitContent(); });
+    resetBtn.addEventListener('touchend', function(e) { e.preventDefault(); postRN({type:'rotateFS'}); }, {passive:false});
+    resetBtn.addEventListener('click', function() { postRN({type:'rotateFS'}); });
   }
 }
 
@@ -1491,7 +1492,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     if (Platform.OS !== "android") return;
     const handler = BackHandler.addEventListener("hardwareBackPress", () => {
       if (isFullscreen) {
-        setIsFullscreen(false);
+        closeFullscreen();
         return true; // consumed — do NOT propagate
       }
       return false; // let Expo Router handle it normally
@@ -1506,19 +1507,33 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     setIsFullscreen(false);
   }, []);
 
+  // Lock to landscape when fullscreen opens via rotate button; unlock on close
+  const openFullscreenLandscape = useCallback(async () => {
+    setFsLoading(true);
+    setIsFullscreen(true);
+    try {
+      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+    } catch (_) {}
+  }, []);
+
+  const closeFullscreen = useCallback(async () => {
+    setIsFullscreen(false);
+    try {
+      await ScreenOrientation.unlockAsync();
+    } catch (_) {}
+  }, []);
+
   const onMessage = useCallback((e: any) => {
     try {
       const data = JSON.parse(e.nativeEvent.data);
       if (data.type === "toggleFS") {
-        if (data.value) {
-          setFsLoading(true);
-          setIsFullscreen(true);
-        } else {
-          setIsFullscreen(false);
-        }
+        if (data.value) { setFsLoading(true); setIsFullscreen(true); }
+        else { closeFullscreen(); }
+      } else if (data.type === "rotateFS") {
+        openFullscreenLandscape();
       }
     } catch (_) {}
-  }, []);
+  }, [openFullscreenLandscape, closeFullscreen]);
 
   return (
     <>
@@ -1558,7 +1573,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
         visible={isFullscreen}
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={() => setIsFullscreen(false)}
+        onRequestClose={closeFullscreen}
         supportedOrientations={["portrait", "landscape"]}
       >
         <StatusBar hidden backgroundColor="#131722" />
@@ -1577,7 +1592,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
           {/* Small ✕ exit — bottom-center */}
           <TouchableOpacity
             style={styles.fsExitBtn}
-            onPress={() => setIsFullscreen(false)}
+            onPress={closeFullscreen}
             activeOpacity={0.75}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >

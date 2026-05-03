@@ -61,7 +61,9 @@
   },
   "dependencies": {
     "expo-notifications": "~0.32.17",
+    "expo-screen-orientation": "^55.0.13",
     "firebase": "^12.12.1",
-    "lightweight-charts": "^5.2.0"
+    "lightweight-charts": "^5.2.0",
+    "react-native-webview": "^13.16.1"
   }
 }
