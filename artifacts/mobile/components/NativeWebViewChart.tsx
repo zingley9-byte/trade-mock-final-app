@@ -1107,10 +1107,24 @@ function initDrawingEvents() {
     wrap.addEventListener('touchstart', function(e) {
       // In cursor/no-tool mode, let LWC handle pan/zoom normally
       if (!TOOL || TOOL==='cursor') return;
-      // Skip if touch is on sidebar overlay elements
       var t = e.targetTouches[0];
       var el = document.elementFromPoint(t.clientX, t.clientY);
+      // Skip if touch is on sidebar / menus
       if (el && el.closest && (el.closest('#sidebar')||el.closest('#sb-sub')||el.closest('#float-menu'))) return;
+
+      // ── Delete mode: hit-test drawings and delete tapped one ──
+      if (TOOL==='delete') {
+        e.preventDefault();
+        // Walk up to find a data-did attribute (drawing hit area)
+        var cur = el;
+        while (cur && cur !== wrap) {
+          var did = cur.getAttribute && cur.getAttribute('data-did');
+          if (did) { DRW=DRW.filter(function(d){return d.id!==did;}); saveDrw(); redraw(); return; }
+          cur = cur.parentElement;
+        }
+        return; // tapped empty area — nothing to delete
+      }
+
       e.preventDefault(); // stop LWC from consuming this touch
       onSvgDown({target:el, clientX:t.clientX, clientY:t.clientY, pointerId:-1, preventDefault:function(){}});
     }, {passive:false});
@@ -1270,7 +1284,9 @@ function finishDrawing() {
   if (!IP||CUR_PTS.length===0) return;
   const id=genId();
   DRW.push({id,type:IP,pts:[...CUR_PTS],color:CLR,width:WID,visible:true,locked:false});
-  saveDrw(); CUR_PTS=[]; IP=null; _previewPt=null; redraw();
+  // Auto-return to cursor so user can pan/zoom chart after drawing
+  TOOL=null; IP=null; CUR_PTS=[]; _previewPt=null;
+  saveDrw(); buildSidebar(); updateSvgMode(); redraw();
 }
 
 // ── Handle click on drawing element ─────────────────────────────
