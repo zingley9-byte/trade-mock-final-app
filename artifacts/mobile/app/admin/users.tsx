@@ -24,13 +24,23 @@ const BULL     = "#00c896";
 
 export default function AdminUsers() {
   const insets = useSafeAreaInsets();
-  const { users, refreshUsers, isAdmin } = useAdmin();
+  const { users, refreshUsers, isAdmin, loading: authLoading } = useAdmin();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    refreshUsers().finally(() => setLoading(false));
-  }, []);
+    if (!authLoading) {
+      refreshUsers().finally(() => setLoading(false));
+    }
+  }, [authLoading]);
+
+  if (authLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: ADMIN_BG, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={PRIMARY} size="large" />
+      </View>
+    );
+  }
 
   if (!isAdmin) {
     router.replace("/admin");

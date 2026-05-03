@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -41,11 +42,19 @@ const TYPE_ICONS: Record<AType, string> = {
 
 export default function AdminAnnouncements() {
   const insets = useSafeAreaInsets();
-  const { announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement, isAdmin } = useAdmin();
+  const { announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement, isAdmin, loading: authLoading } = useAdmin();
   const [addModal, setAddModal] = useState(false);
   const [title, setTitle]   = useState("");
   const [message, setMsg]   = useState("");
   const [aType, setAType]   = useState<AType>("info");
+
+  if (authLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: ADMIN_BG, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={PRIMARY} size="large" />
+      </View>
+    );
+  }
 
   if (!isAdmin) { router.replace("/admin"); return null; }
 

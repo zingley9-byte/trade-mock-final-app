@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -27,12 +28,20 @@ const BEAR     = "#ff4d4d";
 
 export default function AdminCoins() {
   const insets = useSafeAreaInsets();
-  const { isAdmin } = useAdmin();
+  const { isAdmin, loading: authLoading } = useAdmin();
   const [query, setQuery] = useState("");
   const [addModal, setAddModal] = useState(false);
   const [newSymbol, setNewSymbol] = useState("");
   const [newName, setNewName] = useState("");
   const [customCoins, setCustomCoins] = useState<{ id: string; name: string; label: string }[]>([]);
+
+  if (authLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: ADMIN_BG, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={PRIMARY} size="large" />
+      </View>
+    );
+  }
 
   if (!isAdmin) { router.replace("/admin"); return null; }
 

@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -27,9 +28,17 @@ const BULL     = "#00c896";
 export default function UserDetail() {
   const insets = useSafeAreaInsets();
   const { uid } = useLocalSearchParams<{ uid: string }>();
-  const { users, blockedUids, blockUser, unblockUser, addFakeBalance, isAdmin } = useAdmin();
+  const { users, blockedUids, blockUser, unblockUser, addFakeBalance, isAdmin, loading: authLoading } = useAdmin();
   const [balanceModal, setBalanceModal] = useState(false);
   const [amountInput, setAmountInput] = useState("");
+
+  if (authLoading) {
+    return (
+      <View style={[s.center, { backgroundColor: ADMIN_BG }]}>
+        <ActivityIndicator color={PRIMARY} size="large" />
+      </View>
+    );
+  }
 
   if (!isAdmin) { router.replace("/admin"); return null; }
 
