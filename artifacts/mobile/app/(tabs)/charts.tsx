@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CoinLogo from "@/components/CoinLogo";
 import TradingViewChart from "@/components/TradingViewChart";
@@ -102,7 +102,7 @@ function OrderBook({ price, colors }: { price: number; colors: any }) {
           <Text style={{ color: price > 0 ? colors.bull : colors.bear, fontSize: 15, fontWeight: "700" as const }}>
             {fmtRaw(price)}
           </Text>
-          <Ionicons name="arrow-down-outline" size={14} color={colors.bear} />
+          <SvgIcon name="arrow-down-outline" size={14} color={colors.bear} />
         </View>
 
         {/* Bids (green) */}
@@ -215,7 +215,7 @@ function QuickTradeModal({
         {/* Lot size stepper */}
         <View style={[qt.lotRow, { backgroundColor: colors.muted, borderRadius: 12 }]}>
           <TouchableOpacity onPress={() => setLots((l) => Math.max(1, l - 1))} style={qt.stepBtn}>
-            <Ionicons name="remove-outline" size={18} color={colors.foreground} />
+            <SvgIcon name="remove-outline" size={18} color={colors.foreground} />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: "center" }}>
             <Text style={[qt.lotsNum, { color: colors.foreground }]}>{lots}</Text>
@@ -224,7 +224,7 @@ function QuickTradeModal({
             </Text>
           </View>
           <TouchableOpacity onPress={() => setLots((l) => l + 1)} style={qt.stepBtn}>
-            <Ionicons name="add-outline" size={18} color={colors.foreground} />
+            <SvgIcon name="add-outline" size={18} color={colors.foreground} />
           </TouchableOpacity>
         </View>
 
@@ -305,7 +305,7 @@ function DesktopCryptoPanel({
 
       {/* Search */}
       <View style={[dp.searchBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-        <Ionicons name="search-outline" size={13} color={colors.mutedForeground} />
+        <SvgIcon name="search-outline" size={13} color={colors.mutedForeground} />
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -317,7 +317,7 @@ function DesktopCryptoPanel({
         />
         {query.length > 0 && (
           <TouchableOpacity onPress={() => setQuery("")}>
-            <Ionicons name="close-circle-outline" size={13} color={colors.mutedForeground} />
+            <SvgIcon name="close-circle-outline" size={13} color={colors.mutedForeground} />
           </TouchableOpacity>
         )}
       </View>
@@ -522,9 +522,27 @@ export default function ChartsScreen() {
   const ticker     = selectedSymbol.label.replace("/USDT", "").replace("/", "");
   const lotSize    = getLotSize(ticker);
 
+  const chartContainerRef = useRef<View>(null);
+
   const onChartLayout = useCallback((e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
     if (h > 50) setChartHeight(h);
+  }, []);
+
+  // Web: update chartHeight on window resize so chart fills container
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    function handleResize() {
+      if (chartContainerRef.current) {
+        (chartContainerRef.current as any).measure(
+          (_x: number, _y: number, _w: number, h: number) => {
+            if (h > 50) setChartHeight(h);
+          }
+        );
+      }
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   function handleShort() {
@@ -574,7 +592,7 @@ export default function ChartsScreen() {
               <Text style={[s.symbolName, { color: colors.foreground }]}>
                 {ticker}USDT
               </Text>
-              <Ionicons name="chevron-down-outline" size={13} color={colors.mutedForeground} />
+              <SvgIcon name="chevron-down-outline" size={13} color={colors.mutedForeground} />
             </View>
             <Text style={[s.symbolSub, { color: colors.mutedForeground }]}>
               {selectedSymbol.name} Perpetual
@@ -594,7 +612,7 @@ export default function ChartsScreen() {
         </View>
 
         <TouchableOpacity style={[s.gearBtn, { backgroundColor: colors.muted }]}>
-          <Ionicons name="settings-outline" size={15} color={colors.mutedForeground} />
+          <SvgIcon name="settings-outline" size={15} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
 
@@ -614,7 +632,7 @@ export default function ChartsScreen() {
           })}
         </ScrollView>
         <TouchableOpacity style={[s.navGear, { backgroundColor: colors.muted }]}>
-          <Ionicons name="settings-outline" size={14} color={colors.mutedForeground} />
+          <SvgIcon name="settings-outline" size={14} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
 
@@ -666,7 +684,7 @@ export default function ChartsScreen() {
             style={[s.lotTicker, { backgroundColor: colors.muted, borderRadius: 6 }]}
           >
             <Text style={[s.lotTickerText, { color: colors.foreground }]}>{ticker}</Text>
-            <Ionicons name="chevron-down-outline" size={11} color={colors.mutedForeground} />
+            <SvgIcon name="chevron-down-outline" size={11} color={colors.mutedForeground} />
           </TouchableOpacity>
         </View>
 

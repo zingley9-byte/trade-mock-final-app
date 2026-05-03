@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AdminUser, useAdmin } from "@/context/AdminContext";
 
@@ -79,7 +79,7 @@ export default function AdminUsers() {
         </View>
         <View style={{ alignItems: "flex-end", gap: 4 }}>
           <Text style={s.balance}>₹{u.balance.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</Text>
-          <Ionicons name="chevron-forward-outline" size={15} color={MUTED} />
+          <SvgIcon name="chevron-forward-outline" size={15} color={MUTED} />
         </View>
       </TouchableOpacity>
     );
@@ -89,13 +89,13 @@ export default function AdminUsers() {
     <View style={[s.root, { paddingTop: insets.top }]}>
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
-          <Ionicons name="arrow-back-outline" size={20} color={FG} />
+          <SvgIcon name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Users ({users.length})</Text>
       </View>
 
       <View style={s.searchWrap}>
-        <Ionicons name="search-outline" size={15} color={MUTED} />
+        <SvgIcon name="search-outline" size={15} color={MUTED} />
         <TextInput
           style={s.searchInput}
           placeholder="Search by name or email…"
@@ -107,7 +107,7 @@ export default function AdminUsers() {
         />
         {query.length > 0 && (
           <TouchableOpacity onPress={() => setQuery("")}>
-            <Ionicons name="close-outline" size={14} color={MUTED} />
+            <SvgIcon name="close-outline" size={14} color={MUTED} />
           </TouchableOpacity>
         )}
       </View>
@@ -116,7 +116,7 @@ export default function AdminUsers() {
         <View style={s.center}><ActivityIndicator color={PRIMARY} /></View>
       ) : filtered.length === 0 ? (
         <View style={s.center}>
-          <Ionicons name="people-outline" size={40} color={MUTED} />
+          <SvgIcon name="people-outline" size={40} color={MUTED} />
           <Text style={s.emptyText}>{query ? "No results found" : "No users yet"}</Text>
         </View>
       ) : (

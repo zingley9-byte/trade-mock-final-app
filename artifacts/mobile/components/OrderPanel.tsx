@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import SvgIcon from "@/components/SvgIcon";
 import { LEVERAGES, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -153,21 +153,21 @@ export default function OrderPanel() {
               style={[styles.modeBtn, priceMode === "auto" && { backgroundColor: colors.primary }]}
               onPress={() => { setPriceMode("auto"); Haptics.selectionAsync(); }}
             >
-              <Ionicons name="flash-outline" size={10} color={priceMode === "auto" ? "#fff" : colors.mutedForeground} style={{ marginRight: 3 }} />
+              <SvgIcon name="flash-outline" size={10} color={priceMode === "auto" ? "#fff" : colors.mutedForeground} style={{ marginRight: 3 }} />
               <Text style={[styles.modeBtnText, { color: priceMode === "auto" ? "#fff" : colors.mutedForeground }]}>Auto</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.modeBtn, priceMode === "manual" && { backgroundColor: "#6366f1" }]}
               onPress={() => { setPriceMode("manual"); setManualPrice(currentPrice > 0 ? formatNum(currentPrice) : ""); Haptics.selectionAsync(); }}
             >
-              <Ionicons name="pencil-outline" size={10} color={priceMode === "manual" ? "#fff" : colors.mutedForeground} style={{ marginRight: 3 }} />
+              <SvgIcon name="pencil-outline" size={10} color={priceMode === "manual" ? "#fff" : colors.mutedForeground} style={{ marginRight: 3 }} />
               <Text style={[styles.modeBtnText, { color: priceMode === "manual" ? "#fff" : colors.mutedForeground }]}>Manual</Text>
             </TouchableOpacity>
           </View>
         </View>
         {priceMode === "auto" ? (
           <View style={[styles.inputBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-            <Ionicons name="flash-outline" size={14} color={colors.primary} />
+            <SvgIcon name="flash-outline" size={14} color={colors.primary} />
             <Text style={[styles.inputValue, { color: colors.foreground, flex: 1 }]}>
               {currentPrice > 0 ? `${symbol}${formatNum(currentPrice)}` : "Loading…"}
             </Text>
@@ -177,7 +177,7 @@ export default function OrderPanel() {
           </View>
         ) : (
           <View style={[styles.inputBox, { backgroundColor: colors.muted, borderColor: "#6366f1", borderWidth: 1.5 }]}>
-            <Ionicons name="pencil-outline" size={14} color="#6366f1" />
+            <SvgIcon name="pencil-outline" size={14} color="#6366f1" />
             <TextInput
               value={manualPrice}
               onChangeText={setManualPrice}
@@ -213,7 +213,7 @@ export default function OrderPanel() {
             />
             {stopLoss !== "" && (
               <TouchableOpacity onPress={() => setStopLoss("")}>
-                <Ionicons name="close-outline" size={14} color={colors.mutedForeground} />
+                <SvgIcon name="close-outline" size={14} color={colors.mutedForeground} />
               </TouchableOpacity>
             )}
           </View>
@@ -239,7 +239,7 @@ export default function OrderPanel() {
             />
             {takeProfit !== "" && (
               <TouchableOpacity onPress={() => setTakeProfit("")}>
-                <Ionicons name="close-outline" size={14} color={colors.mutedForeground} />
+                <SvgIcon name="close-outline" size={14} color={colors.mutedForeground} />
               </TouchableOpacity>
             )}
           </View>
@@ -350,7 +350,7 @@ export default function OrderPanel() {
       {/* ── Inline error ──────────────────────────────────────────────────── */}
       {orderError !== "" && (
         <View style={[styles.errorBox, { backgroundColor: "#ef444422", borderColor: "#ef4444" }]}>
-          <Ionicons name="alert-circle-outline" size={13} color="#ef4444" />
+          <SvgIcon name="alert-circle-outline" size={13} color="#ef4444" />
           <Text style={styles.errorText}>{orderError}</Text>
         </View>
       )}
