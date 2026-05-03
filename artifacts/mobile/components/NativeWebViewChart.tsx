@@ -1099,49 +1099,62 @@ let _lastX = 0, _lastY = 0;
 const THREE_PT = new Set(['channel','longposition','shortposition']);
 
 function initDrawingEvents() {
+  // ── Touch events on #chart-wrap (most reliable on Android WebView) ─────────
+  // Using chart-wrap div instead of SVG because Android WebView reliably
+  // delivers touches to div elements, SVG touch detection can be inconsistent.
+  const wrap = document.getElementById('chart-wrap');
+  if (wrap) {
+    wrap.addEventListener('touchstart', function(e) {
+      // In cursor/no-tool mode, let LWC handle pan/zoom normally
+      if (!TOOL || TOOL==='cursor') return;
+      // Skip if touch is on sidebar overlay elements
+      var t = e.targetTouches[0];
+      var el = document.elementFromPoint(t.clientX, t.clientY);
+      if (el && el.closest && (el.closest('#sidebar')||el.closest('#sb-sub')||el.closest('#float-menu'))) return;
+      e.preventDefault(); // stop LWC from consuming this touch
+      onSvgDown({target:el, clientX:t.clientX, clientY:t.clientY, pointerId:-1, preventDefault:function(){}});
+    }, {passive:false});
+
+    wrap.addEventListener('touchmove', function(e) {
+      if (!M_DOWN) return;
+      e.preventDefault();
+      var t = e.targetTouches[0];
+      _lastX=t.clientX; _lastY=t.clientY;
+      onSvgMove({clientX:t.clientX, clientY:t.clientY, preventDefault:function(){}});
+    }, {passive:false});
+
+    wrap.addEventListener('touchend', function(e) {
+      if (!M_DOWN) return;
+      e.preventDefault();
+      var t = e.changedTouches[0] || {clientX:_lastX, clientY:_lastY};
+      onSvgUp({clientX:t.clientX, clientY:t.clientY});
+    }, {passive:false});
+
+    wrap.addEventListener('touchcancel', function() {
+      M_DOWN=false; IP=null; CUR_PTS=[]; _previewPt=null; redraw();
+    });
+  }
+
+  // ── Pointer events on SVG (web/desktop fallback) ───────────────────────────
   const svg = document.getElementById('drw-svg');
-  if (!svg) return;
-
-  // ── Touch events (primary – Android/iOS WebView) ──────────────────────────
-  svg.addEventListener('touchstart', function(e) {
-    e.preventDefault();
-    const t = e.changedTouches[0];
-    onSvgDown({target:e.target, clientX:t.clientX, clientY:t.clientY, pointerId:-1, preventDefault:function(){}});
-  }, {passive:false});
-
-  svg.addEventListener('touchmove', function(e) {
-    e.preventDefault();
-    const t = e.changedTouches[0];
-    onSvgMove({clientX:t.clientX, clientY:t.clientY, preventDefault:function(){}});
-  }, {passive:false});
-
-  svg.addEventListener('touchend', function(e) {
-    e.preventDefault();
-    const t = e.changedTouches[0] || (e.touches && e.touches[0]) || {clientX:_lastX||0,clientY:_lastY||0};
-    onSvgUp({clientX:t.clientX, clientY:t.clientY});
-  }, {passive:false});
-
-  svg.addEventListener('touchcancel', function() {
-    M_DOWN=false; IP=null; CUR_PTS=[]; _previewPt=null; redraw();
-  });
-
-  // ── Pointer events (fallback – web/desktop, skips if touch) ───────────────
-  svg.addEventListener('pointerdown', function(e) {
-    if (e.pointerType==='touch') return; // already handled above
-    onSvgDown(e);
-  }, {passive:false});
-  svg.addEventListener('pointermove', function(e) {
-    if (e.pointerType==='touch') return;
-    onSvgMove(e);
-  }, {passive:false});
-  svg.addEventListener('pointerup', function(e) {
-    if (e.pointerType==='touch') return;
-    onSvgUp(e);
-  });
-  svg.addEventListener('pointercancel', function(e) {
-    if (e.pointerType==='touch') return;
-    onSvgUp(e);
-  });
+  if (svg) {
+    svg.addEventListener('pointerdown', function(e) {
+      if (e.pointerType==='touch') return;
+      onSvgDown(e);
+    }, {passive:false});
+    svg.addEventListener('pointermove', function(e) {
+      if (e.pointerType==='touch') return;
+      onSvgMove(e);
+    }, {passive:false});
+    svg.addEventListener('pointerup', function(e) {
+      if (e.pointerType==='touch') return;
+      onSvgUp(e);
+    });
+    svg.addEventListener('pointercancel', function(e) {
+      if (e.pointerType==='touch') return;
+      M_DOWN=false; IP=null; CUR_PTS=[]; _previewPt=null; redraw();
+    });
+  }
 }
 
 function onSvgDown(e) {
