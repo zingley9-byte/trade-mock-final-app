@@ -131,9 +131,12 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 .sub-dot{width:6px;height:6px;border-radius:50%;border:1px solid #3a3e4a;flex-shrink:0;}
 .sub-item.act .sub-dot{background:#2962FF;border-color:#2962FF;}
 /* Drawing SVG overlay */
-#drw-svg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;z-index:5;pointer-events:none;}
-#drw-svg.active{pointer-events:all;cursor:crosshair;}
-#drw-svg.cursor{pointer-events:all;cursor:default;}
+#drw-svg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;z-index:5;pointer-events:none;touch-action:none;}
+#drw-svg.active{pointer-events:all;cursor:crosshair;touch-action:none;}
+#drw-svg.cursor{pointer-events:all;cursor:default;touch-action:none;}
+/* Sidebar touch improvements */
+.sb-btn{touch-action:manipulation;}
+.sub-item{touch-action:manipulation;}
 /* Float menu */
 #float-menu{position:fixed;background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:5px 6px;display:flex;align-items:center;gap:4px;z-index:600;box-shadow:0 4px 20px #00000090;min-width:180px;}
 #float-menu.hidden{display:none;}
@@ -741,9 +744,16 @@ function openSubById(gid, btnEl) {
   sub.style.top = Math.min(r.top, window.innerHeight-200)+'px';
   let html = '<div class="sub-title">'+g.label+'</div>';
   g.items.forEach(it => {
-    html += '<button class="sub-item'+(TOOL===it.id?' act':'') + '" onclick="setTool(\''+it.id+'\');closeSub()"><div class="sub-dot"></div>'+it.label+'</button>';
+    html += '<button class="sub-item'+(TOOL===it.id?' act':'') + '" data-tid="'+it.id+'"><div class="sub-dot"></div>'+it.label+'</button>';
   });
-  sub.innerHTML = html; sub.classList.remove('hidden');
+  sub.innerHTML = html;
+  // Attach touchend + click to each sub-item for Android WebView reliability
+  sub.querySelectorAll('.sub-item').forEach(function(btn) {
+    var tid = btn.getAttribute('data-tid');
+    btn.addEventListener('touchend', function(e) { e.preventDefault(); setTool(tid); closeSub(); }, {passive:false});
+    btn.addEventListener('click', function() { setTool(tid); closeSub(); });
+  });
+  sub.classList.remove('hidden');
 }
 
 function toggleHide(btnEl) {
@@ -760,6 +770,27 @@ function toggleDeleteMode(btnEl) {
 }
 
 function closeSub() { SUB_OPEN=null; const s=document.getElementById('sb-sub'); if(s) s.classList.add('hidden'); }
+
+// ── Attach sidebar button listeners via JS (touchend + click) ─────────────
+// On Android WebView onclick can be unreliable; touchend is always instant.
+function initSidebarEvents() {
+  function sbBtn(id, fn) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('touchend', function(e) { e.preventDefault(); fn(el); }, {passive:false});
+    el.addEventListener('click', function() { fn(el); });
+  }
+  sbBtn('sb-cursor',  function()    { setToolGroup('cursor'); });
+  sbBtn('sb-lines',   function(el)  { openSubById('lines',   el); });
+  sbBtn('sb-fib',     function(el)  { openSubById('fib',     el); });
+  sbBtn('sb-shapes',  function(el)  { openSubById('shapes',  el); });
+  sbBtn('sb-brush',   function(el)  { openSubById('brush',   el); });
+  sbBtn('sb-text',    function(el)  { openSubById('text',    el); });
+  sbBtn('sb-measure', function(el)  { openSubById('measure', el); });
+  sbBtn('sb-hide',    function(el)  { toggleHide(el); });
+  sbBtn('sb-lock',    function(el)  { toggleLockAll(el); });
+  sbBtn('sb-delete',  function(el)  { toggleDeleteMode(el); });
+}
 
 function setTool(id) {
   TOOL=id; CUR_PTS=[]; FREE_PTS=[]; IP=null; SEL=null; hideFM(); updateSvgMode(); buildSidebar(); redraw();
@@ -1336,13 +1367,14 @@ function initDrwEngine() {
   setTimeout(redraw,300);
 }
 
-// Attach SVG events + init active states IMMEDIATELY (sidebar HTML is already in DOM)
+// Attach all events IMMEDIATELY (sidebar HTML is already in DOM)
 (function immediateInit() {
   try {
     loadDrw();
-    buildSidebar();   // just refreshes .act classes on hardcoded buttons
+    buildSidebar();      // refresh .act classes on hardcoded buttons
     updateSvgMode();
-    initDrawingEvents();
+    initSidebarEvents(); // touchend+click on every sidebar button
+    initDrawingEvents(); // touchstart/move/end + pointer fallback on SVG
   } catch(e) {}
 })();
 </script>
