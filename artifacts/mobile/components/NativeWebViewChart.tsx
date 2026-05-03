@@ -266,8 +266,8 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
       <button class="sb-btn" id="sb-lock" title="Lock All" onclick="toggleLockAll(this)">
         <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </button>
-      <!-- Delete Mode -->
-      <button class="sb-btn" id="sb-delete" title="Delete Mode" onclick="toggleDeleteMode(this)">
+      <!-- Clear All Drawings -->
+      <button class="sb-btn" id="sb-delete" title="Clear All Drawings" onclick="clearAllDrawings()">
         <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
       </button>
     </div>
@@ -723,7 +723,7 @@ function buildSidebar() {
   const toolToGroup = {trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',fibretracement:'fib',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text',longposition:'measure',shortposition:'measure',daterange:'measure',pricerange:'measure'};
   Object.entries(IDS).forEach(([gid,btnId]) => {
     const btn = document.getElementById(btnId); if(!btn) return;
-    const isActive = (TOOL===gid) || (toolToGroup[TOOL]===gid) || (gid==='hide'&&HIDE) || (gid==='delete'&&TOOL==='delete') || (gid==='cursor'&&(!TOOL||TOOL==='cursor'));
+    const isActive = (TOOL===gid) || (toolToGroup[TOOL]===gid) || (gid==='hide'&&HIDE) || (gid==='cursor'&&(!TOOL||TOOL==='cursor'));
     btn.classList.toggle('act', !!isActive);
   });
 }
@@ -765,10 +765,11 @@ function toggleLockAll(btnEl) {
   const allLk = DRW.length>0&&DRW.every(d=>d.locked);
   DRW.forEach(d=>d.locked=!allLk); saveDrw(); buildSidebar();
 }
-function toggleDeleteMode(btnEl) {
-  TOOL = TOOL==='delete' ? null : 'delete';
-  CUR_PTS=[]; FREE_PTS=[]; IP=null; SEL=null;
-  hideFM(); updateSvgMode(); buildSidebar(); closeSub();
+function clearAllDrawings() {
+  if (DRW.length===0) return;
+  if (!confirm('Saare drawings delete karo?')) return;
+  DRW=[]; SEL=null; CUR_PTS=[]; FREE_PTS=[]; IP=null;
+  saveDrw(); hideFM(); redraw(); dbg('All cleared');
 }
 
 function closeSub() { SUB_OPEN=null; const s=document.getElementById('sb-sub'); if(s) s.classList.add('hidden'); }
@@ -791,7 +792,7 @@ function initSidebarEvents() {
   sbBtn('sb-measure', function(el)  { openSubById('measure', el); });
   sbBtn('sb-hide',    function(el)  { toggleHide(el); });
   sbBtn('sb-lock',    function(el)  { toggleLockAll(el); });
-  sbBtn('sb-delete',  function(el)  { toggleDeleteMode(el); });
+  sbBtn('sb-delete',  function()    { clearAllDrawings(); });
 }
 
 function setTool(id) {
@@ -1146,15 +1147,6 @@ function initDrawingEvents() {
     if (el && el.closest && (el.closest('#sidebar')||el.closest('#sb-sub')||el.closest('#float-menu'))) return;
 
     dbg('T:'+TOOL+' DOWN');
-
-    // ── Delete mode ──
-    if (TOOL==='delete') {
-      e.preventDefault();
-      var did = findDid(el);
-      if (did) { DRW=DRW.filter(function(d){return d.id!==did;}); saveDrw(); redraw(); dbg('deleted '+did); }
-      return;
-    }
-
     e.preventDefault();
     onSvgDown({target:el, clientX:cx, clientY:cy, pointerId:-1, preventDefault:function(){}});
   }, {passive:false});
@@ -1204,7 +1196,6 @@ function onSvgDown(e) {
   const {x,y}=clientToSvg(e.clientX,e.clientY);
 
   if (!TOOL||TOOL==='cursor') { SEL=null; hideFM(); redraw(); return; }
-  if (TOOL==='delete') return;
 
   e.preventDefault();
 
@@ -1318,7 +1309,6 @@ function finishDrawing() {
 
 // ── Handle click on drawing element ─────────────────────────────
 function handleDrawingClick(did,e) {
-  if (TOOL==='delete') { DRW=DRW.filter(d=>d.id!==did); saveDrw(); redraw(); return; }
   if (!TOOL||TOOL==='cursor') {
     const d=DRW.find(x=>x.id===did);
     if (!d||d.locked) return;
