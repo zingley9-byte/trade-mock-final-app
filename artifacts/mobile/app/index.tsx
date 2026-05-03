@@ -8,10 +8,8 @@ import LandingPage from "@/components/LandingPage";
 
 const { width, height } = Dimensions.get("window");
 
-// ── Web: show landing page, never auto-navigate ────────────────────────────
-function WebLanding() {
-  return <LandingPage />;
-}
+// Desktop = web + screen width ≥ 768px. Mobile web goes directly to dashboard.
+const isDesktopWeb = Platform.OS === "web" && width >= 768;
 
 // ── Mobile/Native: existing animated splash + auth routing ─────────────────
 function NativeSplash() {
@@ -92,8 +90,9 @@ function NativeSplash() {
 }
 
 // ── Root export ────────────────────────────────────────────────────────────
+// Desktop web → landing page | mobile web + native → splash/auth flow
 export default function IndexScreen() {
-  if (Platform.OS === "web") return <WebLanding />;
+  if (isDesktopWeb) return <LandingPage />;
   return <NativeSplash />;
 }
 
