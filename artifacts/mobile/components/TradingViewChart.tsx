@@ -42,7 +42,7 @@ const IcRect     = () => <Svg><rect x="3" y="3" width="18" height="18" rx="2"/><
 const IcHex      = () => <Svg><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/></Svg>;
 const IcMax      = () => <Svg><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></Svg>;
 const IcMin      = () => <Svg><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></Svg>;
-const IcCamera   = () => <Svg><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></Svg>;
+const IcReset    = () => <Svg><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></Svg>;
 const IcCalendar = () => <Svg size={14}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="7.01" y2="14"/><line x1="12" y1="14" x2="17" y2="14"/></Svg>;
 const IcChevUp   = () => <Svg size={12}><polyline points="18 15 12 9 6 15"/></Svg>;
 
@@ -850,7 +850,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         <TBtn title={isWebFS ? "Exit Fullscreen" : "Fullscreen"} onClick={handleFullscreen} active={isWebFS}>
           {isWebFS ? <IcMin/> : <IcMax/>}
         </TBtn>
-        <TBtn title="Take snapshot"><IcCamera/></TBtn>
+        <TBtn title="Reset Chart" onClick={() => chartRef.current?.timeScale().fitContent()}><IcReset/></TBtn>
       </div>
 
       {/* ── Body: sidebar + chart ── */}
