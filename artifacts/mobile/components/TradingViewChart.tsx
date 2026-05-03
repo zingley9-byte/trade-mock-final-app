@@ -168,6 +168,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [submenuTop,       setSubmenuTop]       = useState(0);
   const wrapperRef  = useRef<HTMLDivElement>(null);
   const sidebarRef  = useRef<HTMLDivElement>(null);
+  const svgRef      = useRef<SVGSVGElement>(null);
 
   // Track browser fullscreen state
   useEffect(() => {
@@ -378,25 +379,39 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const TOGGLE_TOOLS = new Set(["magnet","lockedit","lock","eye"]);
   const isDrawActive = activeTool && DRAW_TOOLS.has(activeTool) && activeTool !== "crosshair";
 
-  function getSvgXY(e: React.MouseEvent<SVGSVGElement>) {
+  // Primary tool for each group — clicking group icon directly activates this
+  const GROUP_PRIMARY: Record<string, string> = {
+    cursor:"__cursor__", lines:"trendline", fib:"trendline", patterns:"brush",
+    forecast:"ruler", brush:"brush", text:"text", emoji:"smile", ruler:"ruler", zoom:"zoom",
+  };
+
+  function getSvgXY(e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>, touch?: React.Touch) {
     const r = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const clientX = touch ? touch.clientX : (e as React.MouseEvent).clientX;
+    const clientY = touch ? touch.clientY : (e as React.MouseEvent).clientY;
+    return { x: clientX - r.left, y: clientY - r.top };
   }
   function handleToolClick(id: string) {
     if (id === "eye")   { setShowWebDraw(v => !v); return; }
     if (id === "clear") { setWebDrawings([]); return; }
     setActiveTool(prev => prev === id ? null : id);
   }
+  function handleGroupClick(grpId: string) {
+    const primary = GROUP_PRIMARY[grpId];
+    if (!primary || primary === "__cursor__") { setActiveTool(null); setOpenGroup(null); return; }
+    setActiveTool(prev => prev === primary ? null : primary);
+    setOpenGroup(null);
+  }
   function isToolActive(id: string) {
     if (id === "eye") return !showWebDraw;
     return activeTool === id;
   }
-  function handleSvgDown(e: React.MouseEvent<SVGSVGElement>) {
-    const { x, y } = getSvgXY(e);
+
+  function applyDown(x: number, y: number) {
     if (activeTool === "hline") {
       const price = candleRef.current?.coordinateToPrice(y);
       if (price != null) setWebDrawings(d => [...d, { type:"hline", price }]);
-      setActiveTool(null); return;
+      return;
     }
     if (activeTool === "trendline" || activeTool === "ruler") {
       setWebCurrent({ type: activeTool, x1:x, y1:y, x2:x, y2:y }); return;
@@ -405,26 +420,22 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       setWebCurrent({ type:"brush", pts:[x,y], x1:x, y1:y, x2:x, y2:y }); return;
     }
     if (activeTool === "text") {
-      setWebDrawings(d => [...d, { type:"text", x, y }]);
-      setActiveTool(null); return;
+      setWebDrawings(d => [...d, { type:"text", x, y }]); return;
     }
     if (activeTool === "smile") {
-      setWebDrawings(d => [...d, { type:"emoji", x, y }]);
-      setActiveTool(null); return;
+      setWebDrawings(d => [...d, { type:"emoji", x, y }]); return;
     }
   }
-  function handleSvgMove(e: React.MouseEvent<SVGSVGElement>) {
+  function applyMove(x: number, y: number) {
     if (!webCurrent) return;
-    const { x, y } = getSvgXY(e);
     if (webCurrent.type === "brush") {
       setWebCurrent((c:any) => ({ ...c, x2:x, y2:y, pts:[...c.pts,x,y] }));
     } else {
       setWebCurrent((c:any) => ({ ...c, x2:x, y2:y }));
     }
   }
-  function handleSvgUp(e: React.MouseEvent<SVGSVGElement>) {
+  function applyUp(x: number, y: number) {
     if (!webCurrent) return;
-    const { x, y } = getSvgXY(e);
     const cd = { ...webCurrent, x2:x, y2:y };
     if (cd.type === "brush") {
       if (cd.pts.length > 4) setWebDrawings(d => [...d, { type:"brush", pts:cd.pts }]);
@@ -434,7 +445,41 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       if (Math.abs(cd.x2-cd.x1) > 5 || Math.abs(cd.y2-cd.y1) > 5) setWebDrawings(d => [...d, cd]);
     }
     setWebCurrent(null);
-    setActiveTool(null);
+    // Tool stays active — user must click Cursor to deselect
+  }
+
+  // Mouse handlers
+  function handleSvgDown(e: React.MouseEvent<SVGSVGElement>) {
+    const { x, y } = getSvgXY(e);
+    applyDown(x, y);
+  }
+  function handleSvgMove(e: React.MouseEvent<SVGSVGElement>) {
+    const { x, y } = getSvgXY(e);
+    applyMove(x, y);
+  }
+  function handleSvgUp(e: React.MouseEvent<SVGSVGElement>) {
+    const { x, y } = getSvgXY(e);
+    applyUp(x, y);
+  }
+
+  // Touch handlers (mobile)
+  function handleSvgTouchStart(e: React.TouchEvent<SVGSVGElement>) {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const { x, y } = getSvgXY(e, t);
+    applyDown(x, y);
+  }
+  function handleSvgTouchMove(e: React.TouchEvent<SVGSVGElement>) {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const { x, y } = getSvgXY(e, t);
+    applyMove(x, y);
+  }
+  function handleSvgTouchEnd(e: React.TouchEvent<SVGSVGElement>) {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const { x, y } = getSvgXY(e, t);
+    applyUp(x, y);
   }
   function handleFullscreen() {
     const el = wrapperRef.current;
@@ -446,7 +491,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     void drawTick; // dependency — causes repaint when chart pans so hlines follow price
     if (d.type === "hline") {
       const py = candleRef.current?.priceToCoordinate(d.price);
-      if (py == null || py < -10 || py > chartH + 10) return null;
+      const svgH = svgRef.current?.clientHeight ?? 9999;
+      if (py == null || py < -10 || py > svgH + 10) return null;
       return (
         <g key={i}>
           <line x1={0} y1={py} x2={9999} y2={py} stroke={C.gold} strokeWidth={1} strokeDasharray="4 2"/>
@@ -604,6 +650,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
               <button
                 key={g.id}
                 title={g.label}
+                onClick={() => handleGroupClick(g.id)}
                 onMouseEnter={(e) => {
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                   const sr   = sidebarRef.current?.getBoundingClientRect();
@@ -735,7 +782,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           {!volCollapsed && (
             <div style={{
               position:"absolute", zIndex:10, pointerEvents:"all",
-              top: Math.round(chartH * 0.765),
+              bottom: "22%",
               left:8,
               display:"flex", alignItems:"center", gap:4,
             }}>
@@ -772,14 +819,19 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
 
           {/* ── SVG drawing overlay ── */}
           <svg
+            ref={svgRef}
             style={{
               position:"absolute", top:0, left:0, width:"100%", height:"100%", overflow:"visible",
               pointerEvents: isDrawActive ? "all" : "none",
               cursor: isDrawActive ? "crosshair" : "default",
+              touchAction: isDrawActive ? "none" : "auto",
             }}
             onMouseDown={handleSvgDown}
             onMouseMove={handleSvgMove}
             onMouseUp={handleSvgUp}
+            onTouchStart={handleSvgTouchStart}
+            onTouchMove={handleSvgTouchMove}
+            onTouchEnd={handleSvgTouchEnd}
           >
             {showWebDraw && webDrawings.map((d,i) => renderWebDraw(d,i))}
             {renderWebCurrent()}
