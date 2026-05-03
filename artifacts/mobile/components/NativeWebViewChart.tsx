@@ -804,7 +804,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
             onError={onError}
             onMsg={onMessage}
           />
-          {/* Small ✕ exit — top-right corner */}
+          {/* Small ✕ exit — bottom-center */}
           <TouchableOpacity
             style={styles.fsExitBtn}
             onPress={() => setIsFullscreen(false)}
@@ -837,15 +837,19 @@ const styles = StyleSheet.create({
   retryTxt:   { color: "#fff", fontSize: 13, fontWeight: "700" },
   fsExitBtn: {
     position: "absolute",
-    top: 12,
-    right: 12,
+    bottom: 16,
+    alignSelf: "center",
+    left: "50%" as any,
+    transform: [{ translateX: -14 }],
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "rgba(30,34,47,0.82)",
+    backgroundColor: "rgba(30,34,47,0.88)",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 99,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
   },
   fsExitIcon: { color: "#9598a1", fontSize: 13, fontWeight: "700" as const, lineHeight: 16 },
 });
