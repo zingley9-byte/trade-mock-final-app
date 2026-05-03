@@ -511,7 +511,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const ohlcvColor = ohlcv ? (isPos ? C.bull : C.bear) : C.bull;
 
   return (
-    <div ref={wrapperRef} style={{ display:"flex", flexDirection:"column", width:"100%", height: isWebFS ? "100dvh" : height, background:C.bg, fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", position:"relative", overflow:"hidden" }}>
+    <div ref={wrapperRef} style={{ display:"flex", flexDirection:"column", width:"100%", height: isWebFS ? "100dvh" : "100%", background:C.bg, fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", position:"relative", overflow:"hidden" }}>
 
       {/* ── Top toolbar ── */}
       <div style={{ height:TOP, display:"flex", alignItems:"center", background:C.panel, borderBottom:`1px solid ${C.border}`, paddingLeft:4, paddingRight:8, gap:2, flexShrink:0 }}>
@@ -696,8 +696,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           })()}
         </div>
 
-        {/* Chart container — explicit height so lightweight-charts can measure */}
-        <div style={{ flex:1, position:"relative", overflow:"hidden", height: contentH }}>
+        {/* Chart container — fills remaining height via flex:1 */}
+        <div style={{ flex:1, position:"relative", overflow:"hidden", minHeight: 0 }}>
 
           {/* OHLCV overlay */}
           {ohlcv && (

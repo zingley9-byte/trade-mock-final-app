@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -522,9 +522,27 @@ export default function ChartsScreen() {
   const ticker     = selectedSymbol.label.replace("/USDT", "").replace("/", "");
   const lotSize    = getLotSize(ticker);
 
+  const chartContainerRef = useRef<View>(null);
+
   const onChartLayout = useCallback((e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
     if (h > 50) setChartHeight(h);
+  }, []);
+
+  // Web: update chartHeight on window resize so chart fills container
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    function handleResize() {
+      if (chartContainerRef.current) {
+        (chartContainerRef.current as any).measure(
+          (_x: number, _y: number, _w: number, h: number) => {
+            if (h > 50) setChartHeight(h);
+          }
+        );
+      }
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   function handleShort() {
