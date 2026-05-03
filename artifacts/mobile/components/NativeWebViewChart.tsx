@@ -7,6 +7,7 @@
 import React, { useRef, useState, useCallback } from "react";
 import {
   View, StyleSheet, ActivityIndicator, TouchableOpacity, Text,
+  Modal, StatusBar, useWindowDimensions, Platform,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import { LWC_SCRIPT } from "../lib/lwcScript";
@@ -323,18 +324,20 @@ function toggleVol() {
   document.getElementById('vol-label').style.bottom = volCollapsed ? '6px' : '22%';
 }
 
-// ── Fullscreen ───────────────────────────────────────────────────────────────
+// ── Fullscreen (React Native bridge) ────────────────────────────────────────
 function toggleFS() {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+  isFS = !isFS;
+  const btn = document.getElementById('fs-btn');
+  if (isFS) {
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>';
   } else {
-    document.exitFullscreen && document.exitFullscreen();
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
   }
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'toggleFS', value: isFS }));
+  }
+  setTimeout(resizeChart, 80);
 }
-document.addEventListener('fullscreenchange', () => {
-  isFS = !!document.fullscreenElement;
-  resizeChart();
-});
 
 // ── Chart init ───────────────────────────────────────────────────────────────
 function initChart() {
@@ -640,10 +643,49 @@ window.addEventListener('resize', resizeChart);
 </html>`;
 }
 
+function ChartWebView({
+  html, binKey, h, onLoad, onError, onMsg,
+}: {
+  html: string; binKey: string; h: number;
+  onLoad: () => void; onError: () => void; onMsg: (e: any) => void;
+}) {
+  return (
+    <WebView
+      key={`${binKey}-${h}`}
+      source={{ html, baseUrl: "" }}
+      style={styles.webview}
+      originWhitelist={["*"]}
+      javaScriptEnabled
+      domStorageEnabled
+      allowsInlineMediaPlayback
+      mediaPlaybackRequiresUserAction={false}
+      allowFileAccess
+      allowUniversalAccessFromFileURLs
+      allowFileAccessFromFileURLs
+      mixedContentMode="always"
+      onLoad={onLoad}
+      onError={onError}
+      onHttpError={onError}
+      onMessage={onMsg}
+      bounces={false}
+      overScrollMode="never"
+      showsHorizontalScrollIndicator={false}
+      showsVerticalScrollIndicator={false}
+      scrollEnabled={false}
+      nestedScrollEnabled={false}
+      onShouldStartLoadWithRequest={() => true}
+      androidHardwareAccelerationDisabled={false}
+      renderToHardwareTextureAndroid
+    />
+  );
+}
+
 export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }: Props) {
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(false);
-  const webviewRef = useRef<any>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fsLoading,    setFsLoading]    = useState(false);
+  const { width: screenW, height: screenH } = useWindowDimensions();
 
   const bin = symbol.replace("/","").toUpperCase().endsWith("USDT")
     ? symbol.replace("/","").toUpperCase()
@@ -651,65 +693,88 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
   const html = buildHtml(bin);
 
-  const onLoad = useCallback(() => setLoading(false), []);
-  const onError = useCallback(() => { setLoading(false); setError(true); }, []);
-  const retry = useCallback(() => {
+  const onLoad    = useCallback(() => { setLoading(false); setFsLoading(false); }, []);
+  const onError   = useCallback(() => { setLoading(false); setFsLoading(false); setError(true); }, []);
+  const retry     = useCallback(() => {
     setError(false); setLoading(true);
-    webviewRef.current?.reload();
+    setIsFullscreen(false);
   }, []);
 
+  const onMessage = useCallback((e: any) => {
+    try {
+      const data = JSON.parse(e.nativeEvent.data);
+      if (data.type === "toggleFS") {
+        if (data.value) {
+          setFsLoading(true);
+          setIsFullscreen(true);
+        } else {
+          setIsFullscreen(false);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
+  const renderChart = (h: number, loadSetter: () => void) => (
+    error ? (
+      <View style={styles.errBox}>
+        <Text style={styles.errIcon}>⚠</Text>
+        <Text style={styles.errTitle}>Chart failed to load</Text>
+        <Text style={styles.errSub}>Check internet connection</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={retry}>
+          <Text style={styles.retryTxt}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    ) : (
+      <ChartWebView
+        html={html}
+        binKey={bin}
+        h={h}
+        onLoad={loadSetter}
+        onError={onError}
+        onMsg={onMessage}
+      />
+    )
+  );
+
   return (
-    <View style={[styles.root, { height }]}>
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator color="#26a69a" size="small" />
-          <Text style={styles.loadingTxt}>Loading chart…</Text>
+    <>
+      {/* ── Normal view ── */}
+      <View style={[styles.root, { height }]}>
+        {loading && !isFullscreen && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator color="#26a69a" size="small" />
+            <Text style={styles.loadingTxt}>Loading chart…</Text>
+          </View>
+        )}
+        {!isFullscreen && renderChart(height, onLoad)}
+      </View>
+
+      {/* ── Fullscreen Modal ── */}
+      <Modal
+        visible={isFullscreen}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setIsFullscreen(false)}
+        supportedOrientations={["portrait", "landscape"]}
+      >
+        <StatusBar hidden backgroundColor="#131722" />
+        <View style={[styles.fsRoot, { width: screenW, height: screenH }]}>
+          {fsLoading && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator color="#26a69a" size="small" />
+              <Text style={styles.loadingTxt}>Loading chart…</Text>
+            </View>
+          )}
+          {renderChart(screenH, onLoad)}
         </View>
-      )}
-      {error ? (
-        <View style={styles.errBox}>
-          <Text style={styles.errIcon}>⚠</Text>
-          <Text style={styles.errTitle}>Chart failed to load</Text>
-          <Text style={styles.errSub}>Check internet connection</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={retry}>
-            <Text style={styles.retryTxt}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <WebView
-          ref={webviewRef}
-          key={`${bin}-${height}`}
-          source={{ html, baseUrl: "" }}
-          style={styles.webview}
-          originWhitelist={["*"]}
-          javaScriptEnabled
-          domStorageEnabled
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          allowFileAccess
-          allowUniversalAccessFromFileURLs
-          allowFileAccessFromFileURLs
-          mixedContentMode="always"
-          onLoad={onLoad}
-          onError={onError}
-          onHttpError={onError}
-          bounces={false}
-          overScrollMode="never"
-          showsHorizontalScrollIndicator={false}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={false}
-          nestedScrollEnabled={false}
-          onShouldStartLoadWithRequest={() => true}
-          androidHardwareAccelerationDisabled={false}
-          renderToHardwareTextureAndroid
-        />
-      )}
-    </View>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   root:           { backgroundColor: "#131722", overflow: "hidden" },
+  fsRoot:         { backgroundColor: "#131722", flex: 1 },
   webview:        { flex: 1, backgroundColor: "#131722" },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
