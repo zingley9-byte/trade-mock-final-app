@@ -182,6 +182,7 @@ export default function AppHeader() {
             value={searchQuery}
             onChangeText={setSearchQuery}
             onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             returnKeyType="search"
           />
           {searchQuery.length > 0 && (

@@ -7,7 +7,7 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import {
   View, StyleSheet, ActivityIndicator, TouchableOpacity, Text,
-  Modal, StatusBar, useWindowDimensions, Platform, BackHandler,
+  Modal, StatusBar, useWindowDimensions, Platform, BackHandler, Keyboard,
 } from "react-native";
 import LoadingCandleAnimation from "./LoadingCandleAnimation";
 import { WebView } from "react-native-webview";
@@ -115,7 +115,8 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 #backdrop.show{display:block;}
 
 /* ── Drawing sidebar ── */
-#sidebar{position:absolute;top:0;left:0;width:44px;bottom:0;background:#1e222d;border-right:1px solid #2a2e39;display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px;z-index:20;overflow:visible;}
+#sidebar{position:absolute;top:0;left:0;width:44px;bottom:0;background:#1e222d;border-right:1px solid #2a2e39;display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px;z-index:20;overflow-y:auto;overflow-x:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+#sidebar::-webkit-scrollbar{display:none;}
 .sb-btn{width:34px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:none;border-radius:5px;cursor:pointer;color:#787b86;position:relative;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
 .sb-btn.act{background:#2962FF22;color:#2962FF;}
 .sb-btn:active{background:#ffffff12;}
@@ -1517,6 +1518,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
   }, []);
 
   const closeFullscreen = useCallback(async () => {
+    Keyboard.dismiss(); // prevent Android from restoring focus to last TextInput
     setIsFullscreen(false);
     try {
       await ScreenOrientation.unlockAsync();
