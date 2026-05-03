@@ -62,7 +62,6 @@
   "dependencies": {
     "expo-notifications": "~0.32.17",
     "firebase": "^12.12.1",
-    "lightweight-charts": "^5.2.0",
-    "react-native-webview": "^13.16.1"
+    "lightweight-charts": "^5.2.0"
   }
 }

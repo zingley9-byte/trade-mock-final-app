@@ -18,7 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import SvgIcon from "@/components/SvgIcon";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SYMBOLS, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
@@ -173,7 +173,7 @@ export default function AppHeader() {
       <View style={[styles.header, { backgroundColor: colors.header, borderBottomColor: colors.border, paddingTop: topPad + 8 }]}>
         {/* Search bar */}
         <View style={[styles.searchWrap, { backgroundColor: colors.muted, borderColor: searchFocused ? colors.primary : "transparent" }]}>
-          <SvgIcon name="search-outline" size={15} color={searchFocused ? colors.primary : colors.mutedForeground} />
+          <Ionicons name="search-outline" size={15} color={searchFocused ? colors.primary : colors.mutedForeground} />
           <TextInput
             ref={searchRef}
             style={[styles.searchInput, { color: colors.foreground }]}
@@ -186,7 +186,7 @@ export default function AppHeader() {
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <SvgIcon name="close-outline" size={13} color={colors.mutedForeground} />
+              <Ionicons name="close-outline" size={13} color={colors.mutedForeground} />
             </TouchableOpacity>
           )}
         </View>
@@ -207,7 +207,7 @@ export default function AppHeader() {
             style={[styles.iconBtn, { backgroundColor: colors.muted }]}
             onPress={() => { markAllRead(); setAlertsOpen(true); }}
           >
-            <SvgIcon name="notifications-outline" size={16} color={colors.foreground} />
+            <Ionicons name="notifications-outline" size={16} color={colors.foreground} />
             {unreadCount > 0 && (
               <View style={[styles.badge, { backgroundColor: colors.bear }]}>
                 <Text style={styles.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
@@ -222,7 +222,7 @@ export default function AppHeader() {
             {profileImage ? (
               <Image source={{ uri: profileImage }} style={styles.avatarImg} />
             ) : (
-              <SvgIcon name="person-outline" size={16} color={colors.foreground} />
+              <Ionicons name="person-outline" size={16} color={colors.foreground} />
             )}
           </TouchableOpacity>
         </View>
@@ -244,7 +244,7 @@ export default function AppHeader() {
               {searchResults.coins.length > 0 && (
                 <>
                   <View style={[styles.resultHeader, { borderBottomColor: colors.border }]}>
-                    <SvgIcon name="bar-chart-outline" size={11} color={colors.mutedForeground} />
+                    <Ionicons name="bar-chart-outline" size={11} color={colors.mutedForeground} />
                     <Text style={[styles.resultHeaderText, { color: colors.mutedForeground }]}>MARKETS</Text>
                   </View>
                   {searchResults.coins.map((sym) => {
@@ -280,7 +280,7 @@ export default function AppHeader() {
               {searchResults.settings.length > 0 && (
                 <>
                   <View style={[styles.resultHeader, { borderBottomColor: colors.border }]}>
-                    <SvgIcon name="settings-outline" size={11} color={colors.mutedForeground} />
+                    <Ionicons name="settings-outline" size={11} color={colors.mutedForeground} />
                     <Text style={[styles.resultHeaderText, { color: colors.mutedForeground }]}>SETTINGS</Text>
                   </View>
                   {searchResults.settings.map((item) => (
@@ -291,13 +291,13 @@ export default function AppHeader() {
                       activeOpacity={0.7}
                     >
                       <View style={[styles.resultIcon, { backgroundColor: colors.muted }]}>
-                        <SvgIcon name={item.icon} size={13} color={colors.mutedForeground} />
+                        <Ionicons name={item.icon} size={13} color={colors.mutedForeground} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.resultLabel, { color: colors.foreground }]}>{item.label}</Text>
                         <Text style={[styles.resultSub, { color: colors.mutedForeground }]}>{item.sub}</Text>
                       </View>
-                      <SvgIcon name="chevron-forward-outline" size={13} color={colors.mutedForeground} />
+                      <Ionicons name="chevron-forward-outline" size={13} color={colors.mutedForeground} />
                     </TouchableOpacity>
                   ))}
                 </>
@@ -316,11 +316,11 @@ export default function AppHeader() {
               <Image source={{ uri: profileImage }} style={styles.avatarLargeImg} />
             ) : (
               <View style={[styles.avatarPlaceholder, { backgroundColor: colors.muted }]}>
-                <SvgIcon name="person-outline" size={28} color={colors.mutedForeground} />
+                <Ionicons name="person-outline" size={28} color={colors.mutedForeground} />
               </View>
             )}
             <View style={[styles.editBadge, { backgroundColor: colors.primary }]}>
-              <SvgIcon name="camera-outline" size={10} color="#fff" />
+              <Ionicons name="camera-outline" size={10} color="#fff" />
             </View>
           </TouchableOpacity>
 
@@ -330,9 +330,7 @@ export default function AppHeader() {
 
           <View style={styles.menuRow}>
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: isDark ? "#3b2f0a" : "#fef9c3" }]}>
-                <SvgIcon name={isDark ? "moon-outline" : "sunny-outline"} size={16} color="#f59e0b" />
-              </View>
+              <Ionicons name={isDark ? "moon-outline" : "sunny-outline"} size={16} color={colors.foreground} />
               <Text style={[styles.menuText, { color: colors.foreground }]}>Dark Mode</Text>
             </View>
             <Switch
@@ -343,45 +341,37 @@ export default function AppHeader() {
             />
           </View>
 
-          <TouchableOpacity style={styles.menuRow} onPress={() => { setProfileOpen(false); router.push("/(tabs)/settings"); }} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.menuRow} onPress={() => { setProfileOpen(false); router.push("/(tabs)/settings"); }}>
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: "#1e3a2f" }]}>
-                <SvgIcon name="settings-outline" size={16} color={colors.primary} />
-              </View>
+              <Ionicons name="settings-outline" size={16} color={colors.foreground} />
               <Text style={[styles.menuText, { color: colors.foreground }]}>Settings</Text>
             </View>
-            <SvgIcon name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
+            <Ionicons name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          <TouchableOpacity style={styles.menuRow} onPress={handleShare} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.menuRow} onPress={handleShare}>
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: "#0f2d20" }]}>
-                <SvgIcon name="share-social-outline" size={16} color="#10b981" />
-              </View>
+              <Ionicons name="share-social-outline" size={16} color="#10b981" />
               <Text style={[styles.menuText, { color: colors.foreground }]}>Share with Friends</Text>
             </View>
-            <SvgIcon name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
+            <Ionicons name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuRow} onPress={openFeedback} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.menuRow} onPress={openFeedback}>
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: "#1e1b4b" }]}>
-                <SvgIcon name="chatbubble-outline" size={16} color="#6366f1" />
-              </View>
+              <Ionicons name="chatbubble-outline" size={16} color="#6366f1" />
               <Text style={[styles.menuText, { color: colors.foreground }]}>Feedback</Text>
             </View>
-            <SvgIcon name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
+            <Ionicons name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          <TouchableOpacity style={styles.menuRow} onPress={handleLogout} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.menuRow} onPress={handleLogout}>
             <View style={styles.menuLeft}>
-              <View style={[styles.menuIcon, { backgroundColor: "#2d0f0f" }]}>
-                <SvgIcon name="log-out-outline" size={16} color={colors.bear} />
-              </View>
+              <Ionicons name="log-out-outline" size={16} color={colors.bear} />
               <Text style={[styles.menuText, { color: colors.bear }]}>Logout</Text>
             </View>
           </TouchableOpacity>
@@ -404,10 +394,10 @@ export default function AppHeader() {
             ) : (
               <>
                 <View style={styles.fbHeader}>
-                  <SvgIcon name="chatbubble-outline" size={18} color="#6366f1" />
+                  <Ionicons name="chatbubble-outline" size={18} color="#6366f1" />
                   <Text style={[styles.fbTitle, { color: colors.foreground }]}>Send Feedback</Text>
                   <TouchableOpacity onPress={() => setFeedbackOpen(false)} style={{ marginLeft: "auto" }}>
-                    <SvgIcon name="close-outline" size={20} color={colors.mutedForeground} />
+                    <Ionicons name="close-outline" size={20} color={colors.mutedForeground} />
                   </TouchableOpacity>
                 </View>
 
@@ -437,7 +427,7 @@ export default function AppHeader() {
                   onPress={submitFeedback}
                   activeOpacity={0.8}
                 >
-                  <SvgIcon name="send-outline" size={15} color="#fff" />
+                  <Ionicons name="send-outline" size={15} color="#fff" />
                   <Text style={styles.fbBtnText}>Submit Feedback</Text>
                 </TouchableOpacity>
               </>
@@ -541,10 +531,6 @@ const styles = StyleSheet.create({
   },
   menuLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   menuText: { fontSize: 14, fontWeight: "500" },
-  menuIcon: {
-    width: 30, height: 30, borderRadius: 8,
-    alignItems: "center", justifyContent: "center",
-  },
 
   // Feedback modal
   fbKav:    { flex: 1, justifyContent: "center", alignItems: "center" },

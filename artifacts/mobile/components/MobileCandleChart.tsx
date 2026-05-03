@@ -9,7 +9,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
   PanResponder, useWindowDimensions, Platform, Modal, Dimensions, StatusBar,
 } from "react-native";
-import SvgIcon from "@/components/SvgIcon";
+import { Ionicons } from "@expo/vector-icons";
 import Svg, { Rect, Line, Text as SvgText, G, Polyline } from "react-native-svg";
 
 // ─── Theme ─────────────────────────────────────────────────────────────────
@@ -706,7 +706,7 @@ export default function MobileCandleChart({
                         backgroundColor: active?C.gold:"transparent",
                         borderWidth:1, borderColor:active?C.gold:C.border,
                       }}/>
-                      <SvgIcon name={item.icon as any} size={12} color={active?C.gold:item.id==="clear"?C.bear:C.dim}/>
+                      <Ionicons name={item.icon as any} size={12} color={active?C.gold:item.id==="clear"?C.bear:C.dim}/>
                       <Text style={{color:active?C.gold:item.id==="clear"?C.bear:C.text, fontSize:12, fontWeight:"500" as const, flex:1}}>
                         {item.label}
                       </Text>
@@ -754,7 +754,7 @@ export default function MobileCandleChart({
             onPress={()=>{setSidebarCollapsed(v=>!v); setOpenGroup(null);}}
             style={{width:sidebarW, height:24, alignItems:"center", justifyContent:"center", marginBottom:2}}
           >
-            <SvgIcon name={sidebarCollapsed?"chevron-forward-outline":"chevron-back-outline"} size={11} color={C.dim}/>
+            <Ionicons name={sidebarCollapsed?"chevron-forward-outline":"chevron-back-outline"} size={11} color={C.dim}/>
           </TouchableOpacity>
           {/* Group buttons (scrollable) */}
           {!sidebarCollapsed && (
@@ -769,7 +769,7 @@ export default function MobileCandleChart({
                     onPress={()=>setOpenGroup(prev=>prev===g.id?null:g.id)}
                     style={[ss.toolBtn, isGrpActive&&ss.toolBtnActive, {position:"relative"}]}
                   >
-                    <SvgIcon name={g.icon as any} size={15} color={isGrpActive?C.gold:C.dim}/>
+                    <Ionicons name={g.icon as any} size={15} color={isGrpActive?C.gold:C.dim}/>
                     {/* Tiny corner triangle */}
                     <View style={{position:"absolute",right:3,bottom:4}}>
                       <View style={{width:4,height:3,borderLeftWidth:2,borderRightWidth:2,borderBottomWidth:0,borderTopWidth:3,borderLeftColor:"transparent",borderRightColor:"transparent",borderTopColor:isGrpActive?C.gold:"#4a4e5a"}}/>
@@ -882,11 +882,11 @@ export default function MobileCandleChart({
 
       {/* BOTTOM BAR */}
       <View style={[ss.botBar,{borderTopColor:C.border}]}>
-        <SvgIcon name="calendar-outline" size={11} color={C.dim}/>
+        <Ionicons name="calendar-outline" size={11} color={C.dim}/>
         <Text style={ss.istTxt}>{istTime} UTC+5:30</Text>
         {drawings.length>0 && (
           <TouchableOpacity onPress={()=>setDrawings([])} style={ss.clearBtn} hitSlop={{top:8,bottom:8,left:8,right:8}}>
-            <SvgIcon name="trash-outline" size={11} color={C.dim}/>
+            <Ionicons name="trash-outline" size={11} color={C.dim}/>
           </TouchableOpacity>
         )}
         <View style={{flex:1}}/>
@@ -917,7 +917,7 @@ export default function MobileCandleChart({
             elevation:8,
           }}
         >
-          <SvgIcon name="contract-outline" size={15} color={C.gold}/>
+          <Ionicons name="contract-outline" size={15} color={C.gold}/>
           <Text style={{ color:C.gold, fontSize:13, fontWeight:"700", letterSpacing:0.2 }}>Exit</Text>
         </TouchableOpacity>
       </View>
@@ -933,22 +933,22 @@ function ChartTopBar({tf,setTf,showMenu,setShowMenu,isFS,onFS}:{
 }) {
   return (
     <View style={[ss.topBar,{borderBottomColor:C.border}]}>
-      <TbBtn><SvgIcon name="add-outline" size={16} color={C.dim}/></TbBtn>
+      <TbBtn><Ionicons name="add-outline" size={16} color={C.dim}/></TbBtn>
       <View style={[ss.tbSep,{backgroundColor:C.border}]}/>
       <TouchableOpacity style={ss.tfPickerBtn} onPress={()=>setShowMenu(!showMenu)}>
         <Text style={ss.tfPickerTxt}>{tf}</Text>
-        <SvgIcon name="chevron-down-outline" size={10} color={C.dim}/>
+        <Ionicons name="chevron-down-outline" size={10} color={C.dim}/>
       </TouchableOpacity>
       <View style={[ss.tbSep,{backgroundColor:C.border}]}/>
       <TbBtn><IcCandleRN color={C.dim}/></TbBtn>
       <TbBtn><Text style={ss.fxTxt}>fx</Text></TbBtn>
-      <TbBtn><SvgIcon name="grid-outline" size={15} color={C.dim}/></TbBtn>
+      <TbBtn><Ionicons name="grid-outline" size={15} color={C.dim}/></TbBtn>
       <View style={{flex:1}}/>
-      <TbBtn><SvgIcon name="options-outline" size={15} color={C.dim}/></TbBtn>
+      <TbBtn><Ionicons name="options-outline" size={15} color={C.dim}/></TbBtn>
       <TouchableOpacity style={ss.tbBtn} onPress={onFS}>
-        <SvgIcon name={isFS?"contract-outline":"expand-outline"} size={15} color={isFS?C.gold:C.dim}/>
+        <Ionicons name={isFS?"contract-outline":"expand-outline"} size={15} color={isFS?C.gold:C.dim}/>
       </TouchableOpacity>
-      <TbBtn><SvgIcon name="camera-outline" size={15} color={C.dim}/></TbBtn>
+      <TbBtn><Ionicons name="camera-outline" size={15} color={C.dim}/></TbBtn>
     </View>
   );
 }

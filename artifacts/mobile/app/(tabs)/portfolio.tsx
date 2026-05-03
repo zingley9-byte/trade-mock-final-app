@@ -9,7 +9,7 @@ import {
   View,
   Alert,
 } from "react-native";
-import SvgIcon from "@/components/SvgIcon";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
@@ -87,7 +87,7 @@ export default function PortfolioScreen() {
           onPress={handleReset}
           style={[styles.resetBtn, { borderColor: colors.border, opacity: resetsRemaining === 0 ? 0.4 : 1 }]}
         >
-          <SvgIcon name="refresh-outline" size={14} color={colors.mutedForeground} />
+          <Ionicons name="refresh-outline" size={14} color={colors.mutedForeground} />
           <Text style={[styles.resetText, { color: colors.mutedForeground }]}>
             Reset ({resetsRemaining}/2)
           </Text>
@@ -117,7 +117,7 @@ export default function PortfolioScreen() {
       {/* ── Open Positions ────────────────────────────────────────────────── */}
       {positions.length === 0 ? (
         <View style={styles.emptyPos}>
-          <SvgIcon name="file-tray-outline" size={36} color={colors.mutedForeground} />
+          <Ionicons name="file-tray-outline" size={36} color={colors.mutedForeground} />
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No open positions</Text>
         </View>
       ) : (

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Platform, View, Text, StyleSheet, TouchableOpacity, Modal, Dimensions } from "react-native";
-import SvgIcon from "@/components/SvgIcon";
+import { Ionicons } from "@expo/vector-icons";
 import CandlestickChart from "./CandlestickChart";
 import MobileCandleChart from "./MobileCandleChart";
 import { Candle } from "@/context/TradingContext";
@@ -564,7 +564,7 @@ export default function LightweightChart(props: Props) {
       <Modal visible animationType="slide" onRequestClose={onFullscreenToggle}>
         <View style={{ flex: 1, backgroundColor: "#131722" }}>
           <TouchableOpacity onPress={onFullscreenToggle} style={styles.fsClose}>
-            <SvgIcon name="close-outline" size={20} color="#fff" />
+            <Ionicons name="close-outline" size={20} color="#fff" />
           </TouchableOpacity>
           <MobileCandleChart
             symbol={props.symbol}

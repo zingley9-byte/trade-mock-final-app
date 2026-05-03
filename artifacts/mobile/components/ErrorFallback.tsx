@@ -1,4 +1,4 @@
-import SvgIcon from "@/components/SvgIcon";
+import { Ionicons } from "@expo/vector-icons";
 import { reloadAppAsync } from "expo";
 import React, { useState } from "react";
 import {
@@ -64,7 +64,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
             },
           ]}
         >
-          <SvgIcon name="alert-circle-outline" size={20} color={colors.foreground} />
+          <Ionicons name="alert-circle-outline" size={20} color={colors.foreground} />
         </Pressable>
       ) : null}
 
@@ -131,7 +131,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                     { opacity: pressed ? 0.6 : 1 },
                   ]}
                 >
-                  <SvgIcon name="close-outline" size={24} color={colors.foreground} />
+                  <Ionicons name="close-outline" size={24} color={colors.foreground} />
                 </Pressable>
               </View>
 

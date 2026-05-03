@@ -1,9 +1,6 @@
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import { Auth, initializeAuth, getAuth } from "firebase/auth";
 import { Platform } from "react-native";
-// getReactNativePersistence may not be in older type defs — access at runtime
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const { getReactNativePersistence } = require("firebase/auth") as any;
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -38,6 +35,8 @@ export function getFirebaseAuth(): Auth {
     _auth = getAuth(app);
   } else {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { getReactNativePersistence } = require("firebase/auth");
       _auth = initializeAuth(app, {
         persistence: getReactNativePersistence(AsyncStorage),
       });

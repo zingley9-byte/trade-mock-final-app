@@ -4,6 +4,7 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
+import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
@@ -35,6 +36,10 @@ function AppProviders({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
+    // Vector icon fonts — must be pre-loaded so chart toolbar + tab icons
+    // render correctly on Android (blank squares appear when font is missing)
+    ...Ionicons.font,
+    // App text fonts
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
@@ -47,7 +52,6 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  // Always wait for fonts — never render with broken/missing font
   if (!fontsLoaded && !fontError) return null;
 
   return (

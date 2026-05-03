@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import SvgIcon from "@/components/SvgIcon";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAdmin } from "@/context/AdminContext";
 import { SYMBOLS } from "@/context/TradingContext";
@@ -39,7 +39,7 @@ export default function AdminDashboard() {
   if (!isAdmin) {
     return (
       <View style={[s.center, { backgroundColor: ADMIN_BG }]}>
-        <SvgIcon name="lock-closed-outline" size={48} color={BEAR} />
+        <Ionicons name="lock-closed-outline" size={48} color={BEAR} />
         <Text style={s.deniedTitle}>Access Denied</Text>
         <Text style={s.deniedSub}>You don't have admin privileges.</Text>
         <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
@@ -75,14 +75,14 @@ export default function AdminDashboard() {
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backIcon}>
-          <SvgIcon name="arrow-back-outline" size={20} color={FG} />
+          <Ionicons name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
         <View>
           <Text style={s.headerTitle}>Admin Panel</Text>
           <Text style={s.headerSub}>Trade Mock Control Center</Text>
         </View>
         <View style={s.adminBadge}>
-          <SvgIcon name="shield-outline" size={12} color={PRIMARY} />
+          <Ionicons name="shield-outline" size={12} color={PRIMARY} />
           <Text style={s.adminBadgeText}>ADMIN</Text>
         </View>
       </View>
@@ -95,7 +95,7 @@ export default function AdminDashboard() {
           {stats.map((st) => (
             <View key={st.label} style={s.statCard}>
               <View style={[s.statIcon, { backgroundColor: st.color + "22" }]}>
-                <SvgIcon name={st.icon as any} size={16} color={st.color} />
+                <Ionicons name={st.icon as any} size={16} color={st.color} />
               </View>
               <Text style={[s.statValue, { color: st.color }]}>{st.value}</Text>
               <Text style={s.statLabel}>{st.label}</Text>
@@ -114,13 +114,13 @@ export default function AdminDashboard() {
               activeOpacity={0.7}
             >
               <View style={[s.menuIcon, { backgroundColor: item.color + "22" }]}>
-                <SvgIcon name={item.icon as any} size={18} color={item.color} />
+                <Ionicons name={item.icon as any} size={18} color={item.color} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.menuLabel}>{item.label}</Text>
                 <Text style={s.menuSub}>{item.sub}</Text>
               </View>
-              <SvgIcon name="chevron-forward-outline" size={16} color={MUTED} />
+              <Ionicons name="chevron-forward-outline" size={16} color={MUTED} />
             </TouchableOpacity>
           ))}
         </View>

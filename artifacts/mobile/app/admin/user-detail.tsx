@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import SvgIcon from "@/components/SvgIcon";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAdmin } from "@/context/AdminContext";
 
@@ -46,7 +46,7 @@ export default function UserDetail() {
   if (!user) {
     return (
       <View style={[s.center, { backgroundColor: ADMIN_BG }]}>
-        <SvgIcon name="person-remove-outline" size={40} color={MUTED} />
+        <Ionicons name="person-remove-outline" size={40} color={MUTED} />
         <Text style={{ color: MUTED, marginTop: 8 }}>User not found</Text>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <Text style={s.backBtnText}>Go Back</Text>
@@ -96,7 +96,7 @@ export default function UserDetail() {
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
-          <SvgIcon name="arrow-back-outline" size={20} color={FG} />
+          <Ionicons name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>User Detail</Text>
         {isBlocked && <View style={s.blockedBadge}><Text style={s.blockedText}>BLOCKED</Text></View>}
@@ -129,13 +129,13 @@ export default function UserDetail() {
         <View style={s.actionList}>
           <TouchableOpacity style={s.actionRow} onPress={() => setBalanceModal(true)} activeOpacity={0.7}>
             <View style={[s.actionIcon, { backgroundColor: "#22c55e22" }]}>
-              <SvgIcon name="add-circle-outline" size={18} color="#22c55e" />
+              <Ionicons name="add-circle-outline" size={18} color="#22c55e" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.actionLabel}>Add Fake Balance</Text>
               <Text style={s.actionSub}>Add virtual money to this account</Text>
             </View>
-            <SvgIcon name="chevron-forward-outline" size={16} color={MUTED} />
+            <Ionicons name="chevron-forward-outline" size={16} color={MUTED} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -144,7 +144,7 @@ export default function UserDetail() {
             activeOpacity={0.7}
           >
             <View style={[s.actionIcon, { backgroundColor: isBlocked ? "#22c55e22" : BEAR + "22" }]}>
-              <SvgIcon name={isBlocked ? "person-add-outline" : "person-remove-outline"} size={18} color={isBlocked ? "#22c55e" : BEAR} />
+              <Ionicons name={isBlocked ? "person-add-outline" : "person-remove-outline"} size={18} color={isBlocked ? "#22c55e" : BEAR} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.actionLabel, { color: isBlocked ? "#22c55e" : BEAR }]}>
@@ -154,7 +154,7 @@ export default function UserDetail() {
                 {isBlocked ? "Restore access to this user" : "Prevent this user from trading"}
               </Text>
             </View>
-            <SvgIcon name="chevron-forward-outline" size={16} color={MUTED} />
+            <Ionicons name="chevron-forward-outline" size={16} color={MUTED} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -183,7 +183,7 @@ export default function UserDetail() {
             ))}
           </View>
           <TouchableOpacity style={s.confirmBtn} onPress={handleAddBalance} activeOpacity={0.85}>
-            <SvgIcon name="add-outline" size={16} color="#fff" />
+            <Ionicons name="add-outline" size={16} color="#fff" />
             <Text style={s.confirmText}>Add Balance</Text>
           </TouchableOpacity>
         </View>
