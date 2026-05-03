@@ -65,8 +65,8 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 .tf-item:active,.tf-item.active{background:#26a69a18;color:#26a69a;}
 
 /* ── Body / chart area ── */
-#body{display:flex;flex:1;min-height:0;}
-#chart-wrap{flex:1;position:relative;min-width:0;}
+#body{flex:1;min-height:0;position:relative;}
+#chart-wrap{position:absolute;top:0;left:44px;right:0;bottom:0;}
 #chart{width:100%;height:100%;}
 
 /* ── OHLCV tooltip ── */
@@ -114,7 +114,7 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 #backdrop.show{display:block;}
 
 /* ── Drawing sidebar ── */
-#sidebar{width:44px;background:#1e222d;border-right:1px solid #2a2e39;display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px;flex-shrink:0;z-index:20;overflow:visible;}
+#sidebar{position:absolute;top:0;left:0;width:44px;bottom:0;background:#1e222d;border-right:1px solid #2a2e39;display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px;z-index:20;overflow:visible;}
 .sb-btn{width:34px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:none;border-radius:5px;cursor:pointer;color:#787b86;position:relative;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
 .sb-btn.act{background:#2962FF22;color:#2962FF;}
 .sb-btn:active{background:#ffffff12;}
@@ -1241,10 +1241,20 @@ function initDrwEngine() {
   loadDrw();
   buildSidebar();
   updateSvgMode();
-  initDrawingEvents();
   subscribeChartRedraw();
   setTimeout(redraw,300);
 }
+
+// Build sidebar + attach events IMMEDIATELY (before chart loads)
+// This guarantees sidebar is always visible even if load event is delayed
+(function immediateInit() {
+  try {
+    loadDrw();
+    buildSidebar();
+    updateSvgMode();
+    initDrawingEvents();
+  } catch(e) {}
+})();
 </script>
 </body>
 </html>`;
