@@ -36,9 +36,9 @@ function AppProviders({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    // Vector icon fonts — must be pre-loaded so chart toolbar + tab icons
-    // render correctly on Android (blank squares appear when font is missing)
-    ...Ionicons.font,
+    // Explicitly require Ionicons TTF — spread (...Ionicons.font) is unreliable
+    // on Android with new architecture; direct require always works.
+    Ionicons: require("@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"),
     // App text fonts
     Inter_400Regular,
     Inter_500Medium,
@@ -52,6 +52,7 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
+  // Always wait for fonts — never render with broken/missing font
   if (!fontsLoaded && !fontError) return null;
 
   return (

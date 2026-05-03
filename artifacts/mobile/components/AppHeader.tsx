@@ -330,7 +330,9 @@ export default function AppHeader() {
 
           <View style={styles.menuRow}>
             <View style={styles.menuLeft}>
-              <Ionicons name={isDark ? "moon" : "sun"} size={16} color={colors.foreground} />
+              <View style={[styles.menuIcon, { backgroundColor: isDark ? "#3b2f0a" : "#fef9c3" }]}>
+                <Ionicons name={isDark ? "moon-outline" : "sunny-outline"} size={16} color="#f59e0b" />
+              </View>
               <Text style={[styles.menuText, { color: colors.foreground }]}>Dark Mode</Text>
             </View>
             <Switch
@@ -341,9 +343,11 @@ export default function AppHeader() {
             />
           </View>
 
-          <TouchableOpacity style={styles.menuRow} onPress={() => { setProfileOpen(false); router.push("/(tabs)/settings"); }}>
+          <TouchableOpacity style={styles.menuRow} onPress={() => { setProfileOpen(false); router.push("/(tabs)/settings"); }} activeOpacity={0.7}>
             <View style={styles.menuLeft}>
-              <Ionicons name="settings-outline" size={16} color={colors.foreground} />
+              <View style={[styles.menuIcon, { backgroundColor: "#1e3a2f" }]}>
+                <Ionicons name="settings-outline" size={16} color={colors.primary} />
+              </View>
               <Text style={[styles.menuText, { color: colors.foreground }]}>Settings</Text>
             </View>
             <Ionicons name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
@@ -351,17 +355,21 @@ export default function AppHeader() {
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          <TouchableOpacity style={styles.menuRow} onPress={handleShare}>
+          <TouchableOpacity style={styles.menuRow} onPress={handleShare} activeOpacity={0.7}>
             <View style={styles.menuLeft}>
-              <Ionicons name="share-social-outline" size={16} color="#10b981" />
+              <View style={[styles.menuIcon, { backgroundColor: "#0f2d20" }]}>
+                <Ionicons name="share-social-outline" size={16} color="#10b981" />
+              </View>
               <Text style={[styles.menuText, { color: colors.foreground }]}>Share with Friends</Text>
             </View>
             <Ionicons name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuRow} onPress={openFeedback}>
+          <TouchableOpacity style={styles.menuRow} onPress={openFeedback} activeOpacity={0.7}>
             <View style={styles.menuLeft}>
-              <Ionicons name="chatbubble-outline" size={16} color="#6366f1" />
+              <View style={[styles.menuIcon, { backgroundColor: "#1e1b4b" }]}>
+                <Ionicons name="chatbubble-outline" size={16} color="#6366f1" />
+              </View>
               <Text style={[styles.menuText, { color: colors.foreground }]}>Feedback</Text>
             </View>
             <Ionicons name="chevron-forward-outline" size={16} color={colors.mutedForeground} />
@@ -369,9 +377,11 @@ export default function AppHeader() {
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          <TouchableOpacity style={styles.menuRow} onPress={handleLogout}>
+          <TouchableOpacity style={styles.menuRow} onPress={handleLogout} activeOpacity={0.7}>
             <View style={styles.menuLeft}>
-              <Ionicons name="log-out-outline" size={16} color={colors.bear} />
+              <View style={[styles.menuIcon, { backgroundColor: "#2d0f0f" }]}>
+                <Ionicons name="log-out-outline" size={16} color={colors.bear} />
+              </View>
               <Text style={[styles.menuText, { color: colors.bear }]}>Logout</Text>
             </View>
           </TouchableOpacity>
@@ -531,6 +541,10 @@ const styles = StyleSheet.create({
   },
   menuLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   menuText: { fontSize: 14, fontWeight: "500" },
+  menuIcon: {
+    width: 30, height: 30, borderRadius: 8,
+    alignItems: "center", justifyContent: "center",
+  },
 
   // Feedback modal
   fbKav:    { flex: 1, justifyContent: "center", alignItems: "center" },
