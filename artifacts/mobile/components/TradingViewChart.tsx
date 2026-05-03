@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Platform, View, Text } from "react-native";
 import MobileCandleChart from "./MobileCandleChart";
 import NativeWebViewChart from "./NativeWebViewChart";
+import LoadingCandleAnimation from "./LoadingCandleAnimation";
 
 // ─── Theme ───────────────────────────────────────────────────────────────────
 const C = {
@@ -159,6 +160,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [ohlcv,        setOhlcv]      = useState<{o:number;h:number;l:number;c:number;v:number;ch:number;chp:number}|null>(null);
   const [volCollapsed, setVolCollapsed] = useState(false);
   const [wsStatus,     setWsStatus]   = useState<"connecting"|"live"|"reconnecting"|"error">("connecting");
+  const [dataLoaded,   setDataLoaded]  = useState(false);
   const [webDrawings,  setWebDrawings] = useState<any[]>([]);
   const [webCurrent,   setWebCurrent]  = useState<any>(null);
   const [showWebDraw,  setShowWebDraw] = useState(true);
@@ -307,7 +309,9 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         if (last) setOhlcv({ o:last.open, h:last.high, l:last.low, c:last.close, v:last.volume, ch:last.close-last.open, chp:((last.close-last.open)/last.open)*100 });
         chart.timeScale().fitContent();
       }
-    } catch {}
+    } catch {} finally {
+      if (mountedRef.current) setDataLoaded(true);
+    }
 
     // WebSocket live — with auto-retry and exponential backoff
     const loadId = ++loadIdRef.current;
@@ -366,6 +370,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     tfRef.current  = timeframe;
     initChart(symbol, timeframe);
     return () => {
+      setDataLoaded(false);
       if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
       wsRef.current?.close();
       wsRef.current = null;
@@ -559,6 +564,14 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
 
   return (
     <div ref={wrapperRef} style={{ display:"flex", flexDirection:"column", width:"100%", height: isWebFS ? "100dvh" : "100%", background:C.bg, fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", position:"relative", overflow:"hidden" }}>
+
+      {/* ── Loading overlays ── */}
+      {!dataLoaded && (
+        <LoadingCandleAnimation overlay status="connecting" />
+      )}
+      {dataLoaded && (wsStatus === "reconnecting" || wsStatus === "error") && (
+        <LoadingCandleAnimation overlay transparent size="sm" status={wsStatus as "reconnecting" | "error"} />
+      )}
 
       {/* ── Top toolbar ── */}
       <div style={{ height:TOP, display:"flex", alignItems:"center", background:C.panel, borderBottom:`1px solid ${C.border}`, paddingLeft:4, paddingRight:8, gap:2, flexShrink:0 }}>

@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { TM_AUTH_KEY } from "@/constants/authKeys";
 import { getFirebaseAuth } from "@/lib/firebase";
+import LoadingCandleAnimation from "@/components/LoadingCandleAnimation";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -250,6 +251,15 @@ export default function AuthScreen() {
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
+      {/* Loading overlay during auth */}
+      {loading && (
+        <LoadingCandleAnimation
+          overlay
+          transparent
+          status="connecting"
+          message={mode === "login" ? "Signing you in" : "Creating account"}
+        />
+      )}
     </LinearGradient>
   );
 }

@@ -9,6 +9,7 @@ import {
   View, StyleSheet, ActivityIndicator, TouchableOpacity, Text,
   Modal, StatusBar, useWindowDimensions, Platform, BackHandler,
 } from "react-native";
+import LoadingCandleAnimation from "./LoadingCandleAnimation";
 import { WebView } from "react-native-webview";
 import { LWC_SCRIPT } from "../lib/lwcScript";
 
@@ -791,10 +792,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
         <StatusBar hidden backgroundColor="#131722" />
         <View style={[styles.fsRoot, { width: screenW, height: screenH }]}>
           {fsLoading && (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator color="#26a69a" size="small" />
-              <Text style={styles.loadingTxt}>Loading chart…</Text>
-            </View>
+            <LoadingCandleAnimation overlay status="connecting" message="Loading chart" size="sm" />
           )}
           <ChartWebView
             html={htmlFS}

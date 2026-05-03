@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
+import LoadingCandleAnimation from "./LoadingCandleAnimation";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -282,10 +283,14 @@ const ft = StyleSheet.create({
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function LandingPage() {
-  const [prices,  setPrices]  = useState<Record<string, number>>({});
-  const [changes, setChanges] = useState<Record<string, number>>({});
+  const [prices,       setPrices]       = useState<Record<string, number>>({});
+  const [changes,      setChanges]      = useState<Record<string, number>>({});
+  const [pricesLoaded, setPricesLoaded] = useState(false);
 
   useEffect(() => {
+    // Fallback: show page after max 2.5s even if API is slow
+    const fallback = setTimeout(() => setPricesLoaded(true), 2500);
+
     function fetchPrices() {
       // Use same-origin api-server proxy — no CORS issues
       fetch("/api/market/prices")
@@ -300,16 +305,22 @@ export default function LandingPage() {
           });
           setPrices(p);
           setChanges(ch);
+          setPricesLoaded(true);
+          clearTimeout(fallback);
         })
-        .catch(() => {});
+        .catch(() => { setPricesLoaded(true); clearTimeout(fallback); });
     }
     fetchPrices();
     const t = setInterval(fetchPrices, 10000);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); clearTimeout(fallback); };
   }, []);
 
   const goDashboard = () => router.replace("/(tabs)");
   const goAuth      = () => router.replace("/auth");
+
+  if (!pricesLoaded) {
+    return <LoadingCandleAnimation status="connecting" />;
+  }
 
   return (
     // Use web-native scroll — outer View fills viewport, inner ScrollView scrolls
