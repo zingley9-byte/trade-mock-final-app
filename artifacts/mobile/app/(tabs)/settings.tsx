@@ -496,6 +496,26 @@ export default function SettingsScreen() {
         </>
       )}
 
+      {/* ─── Legal ─── */}
+      <SectionHeader title="Legal & About" colors={colors} />
+      <View style={styles.section}>
+        <RowItem icon="document-text-outline" iconBg="#3b82f6" label="Privacy Policy"
+          sub="How we handle your data" colors={colors} showChevron
+          onPress={() => router.push("/legal/privacy")} isFirst />
+        <RowItem icon="reader-outline" iconBg="#10b981" label="Terms & Conditions"
+          sub="Rules for using Trade Mock" colors={colors} showChevron
+          onPress={() => router.push("/legal/terms")} />
+        <RowItem icon="warning-outline" iconBg="#f59e0b" label="Disclaimer"
+          sub="Important risk information" colors={colors} showChevron
+          onPress={() => router.push("/legal/disclaimer")} />
+        <RowItem icon="mail-outline" iconBg="#8b5cf6" label="Contact Us"
+          sub="Get in touch with support" colors={colors} showChevron
+          onPress={() => router.push("/legal/contact")} />
+        <RowItem icon="information-circle-outline" iconBg="#00c896" label="About Trade Mock"
+          sub="Our mission & story" colors={colors} showChevron
+          onPress={() => router.push("/legal/about")} isLast />
+      </View>
+
       {/* ─── App Version ─── */}
       <Text style={[styles.versionText, { color: colors.mutedForeground }]}>Trade Mock v1.0.0 · Practice. Learn. Trade.</Text>
 

@@ -344,6 +344,38 @@ export default function MobileLandingPage() {
           </View>
         </View>
 
+        {/* ── Legal Links ── */}
+        <View style={s.legalSection}>
+          <View style={s.legalRow}>
+            {[
+              { label: "Privacy Policy", route: "/legal/privacy"    },
+              { label: "Terms",          route: "/legal/terms"      },
+              { label: "Disclaimer",     route: "/legal/disclaimer" },
+            ].map((item, i) => (
+              <React.Fragment key={item.label}>
+                {i > 0 && <Text style={s.legalSep}>·</Text>}
+                <TouchableOpacity onPress={() => router.push(item.route as any)}>
+                  <Text style={s.legalLink}>{item.label}</Text>
+                </TouchableOpacity>
+              </React.Fragment>
+            ))}
+          </View>
+          <View style={s.legalRow}>
+            {[
+              { label: "Contact Us", route: "/legal/contact" },
+              { label: "About",      route: "/legal/about"   },
+            ].map((item, i) => (
+              <React.Fragment key={item.label}>
+                {i > 0 && <Text style={s.legalSep}>·</Text>}
+                <TouchableOpacity onPress={() => router.push(item.route as any)}>
+                  <Text style={s.legalLink}>{item.label}</Text>
+                </TouchableOpacity>
+              </React.Fragment>
+            ))}
+          </View>
+          <Text style={s.legalCopy}>© 2025 Trade Mock. All rights reserved.</Text>
+        </View>
+
         {/* ── Bottom CTA banner ── */}
         <View style={s.ctaBanner}>
           <View style={s.ctaBannerLeft}>
@@ -442,6 +474,13 @@ const s = StyleSheet.create({
   partnersTxt: { color: C.muted, fontSize: 11, marginBottom: 12 },
   partnersRow: { flexDirection: "row", gap: 16, flexWrap: "wrap" as any, justifyContent: "center" },
   partnerName: { color: C.muted, fontSize: 12, fontWeight: "700" as const, letterSpacing: 0.5 },
+
+  // Legal footer
+  legalSection: { paddingHorizontal: 16, paddingVertical: 20, alignItems: "center", gap: 8 },
+  legalRow:     { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" as any, justifyContent: "center" },
+  legalLink:    { color: "#848E9C", fontSize: 12, fontWeight: "600" as const },
+  legalSep:     { color: "#333", fontSize: 12 },
+  legalCopy:    { color: "#555", fontSize: 11, marginTop: 4 },
 
   // Bottom CTA banner
   ctaBanner:      { backgroundColor: "#1a1400", borderTopWidth: 1, borderTopColor: C.accent + "44", flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, flexWrap: "wrap" as any, gap: 10 },

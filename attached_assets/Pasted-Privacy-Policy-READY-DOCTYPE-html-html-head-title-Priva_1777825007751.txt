@@ -1,0 +1,118 @@
+Privacy Policy (READY)
+<!DOCTYPE html>
+<html>
+<head>
+<title>Privacy Policy - Trade Mock</title>
+</head>
+<body>
+
+<h1>Privacy Policy</h1>
+
+<p>Trade Mock ("we", "our", "us") respects your privacy.</p>
+
+<h2>Information We Collect</h2>
+<ul>
+<li>Email address (for login)</li>
+<li>Device information (IP address, device type)</li>
+<li>Usage data (app activity, features used)</li>
+</ul>
+
+<h2>How We Use Information</h2>
+<ul>
+<li>To provide and improve our services</li>
+<li>To manage user accounts</li>
+<li>To communicate with users</li>
+</ul>
+
+<h2>Third-Party Services</h2>
+<p>We may use third-party services such as Firebase and Google AdMob (for ads in future).</p>
+
+<h2>Data Sharing</h2>
+<p>We do not sell your personal data.</p>
+
+<h2>Security</h2>
+<p>We use standard security practices to protect your data.</p>
+
+<h2>User Rights</h2>
+<p>You can request data deletion anytime.</p>
+
+<h2>Contact Us</h2>
+<p>Email: Zingley9@gmail.com</p>
+
+</body>
+</html>
+✅ 📄 Terms & Conditions
+<!DOCTYPE html>
+<html>
+<head>
+<title>Terms & Conditions - Trade Mock</title>
+</head>
+<body>
+
+<h1>Terms & Conditions</h1>
+
+<p>By using Trade Mock, you agree to the following terms:</p>
+
+<ul>
+<li>You will use the app legally.</li>
+<li>You will not misuse or hack the app.</li>
+<li>We are not responsible for any financial loss.</li>
+<li>App is for educational and informational purposes only.</li>
+</ul>
+
+<h2>Account</h2>
+<p>Users are responsible for their account security.</p>
+
+<h2>Changes</h2>
+<p>We can update features anytime.</p>
+
+</body>
+</html>
+⚠️ 📄 Disclaimer (VERY IMPORTANT)
+<!DOCTYPE html>
+<html>
+<head>
+<title>Disclaimer - Trade Mock</title>
+</head>
+<body>
+
+<h1>Disclaimer</h1>
+
+<p>Trade Mock is not a financial advisor.</p>
+
+<p>Trading involves risk. We are not responsible for any profit or loss.</p>
+
+<p>This app is for learning and simulation purposes only.</p>
+
+</body>
+</html>
+✅ 📄 Contact Us
+<!DOCTYPE html>
+<html>
+<head>
+<title>Contact - Trade Mock</title>
+</head>
+<body>
+
+<h1>Contact Us</h1>
+
+<p>Email: Zingley9@gmail.com</p>
+
+</body>
+</html>
+✅ 📄 About Us
+<!DOCTYPE html>
+<html>
+<head>
+<title>About - Trade Mock</title>
+</head>
+<body>
+
+<h1>About Us</h1>
+
+<p>Trade Mock is a crypto trading simulation and analysis app.</p>
+
+<p>Our goal is to provide a simple and fast trading experience.</p>
+
+</body>
+</html>

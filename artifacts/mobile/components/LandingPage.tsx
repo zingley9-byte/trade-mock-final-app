@@ -212,9 +212,21 @@ const st = StyleSheet.create({
 // ── Footer ────────────────────────────────────────────────────────────────────
 function Footer() {
   const cols = [
-    { head: "Company", links: ["About Us", "Careers", "Contact"] },
-    { head: "Support",  links: ["Help Center", "Fees", "API Docs"] },
-    { head: "Legal",    links: ["Privacy Policy", "Terms of Service", "Risk Disclosure"] },
+    {
+      head: "Company",
+      items: [
+        { label: "About Us",   route: "/legal/about"   },
+        { label: "Contact",    route: "/legal/contact" },
+      ],
+    },
+    {
+      head: "Legal",
+      items: [
+        { label: "Privacy Policy",    route: "/legal/privacy"    },
+        { label: "Terms & Conditions", route: "/legal/terms"      },
+        { label: "Disclaimer",        route: "/legal/disclaimer" },
+      ],
+    },
   ];
   return (
     <View style={ft.wrap}>
@@ -230,8 +242,10 @@ function Footer() {
         {cols.map((col) => (
           <View key={col.head} style={ft.col}>
             <Text style={ft.colHead}>{col.head}</Text>
-            {col.links.map((l) => (
-              <TouchableOpacity key={l}><Text style={ft.colLink}>{l}</Text></TouchableOpacity>
+            {col.items.map((item) => (
+              <TouchableOpacity key={item.label} onPress={() => router.push(item.route as any)}>
+                <Text style={ft.colLink}>{item.label}</Text>
+              </TouchableOpacity>
             ))}
           </View>
         ))}
@@ -239,10 +253,17 @@ function Footer() {
       <View style={ft.bottom}>
         <Text style={ft.copy}>© 2025 Trade Mock. All rights reserved.</Text>
         <View style={ft.btmLinks}>
-          {["Privacy Policy", "Terms", "Contact", "About"].map((l, i) => (
-            <React.Fragment key={l}>
+          {[
+            { label: "Privacy Policy", route: "/legal/privacy"    },
+            { label: "Terms",          route: "/legal/terms"      },
+            { label: "Disclaimer",     route: "/legal/disclaimer" },
+            { label: "Contact",        route: "/legal/contact"    },
+          ].map((item, i) => (
+            <React.Fragment key={item.label}>
               {i > 0 && <Text style={ft.sep}>·</Text>}
-              <TouchableOpacity><Text style={ft.btmLink}>{l}</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push(item.route as any)}>
+                <Text style={ft.btmLink}>{item.label}</Text>
+              </TouchableOpacity>
             </React.Fragment>
           ))}
         </View>
