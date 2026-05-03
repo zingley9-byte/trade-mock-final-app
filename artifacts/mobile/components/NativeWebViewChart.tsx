@@ -112,6 +112,36 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 /* ── Backdrop ── */
 #backdrop{position:fixed;inset:0;z-index:100;display:none;}
 #backdrop.show{display:block;}
+
+/* ── Drawing sidebar ── */
+#sidebar{width:44px;background:#1e222d;border-right:1px solid #2a2e39;display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px;flex-shrink:0;z-index:20;overflow:visible;}
+.sb-btn{width:34px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:none;border-radius:5px;cursor:pointer;color:#787b86;position:relative;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
+.sb-btn.act{background:#2962FF22;color:#2962FF;}
+.sb-btn:active{background:#ffffff12;}
+.sb-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
+.sb-tri{position:absolute;right:3px;bottom:4px;width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-top:3px solid #4a4e5a;}
+.sb-btn.act .sb-tri{border-top-color:#2962FF;}
+.sb-sep{width:28px;height:1px;background:#2a2e39;flex-shrink:0;margin:3px 0;}
+/* Submenu */
+#sb-sub{position:fixed;left:46px;background:#1e222d;border:1px solid #2a2e39;border-radius:7px;min-width:180px;padding:4px 0;z-index:500;box-shadow:0 4px 24px #00000090;}
+#sb-sub.hidden{display:none;}
+.sub-title{padding:4px 12px;font-size:9px;font-weight:700;color:#787b86;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid #2a2e39;margin-bottom:2px;}
+.sub-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#d1d4dc;cursor:pointer;border:none;background:none;width:100%;text-align:left;-webkit-tap-highlight-color:transparent;}
+.sub-item:active,.sub-item.act{background:#2962FF18;color:#2962FF;}
+.sub-dot{width:6px;height:6px;border-radius:50%;border:1px solid #3a3e4a;flex-shrink:0;}
+.sub-item.act .sub-dot{background:#2962FF;border-color:#2962FF;}
+/* Drawing SVG overlay */
+#drw-svg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;z-index:5;pointer-events:none;}
+#drw-svg.active{pointer-events:all;cursor:crosshair;}
+#drw-svg.cursor{pointer-events:all;cursor:default;}
+/* Float menu */
+#float-menu{position:fixed;background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:5px 6px;display:flex;align-items:center;gap:4px;z-index:600;box-shadow:0 4px 20px #00000090;min-width:180px;}
+#float-menu.hidden{display:none;}
+.fm-btn{background:none;border:none;border-radius:4px;color:#d1d4dc;cursor:pointer;padding:5px 8px;font-size:11px;display:flex;align-items:center;gap:4px;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
+.fm-btn:active{background:#ffffff15;}
+.fm-del{color:#ef5350;}
+.fm-sep{width:1px;height:18px;background:#2a2e39;flex-shrink:0;}
+#fm-clr{width:22px;height:22px;border:2px solid #3a3e4a;border-radius:4px;cursor:pointer;padding:0;background:#f0b90b;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -188,6 +218,9 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
   <!-- BODY -->
   <div id="body">
 
+    <!-- Drawing sidebar -->
+    <div id="sidebar"></div>
+
     <!-- Chart area -->
     <div id="chart-wrap">
       <div id="ohlcv" class="hidden"></div>
@@ -196,8 +229,23 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
         <button class="vol-btn" onclick="toggleVol()">&#8963;</button>
       </div>
       <div id="chart"></div>
+      <!-- Drawing SVG overlay -->
+      <svg id="drw-svg"></svg>
     </div>
   </div>
+
+  <!-- Float menu for selected drawing -->
+  <div id="float-menu" class="hidden">
+    <button class="fm-btn fm-del" onclick="deleteSel()">🗑 Delete</button>
+    <div class="fm-sep"></div>
+    <input type="color" id="fm-clr" value="#f0b90b" oninput="colorSel(this.value)">
+    <div class="fm-sep"></div>
+    <button class="fm-btn" id="fm-lck" onclick="lockSel()">🔒 Lock</button>
+    <button class="fm-btn" onclick="deselectAll()" style="margin-left:2px;color:#787b86;">✕</button>
+  </div>
+
+  <!-- Tool submenu -->
+  <div id="sb-sub" class="hidden"></div>
 
   <!-- Backdrop for menus -->
   <div id="backdrop" onclick="closeAllMenus()"></div>
@@ -494,9 +542,662 @@ function closeAllMenus() {
 window.addEventListener('load', () => {
   initChart();
   loadData(SYMBOL, currentTf);
+  setTimeout(initDrwEngine, 600);
 });
 
-window.addEventListener('resize', resizeChart);
+window.addEventListener('resize', () => { resizeChart(); redraw(); });
+</script>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                  DRAWING ENGINE v2                          ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+const DK = 'tm_drw_v2';
+let DRW = [];
+let TOOL = null;
+let SEL = null;
+let HIDE = false;
+let CLR = '#f0b90b';
+let WID = 1.5;
+let SUB_OPEN = null;
+let IP = null;
+let CUR_PTS = [];
+let FREE_PTS = [];
+let M_DOWN = false;
+let _W = 0, _H = 0;
+let _idCtr = Date.now();
+function genId() { return 'drw_' + (_idCtr++); }
+
+// ── Tool groups ─────────────────────────────────────────────────
+const TOOL_GROUPS = [
+  { id:'cursor', label:'Cursor', multi:false,
+    icon:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>',
+    items:[] },
+  { id:'lines', label:'Lines', multi:true,
+    icon:'<line x1="5" y1="17" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/>',
+    items:[
+      { id:'trendline', label:'Trend Line', pts:2 },
+      { id:'arrow', label:'Arrow', pts:2 },
+      { id:'ray', label:'Ray', pts:2 },
+      { id:'hline', label:'Horizontal Line', pts:1 },
+      { id:'vline', label:'Vertical Line', pts:1 },
+      { id:'channel', label:'Parallel Channel', pts:3 },
+    ] },
+  { id:'fib', label:'Fibonacci', multi:true,
+    icon:'<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
+    items:[{ id:'fibretracement', label:'Fib Retracement', pts:2 }] },
+  { id:'shapes', label:'Shapes', multi:true,
+    icon:'<rect x="3" y="3" width="18" height="18" rx="2"/>',
+    items:[
+      { id:'rectangle', label:'Rectangle', pts:2 },
+      { id:'circle', label:'Circle', pts:2 },
+    ] },
+  { id:'brush', label:'Brushes', multi:true,
+    icon:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L3 14.67V21h6.33l10.06-10.06a5.5 5.5 0 0 0 0-7.78z"/>',
+    items:[
+      { id:'brush', label:'Brush', pts:0 },
+      { id:'highlighter', label:'Highlighter', pts:0 },
+    ] },
+  { id:'text', label:'Text', multi:true,
+    icon:'<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>',
+    items:[
+      { id:'text', label:'Text', pts:1 },
+      { id:'note', label:'Note', pts:1 },
+      { id:'pricelabel', label:'Price Label', pts:1 },
+    ] },
+  { id:'measure', label:'Measure', multi:true,
+    icon:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/>',
+    items:[
+      { id:'longposition', label:'Long Position', pts:3 },
+      { id:'shortposition', label:'Short Position', pts:3 },
+      { id:'daterange', label:'Date Range', pts:2 },
+      { id:'pricerange', label:'Price Range', pts:2 },
+    ] },
+  'sep',
+  { id:'hide', label:'Hide/Show', multi:false, toggle:true,
+    icon:'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+    items:[] },
+  { id:'lock', label:'Lock All', multi:false, toggle:true,
+    icon:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    items:[] },
+  { id:'delete', label:'Delete Mode', multi:false, toggle:true,
+    icon:'<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
+    items:[] },
+];
+
+function getToolPts(toolId) {
+  for (const g of TOOL_GROUPS) {
+    if (g === 'sep') continue;
+    for (const it of g.items) { if (it.id === toolId) return it.pts || 2; }
+  }
+  return 2;
+}
+
+// ── Storage ─────────────────────────────────────────────────────
+function loadDrw() { try { DRW = JSON.parse(localStorage.getItem(DK)||'[]'); } catch { DRW=[]; } }
+function saveDrw() { try { localStorage.setItem(DK, JSON.stringify(DRW)); } catch {} }
+
+// ── Coordinate helpers ───────────────────────────────────────────
+function updateSize() {
+  const el = document.getElementById('chart-wrap');
+  if (el) { _W = el.offsetWidth; _H = el.offsetHeight; }
+}
+function clientToSvg(cx, cy) {
+  const el = document.getElementById('chart-wrap');
+  const r = el.getBoundingClientRect();
+  return { x: cx - r.left, y: cy - r.top };
+}
+function svgToData(x, y) {
+  try { return { time: chart.timeScale().coordinateToTime(x), price: candleSeries.coordinateToPrice(y) }; }
+  catch { return { time:null, price:null }; }
+}
+function dataToSvg(price, time) {
+  try { return { x: chart.timeScale().timeToCoordinate(time), y: candleSeries.priceToCoordinate(price) }; }
+  catch { return { x:null, y:null }; }
+}
+function fmtP(p) {
+  if (!p && p!==0) return '';
+  if (p>=10000) return p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (p>=1) return p.toFixed(4);
+  return p.toFixed(6);
+}
+
+// ── Sidebar ─────────────────────────────────────────────────────
+function buildSidebar() {
+  const sb = document.getElementById('sidebar');
+  if (!sb) return;
+  sb.innerHTML = '';
+  TOOL_GROUPS.forEach(g => {
+    if (g === 'sep') { const d=document.createElement('div'); d.className='sb-sep'; sb.appendChild(d); return; }
+    const isActive = TOOL === g.id || g.items.some(it=>it.id===TOOL)
+                  || (g.id==='hide'&&HIDE) || (g.id==='delete'&&TOOL==='delete');
+    const btn = document.createElement('button');
+    btn.className = 'sb-btn' + (isActive?' act':'');
+    btn.title = g.label;
+    btn.dataset.gid = g.id;
+    btn.innerHTML = '<svg viewBox="0 0 24 24">'+g.icon+'</svg>' + (g.items.length>0?'<div class="sb-tri"></div>':'');
+    btn.addEventListener('pointerdown', e => { e.stopPropagation(); handleGroupBtn(g, btn); });
+    sb.appendChild(btn);
+  });
+}
+
+function handleGroupBtn(g, btnEl) {
+  if (g.id === 'hide') { HIDE=!HIDE; btnEl.classList.toggle('act',HIDE); redraw(); return; }
+  if (g.id === 'lock') {
+    const allLk = DRW.every(d=>d.locked);
+    DRW.forEach(d=>d.locked=!allLk); saveDrw(); btnEl.classList.toggle('act',!allLk); return;
+  }
+  if (g.id === 'delete') { TOOL=TOOL==='delete'?null:'delete'; updateSvgMode(); buildSidebar(); closeSub(); return; }
+  if (g.id === 'cursor') { TOOL='cursor'; SEL=null; hideFM(); updateSvgMode(); buildSidebar(); closeSub(); return; }
+  if (g.items.length === 0) return;
+  if (g.items.length === 1) { setTool(g.items[0].id); closeSub(); return; }
+  if (SUB_OPEN === g.id) { closeSub(); return; }
+  openSub(g, btnEl);
+}
+
+function openSub(g, btnEl) {
+  SUB_OPEN = g.id;
+  const sub = document.getElementById('sb-sub');
+  const r = btnEl.getBoundingClientRect();
+  sub.style.top = r.top+'px';
+  let html = '<div class="sub-title">'+g.label+'</div>';
+  g.items.forEach(it => {
+    html += '<button class="sub-item'+(TOOL===it.id?' act':'') + '" onclick="setTool(\''+it.id+'\');closeSub()"><div class="sub-dot"></div>'+it.label+'</button>';
+  });
+  sub.innerHTML = html; sub.classList.remove('hidden');
+}
+function closeSub() { SUB_OPEN=null; const s=document.getElementById('sb-sub'); if(s) s.classList.add('hidden'); }
+
+function setTool(id) {
+  TOOL=id; CUR_PTS=[]; FREE_PTS=[]; IP=null; SEL=null; hideFM(); updateSvgMode(); buildSidebar(); redraw();
+}
+function updateSvgMode() {
+  const svg = document.getElementById('drw-svg');
+  if (!svg) return;
+  svg.className = (!TOOL||TOOL==='cursor') ? 'cursor' : 'active';
+}
+
+// ── Redraw ───────────────────────────────────────────────────────
+function redraw() {
+  const svg = document.getElementById('drw-svg');
+  if (!svg||!chart||!candleSeries) return;
+  updateSize();
+  svg.setAttribute('viewBox','0 0 '+_W+' '+_H);
+  svg.setAttribute('width',_W); svg.setAttribute('height',_H);
+  let html = '';
+  if (!HIDE) { DRW.forEach(d => { if (d.visible!==false) html+=renderDrawing(d, d.id===SEL); }); }
+  if (IP) html += renderIP();
+  svg.innerHTML = html;
+  // Attach events to hit areas
+  svg.querySelectorAll('[data-did]').forEach(el => {
+    el.addEventListener('pointerdown', e => { e.stopPropagation(); handleDrawingClick(el.getAttribute('data-did'),e); }, {passive:false});
+  });
+  svg.querySelectorAll('[data-hdl]').forEach(el => {
+    el.addEventListener('pointerdown', e => { e.stopPropagation(); startResize(el.getAttribute('data-did'),parseInt(el.getAttribute('data-hdl')),e); }, {passive:false});
+  });
+}
+
+function renderDrawing(d, sel) {
+  const c=d.color||CLR, w=d.width||WID;
+  switch(d.type) {
+    case 'trendline': return rLine(d,sel,c,w,false,false);
+    case 'arrow':     return rLine(d,sel,c,w,true,false);
+    case 'ray':       return rLine(d,sel,c,w,false,true);
+    case 'hline':     return rHLine(d,sel,c,w);
+    case 'vline':     return rVLine(d,sel,c,w);
+    case 'channel':   return rChannel(d,sel,c,w);
+    case 'fibretracement': return rFib(d,sel,c,w);
+    case 'brush':     return rFreehand(d,sel,c,w,false);
+    case 'highlighter': return rFreehand(d,sel,c,w,true);
+    case 'rectangle': return rRect(d,sel,c,w);
+    case 'circle':    return rCircle(d,sel,c,w);
+    case 'text':      return rText(d,sel,c);
+    case 'note':      return rNote(d,sel,c,w);
+    case 'pricelabel': return rPriceLabel(d,sel,c,w);
+    case 'longposition':  return rPosition(d,sel,true);
+    case 'shortposition': return rPosition(d,sel,false);
+    case 'daterange': return rDateRange(d,sel,c,w);
+    case 'pricerange': return rPriceRange(d,sel,c,w);
+    default: return '';
+  }
+}
+
+function H(x,y,did,idx) {
+  if (x==null||y==null||isNaN(x)||isNaN(y)) return '';
+  return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="5" fill="#fff" stroke="#2962FF" stroke-width="2" data-hdl="'+idx+'" data-did="'+did+'" style="cursor:move;" />';
+}
+function hitL(x1,y1,x2,y2,did) {
+  return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="transparent" stroke-width="14" data-did="'+did+'" style="cursor:move;" />';
+}
+function F(n) { return (n||0).toFixed(1); }
+
+// ── Render: Line / Arrow / Ray ───────────────────────────────────
+function rLine(d,sel,c,w,arrow,ray) {
+  if (!d.pts||d.pts.length<2) return '';
+  const p1=dataToSvg(d.pts[0].price,d.pts[0].time), p2=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (p1.x==null||p2.x==null) return '';
+  let x1=p1.x,y1=p1.y,x2=p2.x,y2=p2.y;
+  if (ray) { const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1; x2=x1+(dx/len)*5000; y2=y1+(dy/len)*5000; }
+  const sc=sel?'#2962FF':c;
+  let s=hitL(p1.x,p1.y,x2,y2,d.id);
+  s+='<line x1="'+F(x1)+'" y1="'+F(y1)+'" x2="'+F(x2)+'" y2="'+F(y2)+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-linecap="round" />';
+  if (arrow) {
+    const dx=x2-p1.x,dy=y2-p1.y,len=Math.sqrt(dx*dx+dy*dy)||1,nx=dx/len,ny=dy/len;
+    const ax=x2-nx*10-ny*5,ay=y2-ny*10+nx*5,bx=x2-nx*10+ny*5,by=y2-ny*10-nx*5;
+    s+='<polygon points="'+F(x2)+','+F(y2)+' '+F(ax)+','+F(ay)+' '+F(bx)+','+F(by)+'" fill="'+sc+'" />';
+  }
+  if (sel) { s+=H(p1.x,p1.y,d.id,0); s+=H(p2.x,p2.y,d.id,1); }
+  return s;
+}
+
+// ── Render: Horizontal Line ──────────────────────────────────────
+function rHLine(d,sel,c,w) {
+  if (!d.pts||d.pts.length<1) return '';
+  const y=candleSeries.priceToCoordinate(d.pts[0].price);
+  if (y==null||isNaN(y)) return '';
+  const sc=sel?'#2962FF':c;
+  let s='<line x1="0" y1="'+F(y)+'" x2="'+_W+'" y2="'+F(y)+'" stroke="transparent" stroke-width="14" data-did="'+d.id+'" style="cursor:move;" />';
+  s+='<line x1="0" y1="'+F(y)+'" x2="'+_W+'" y2="'+F(y)+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="5,3" />';
+  s+='<rect x="'+(_W-84)+'" y="'+(y-11)+'" width="80" height="22" rx="3" fill="#1e222d" stroke="'+sc+'" stroke-width="1" />';
+  s+='<text x="'+(_W-44)+'" y="'+(y+4)+'" text-anchor="middle" font-size="10" fill="'+sc+'" font-family="monospace">'+fmtP(d.pts[0].price)+'</text>';
+  if (sel) s+=H(_W/2,y,d.id,0);
+  return s;
+}
+
+// ── Render: Vertical Line ────────────────────────────────────────
+function rVLine(d,sel,c,w) {
+  if (!d.pts||d.pts.length<1) return '';
+  const x=chart.timeScale().timeToCoordinate(d.pts[0].time);
+  if (x==null||isNaN(x)) return '';
+  const sc=sel?'#2962FF':c;
+  let s='<line x1="'+F(x)+'" y1="0" x2="'+F(x)+'" y2="'+_H+'" stroke="transparent" stroke-width="14" data-did="'+d.id+'" style="cursor:move;" />';
+  s+='<line x1="'+F(x)+'" y1="0" x2="'+F(x)+'" y2="'+_H+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="5,3" />';
+  if (sel) s+=H(x,_H/2,d.id,0);
+  return s;
+}
+
+// ── Render: Parallel Channel ─────────────────────────────────────
+function rChannel(d,sel,c,w) {
+  if (!d.pts||d.pts.length<3) return '';
+  const p1=dataToSvg(d.pts[0].price,d.pts[0].time),p2=dataToSvg(d.pts[1].price,d.pts[1].time),p3=dataToSvg(d.pts[2].price,d.pts[2].time);
+  if (p1.x==null) return '';
+  const dy=p3.y-p1.y, q1y=p1.y+dy, q2y=p2.y+dy;
+  const sc=sel?'#2962FF':c;
+  let s=hitL(p1.x,p1.y,p2.x,p2.y,d.id);
+  s+='<polygon points="'+F(p1.x)+','+F(p1.y)+' '+F(p2.x)+','+F(p2.y)+' '+F(p2.x)+','+F(q2y)+' '+F(p1.x)+','+F(q1y)+'" fill="'+sc+'22" />';
+  s+='<line x1="'+F(p1.x)+'" y1="'+F(p1.y)+'" x2="'+F(p2.x)+'" y2="'+F(p2.y)+'" stroke="'+sc+'" stroke-width="'+w+'" />';
+  s+='<line x1="'+F(p1.x)+'" y1="'+F(q1y)+'" x2="'+F(p2.x)+'" y2="'+F(q2y)+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="5,3" />';
+  if (sel) { s+=H(p1.x,p1.y,d.id,0); s+=H(p2.x,p2.y,d.id,1); s+=H(p3.x,p3.y,d.id,2); }
+  return s;
+}
+
+// ── Render: Fibonacci Retracement ────────────────────────────────
+function rFib(d,sel,c,w) {
+  if (!d.pts||d.pts.length<2) return '';
+  const p1=dataToSvg(d.pts[0].price,d.pts[0].time),p2=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (p1.x==null) return '';
+  const range=d.pts[1].price-d.pts[0].price;
+  const LEVS=[0,0.236,0.382,0.5,0.618,0.786,1];
+  const LCLR=['#26a69a','#f59e0b','#ef5350','#787b86','#3b82f6','#8b5cf6','#26a69a'];
+  const sc=sel?'#2962FF':null;
+  const x0=Math.min(p1.x,p2.x);
+  let s=hitL(p1.x,p1.y,p2.x,p2.y,d.id);
+  s+='<line x1="'+F(p1.x)+'" y1="'+F(p1.y)+'" x2="'+F(p2.x)+'" y2="'+F(p2.y)+'" stroke="'+(sc||c)+'" stroke-width="'+w+'" />';
+  LEVS.forEach((lv,i)=>{
+    const price=d.pts[0].price+range*lv;
+    const y=candleSeries.priceToCoordinate(price);
+    if (y==null||isNaN(y)) return;
+    const lc=sc||LCLR[i];
+    s+='<line x1="'+F(x0)+'" y1="'+F(y)+'" x2="'+_W+'" y2="'+F(y)+'" stroke="'+lc+'" stroke-width="1" stroke-dasharray="4,2" opacity="0.8" />';
+    s+='<text x="'+(x0+4)+'" y="'+(y-3)+'" font-size="9" fill="'+lc+'" font-family="monospace">'+(lv*100).toFixed(1)+'%  '+fmtP(price)+'</text>';
+  });
+  if (sel) { s+=H(p1.x,p1.y,d.id,0); s+=H(p2.x,p2.y,d.id,1); }
+  return s;
+}
+
+// ── Render: Brush / Highlighter ──────────────────────────────────
+function rFreehand(d,sel,c,w,hilight) {
+  if (!d.pts||d.pts.length<2) return '';
+  let pts='';
+  d.pts.forEach(pt=>{
+    const px=dataToSvg(pt.price,pt.time);
+    if (px.x!=null&&!isNaN(px.x)) pts+=F(px.x)+','+F(px.y)+' ';
+  });
+  if (!pts) return '';
+  const sc=sel?'#2962FF':c, sw=hilight?10:w, op=hilight?0.4:1;
+  let s='<polyline points="'+pts+'" stroke="transparent" stroke-width="16" fill="none" data-did="'+d.id+'" style="cursor:move;" />';
+  s+='<polyline points="'+pts+'" stroke="'+sc+'" stroke-width="'+sw+'" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="'+op+'" />';
+  return s;
+}
+
+// ── Render: Rectangle ────────────────────────────────────────────
+function rRect(d,sel,c,w) {
+  if (!d.pts||d.pts.length<2) return '';
+  const p1=dataToSvg(d.pts[0].price,d.pts[0].time),p2=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (p1.x==null) return '';
+  const x=Math.min(p1.x,p2.x),y=Math.min(p1.y,p2.y),rw=Math.abs(p2.x-p1.x),rh=Math.abs(p2.y-p1.y);
+  const sc=sel?'#2962FF':c;
+  let s='<rect x="'+F(x)+'" y="'+F(y)+'" width="'+F(rw)+'" height="'+F(rh)+'" stroke="transparent" stroke-width="8" fill="transparent" data-did="'+d.id+'" style="cursor:move;" />';
+  s+='<rect x="'+F(x)+'" y="'+F(y)+'" width="'+F(rw)+'" height="'+F(rh)+'" stroke="'+sc+'" stroke-width="'+w+'" fill="'+sc+'22" />';
+  if (sel) { s+=H(p1.x,p1.y,d.id,0); s+=H(p2.x,p1.y,d.id,1); s+=H(p1.x,p2.y,d.id,2); s+=H(p2.x,p2.y,d.id,3); }
+  return s;
+}
+
+// ── Render: Circle ───────────────────────────────────────────────
+function rCircle(d,sel,c,w) {
+  if (!d.pts||d.pts.length<2) return '';
+  const ctr=dataToSvg(d.pts[0].price,d.pts[0].time),edg=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (ctr.x==null) return '';
+  const r=Math.sqrt(Math.pow(edg.x-ctr.x,2)+Math.pow(edg.y-ctr.y,2));
+  const sc=sel?'#2962FF':c;
+  let s='<circle cx="'+F(ctr.x)+'" cy="'+F(ctr.y)+'" r="'+F(r)+'" stroke="transparent" stroke-width="10" fill="transparent" data-did="'+d.id+'" style="cursor:move;" />';
+  s+='<circle cx="'+F(ctr.x)+'" cy="'+F(ctr.y)+'" r="'+F(r)+'" stroke="'+sc+'" stroke-width="'+w+'" fill="'+sc+'22" />';
+  if (sel) { s+=H(ctr.x,ctr.y,d.id,0); s+=H(edg.x,edg.y,d.id,1); }
+  return s;
+}
+
+// ── Render: Text ─────────────────────────────────────────────────
+function rText(d,sel,c) {
+  if (!d.pts||d.pts.length<1) return '';
+  const p=dataToSvg(d.pts[0].price,d.pts[0].time);
+  if (p.x==null) return '';
+  const sc=sel?'#2962FF':c, txt=(d.text||'Text').replace(/</g,'&lt;');
+  let s='<text x="'+F(p.x)+'" y="'+F(p.y)+'" font-size="14" fill="'+sc+'" font-weight="bold" font-family="sans-serif" data-did="'+d.id+'" style="cursor:move;">'+txt+'</text>';
+  if (sel) s+=H(p.x,p.y,d.id,0);
+  return s;
+}
+
+// ── Render: Note ─────────────────────────────────────────────────
+function rNote(d,sel,c,w) {
+  if (!d.pts||d.pts.length<1) return '';
+  const p=dataToSvg(d.pts[0].price,d.pts[0].time);
+  if (p.x==null) return '';
+  const sc=sel?'#2962FF':c, txt=(d.text||'Note').replace(/</g,'&lt;'), bw=Math.max(60,txt.length*7+20);
+  let s='<rect x="'+F(p.x)+'" y="'+F(p.y-22)+'" width="'+bw+'" height="26" rx="4" fill="#1e222d" stroke="'+sc+'" stroke-width="1" data-did="'+d.id+'" style="cursor:move;" />';
+  s+='<text x="'+(p.x+8)+'" y="'+(p.y-5)+'" font-size="12" fill="'+sc+'" font-family="sans-serif">'+txt+'</text>';
+  if (sel) s+=H(p.x+bw/2,p.y-9,d.id,0);
+  return s;
+}
+
+// ── Render: Price Label ──────────────────────────────────────────
+function rPriceLabel(d,sel,c,w) {
+  if (!d.pts||d.pts.length<1) return '';
+  const p=dataToSvg(d.pts[0].price,d.pts[0].time);
+  if (p.x==null) return '';
+  const sc=sel?'#2962FF':c;
+  let s='<line x1="'+F(p.x)+'" y1="'+F(p.y)+'" x2="'+(_W-86)+'" y2="'+F(p.y)+'" stroke="'+sc+'" stroke-width="1" stroke-dasharray="3,2" data-did="'+d.id+'" style="cursor:move;" />';
+  s+='<rect x="'+(_W-86)+'" y="'+(p.y-11)+'" width="82" height="22" rx="3" fill="'+sc+'" />';
+  s+='<text x="'+(_W-45)+'" y="'+(p.y+4)+'" text-anchor="middle" font-size="10" fill="#000" font-weight="bold" font-family="monospace">'+fmtP(d.pts[0].price)+'</text>';
+  if (sel) s+=H(p.x,p.y,d.id,0);
+  return s;
+}
+
+// ── Render: Long / Short Position ────────────────────────────────
+function rPosition(d,sel,isLong) {
+  if (!d.pts||d.pts.length<2) return '';
+  const entry=dataToSvg(d.pts[0].price,d.pts[0].time),tgt=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (entry.x==null) return '';
+  const X=entry.x,W2=_W-X,ey=entry.y,ty=tgt.y;
+  const profC='#26a69a',lossC='#ef5350',fillC=ty<ey?profC:lossC;
+  let s='<rect x="'+F(X)+'" y="'+F(Math.min(ey,ty))+'" width="'+F(W2)+'" height="'+F(Math.abs(ty-ey))+'" fill="'+fillC+'44" data-did="'+d.id+'" style="cursor:move;" />';
+  s+='<line x1="'+F(X)+'" y1="'+F(ey)+'" x2="'+_W+'" y2="'+F(ey)+'" stroke="#d1d4dc" stroke-width="1.5" />';
+  s+='<line x1="'+F(X)+'" y1="'+F(ty)+'" x2="'+_W+'" y2="'+F(ty)+'" stroke="'+fillC+'" stroke-width="1.5" />';
+  s+='<text x="'+(X+6)+'" y="'+(ey-4)+'" font-size="9" fill="#d1d4dc" font-family="monospace">Entry '+fmtP(d.pts[0].price)+'</text>';
+  s+='<text x="'+(X+6)+'" y="'+(ty+12)+'" font-size="9" fill="'+fillC+'" font-family="monospace">Target '+fmtP(d.pts[1].price)+'</text>';
+  if (d.pts.length>=3) {
+    const stop=dataToSvg(d.pts[2].price,d.pts[2].time);
+    if (stop.x!=null) {
+      const sy=stop.y;
+      s+='<rect x="'+F(X)+'" y="'+F(Math.min(ey,sy))+'" width="'+F(W2)+'" height="'+F(Math.abs(sy-ey))+'" fill="'+lossC+'44" />';
+      s+='<line x1="'+F(X)+'" y1="'+F(sy)+'" x2="'+_W+'" y2="'+F(sy)+'" stroke="'+lossC+'" stroke-width="1.5" />';
+      s+='<text x="'+(X+6)+'" y="'+(sy+12)+'" font-size="9" fill="'+lossC+'" font-family="monospace">Stop '+fmtP(d.pts[2].price)+'</text>';
+      if (sel) s+=H(stop.x,stop.y,d.id,2);
+    }
+  }
+  if (sel) { s+=H(entry.x,entry.y,d.id,0); s+=H(tgt.x,tgt.y,d.id,1); }
+  return s;
+}
+
+// ── Render: Date Range ───────────────────────────────────────────
+function rDateRange(d,sel,c,w) {
+  if (!d.pts||d.pts.length<2) return '';
+  const p1=dataToSvg(d.pts[0].price,d.pts[0].time),p2=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (p1.x==null) return '';
+  const sc=sel?'#2962FF':c,x1=Math.min(p1.x,p2.x),x2=Math.max(p1.x,p2.x);
+  let s='<rect x="'+F(x1)+'" y="0" width="'+F(x2-x1)+'" height="'+_H+'" fill="'+sc+'22" data-did="'+d.id+'" style="cursor:move;" />';
+  s+='<line x1="'+F(p1.x)+'" y1="0" x2="'+F(p1.x)+'" y2="'+_H+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="4,2" />';
+  s+='<line x1="'+F(p2.x)+'" y1="0" x2="'+F(p2.x)+'" y2="'+_H+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="4,2" />';
+  if (sel) { s+=H(p1.x,_H/2,d.id,0); s+=H(p2.x,_H/2,d.id,1); }
+  return s;
+}
+
+// ── Render: Price Range ──────────────────────────────────────────
+function rPriceRange(d,sel,c,w) {
+  if (!d.pts||d.pts.length<2) return '';
+  const y1=candleSeries.priceToCoordinate(d.pts[0].price),y2=candleSeries.priceToCoordinate(d.pts[1].price);
+  if (y1==null||y2==null||isNaN(y1)||isNaN(y2)) return '';
+  const sc=sel?'#2962FF':c,mn=Math.min(y1,y2),mx=Math.max(y1,y2);
+  let s='<rect x="0" y="'+F(mn)+'" width="'+_W+'" height="'+F(mx-mn)+'" fill="'+sc+'22" data-did="'+d.id+'" style="cursor:move;" />';
+  s+='<line x1="0" y1="'+F(y1)+'" x2="'+_W+'" y2="'+F(y1)+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="4,2" />';
+  s+='<line x1="0" y1="'+F(y2)+'" x2="'+_W+'" y2="'+F(y2)+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="4,2" />';
+  if (sel) { s+=H(_W/2,y1,d.id,0); s+=H(_W/2,y2,d.id,1); }
+  return s;
+}
+
+// ── Render in-progress ───────────────────────────────────────────
+function renderIP() {
+  if (!IP) return '';
+  if ((IP==='brush'||IP==='highlighter')&&FREE_PTS.length>=4) {
+    let pts='';
+    for (let i=0;i<FREE_PTS.length;i+=2) pts+=F(FREE_PTS[i])+','+F(FREE_PTS[i+1])+' ';
+    const sw=IP==='highlighter'?10:WID, op=IP==='highlighter'?0.4:1;
+    return '<polyline points="'+pts+'" stroke="'+CLR+'" stroke-width="'+sw+'" fill="none" stroke-linecap="round" opacity="'+op+'" />';
+  }
+  if (CUR_PTS.length===0) return '';
+  let s='';
+  for (let i=0;i<CUR_PTS.length-1;i++) {
+    const a=dataToSvg(CUR_PTS[i].price,CUR_PTS[i].time),b=dataToSvg(CUR_PTS[i+1].price,CUR_PTS[i+1].time);
+    if (a.x!=null&&b.x!=null) s+='<line x1="'+F(a.x)+'" y1="'+F(a.y)+'" x2="'+F(b.x)+'" y2="'+F(b.y)+'" stroke="'+CLR+'" stroke-width="'+WID+'" stroke-dasharray="4,2" />';
+  }
+  if (_previewPt) {
+    const last=CUR_PTS[CUR_PTS.length-1];
+    const lp=dataToSvg(last.price,last.time);
+    if (lp.x!=null) s+='<line x1="'+F(lp.x)+'" y1="'+F(lp.y)+'" x2="'+F(_previewPt.x)+'" y2="'+F(_previewPt.y)+'" stroke="'+CLR+'" stroke-width="'+WID+'" stroke-dasharray="4,2" opacity="0.6" />';
+  }
+  return s;
+}
+
+let _previewPt = null;
+
+// ── Pointer events ───────────────────────────────────────────────
+function initDrawingEvents() {
+  const svg = document.getElementById('drw-svg');
+  if (!svg) return;
+  svg.addEventListener('pointerdown', onSvgDown, {passive:false});
+  svg.addEventListener('pointermove', onSvgMove, {passive:false});
+  svg.addEventListener('pointerup',   onSvgUp,   {passive:false});
+  svg.addEventListener('pointercancel', onSvgUp, {passive:false});
+}
+
+function onSvgDown(e) {
+  if (e.target.closest && (e.target.closest('#float-menu')||e.target.closest('#sidebar')||e.target.closest('#sb-sub'))) return;
+  closeSub();
+  const {x,y}=clientToSvg(e.clientX,e.clientY);
+  M_DOWN=true;
+  e.currentTarget.setPointerCapture(e.pointerId);
+
+  if (!TOOL||TOOL==='cursor') { SEL=null; hideFM(); redraw(); return; }
+  if (TOOL==='delete') return;
+
+  // Freehand
+  if (TOOL==='brush'||TOOL==='highlighter') { IP=TOOL; FREE_PTS=[x,y]; return; }
+
+  const pt=svgToData(x,y);
+  if (!pt.time&&pt.time!==0) return;
+
+  // Single-click tools
+  if (TOOL==='hline') {
+    const id=genId(); DRW.push({id,type:'hline',pts:[{price:pt.price,time:pt.time}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
+  }
+  if (TOOL==='vline') {
+    const id=genId(); DRW.push({id,type:'vline',pts:[{price:pt.price,time:pt.time}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
+  }
+  if (TOOL==='pricelabel') {
+    const id=genId(); DRW.push({id,type:'pricelabel',pts:[{price:pt.price,time:pt.time}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
+  }
+  if (TOOL==='text'||TOOL==='note') {
+    const def=TOOL==='text'?'Text':'Note';
+    const txt=prompt('Enter '+(TOOL==='text'?'text':'note')+':',def);
+    if (txt==null) return;
+    const id=genId(); DRW.push({id,type:TOOL,pts:[{price:pt.price,time:pt.time}],color:CLR,width:WID,text:txt,visible:true,locked:false}); saveDrw(); redraw(); return;
+  }
+
+  // Multi-point tools
+  if (CUR_PTS.length===0) { IP=TOOL; CUR_PTS=[pt]; }
+  else {
+    CUR_PTS.push(pt);
+    const needed=getToolPts(TOOL)||2;
+    if (CUR_PTS.length>=needed) finishDrawing();
+  }
+}
+
+function onSvgMove(e) {
+  if (!M_DOWN) return;
+  e.preventDefault();
+  const {x,y}=clientToSvg(e.clientX,e.clientY);
+  if (IP==='brush'||IP==='highlighter') { FREE_PTS.push(x,y); redraw(); return; }
+  if (IP&&CUR_PTS.length>0) {
+    _previewPt={x,y}; redraw();
+  }
+}
+
+function onSvgUp(e) {
+  M_DOWN=false; _previewPt=null;
+  if (IP==='brush'||IP==='highlighter') {
+    if (FREE_PTS.length>=4) {
+      const pts=[];
+      for (let i=0;i<FREE_PTS.length;i+=2) { const pt=svgToData(FREE_PTS[i],FREE_PTS[i+1]); if(pt.time) pts.push(pt); }
+      if (pts.length>=2) { const id=genId(); DRW.push({id,type:IP,pts,color:CLR,width:WID,visible:true,locked:false}); saveDrw(); }
+    }
+    IP=null; FREE_PTS=[]; CUR_PTS=[]; redraw();
+  }
+}
+
+function finishDrawing() {
+  if (!IP||CUR_PTS.length===0) return;
+  const id=genId();
+  DRW.push({id,type:IP,pts:[...CUR_PTS],color:CLR,width:WID,visible:true,locked:false});
+  saveDrw(); CUR_PTS=[]; IP=null; _previewPt=null; redraw();
+}
+
+// ── Handle click on drawing element ─────────────────────────────
+function handleDrawingClick(did,e) {
+  if (TOOL==='delete') { DRW=DRW.filter(d=>d.id!==did); saveDrw(); redraw(); return; }
+  if (!TOOL||TOOL==='cursor') {
+    const d=DRW.find(x=>x.id===did);
+    if (!d||d.locked) return;
+    SEL=did; showFM(d,e); redraw();
+  }
+}
+
+// ── Drag to move selected drawing ────────────────────────────────
+function startMove(did,e) {
+  const d=DRW.find(x=>x.id===did);
+  if (!d||d.locked) return;
+  SEL=did; redraw();
+  const startXY=clientToSvg(e.clientX,e.clientY);
+  const origPts=JSON.parse(JSON.stringify(d.pts));
+  const startData=svgToData(startXY.x,startXY.y);
+  const onMove=ev=>{
+    const cur=clientToSvg(ev.clientX,ev.clientY);
+    const curData=svgToData(cur.x,cur.y);
+    if (!curData.time&&curData.time!==0) return;
+    const dPrice=curData.price-(startData.price||0);
+    const dTime=(curData.time||0)-(startData.time||0);
+    d.pts=origPts.map(pt=>({price:(pt.price||0)+dPrice,time:(pt.time||0)+dTime}));
+    redraw();
+  };
+  const onUp=()=>{ saveDrw(); document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp); };
+  document.addEventListener('pointermove',onMove); document.addEventListener('pointerup',onUp);
+}
+
+// ── Resize handle ─────────────────────────────────────────────────
+function startResize(did,idx,e) {
+  const d=DRW.find(x=>x.id===did);
+  if (!d||d.locked) return;
+  SEL=did; redraw();
+  const onMove=ev=>{
+    const {x,y}=clientToSvg(ev.clientX,ev.clientY);
+    const pt=svgToData(x,y);
+    if (!pt.time&&pt.time!==0) return;
+    if (d.type==='rectangle') {
+      if (idx===0) { d.pts[0]={price:pt.price,time:pt.time}; }
+      else if (idx===1) { d.pts[1]=d.pts[1]||{}; d.pts[0].time=pt.time; d.pts[1].price=d.pts[0].price; d.pts[1].time=pt.time; }
+      else if (idx===2) { d.pts[0].time=pt.time; d.pts[1]=d.pts[1]||{}; d.pts[1].price=pt.price; }
+      else { if(!d.pts[1]) d.pts[1]={}; d.pts[1].price=pt.price; d.pts[1].time=pt.time; }
+    } else if (d.pts[idx]!==undefined) {
+      d.pts[idx]={price:pt.price,time:pt.time};
+    }
+    redraw();
+  };
+  const onUp=()=>{ saveDrw(); document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp); };
+  document.addEventListener('pointermove',onMove,{passive:false});
+  document.addEventListener('pointerup',onUp);
+}
+
+// ── Select / Deselect ─────────────────────────────────────────────
+function deselectAll() { SEL=null; hideFM(); redraw(); }
+
+// ── Float menu actions ─────────────────────────────────────────────
+function showFM(d,e) {
+  const fm=document.getElementById('float-menu');
+  if (!fm) return;
+  fm.classList.remove('hidden');
+  const fx=Math.min(e?e.clientX:200,window.innerWidth-210);
+  const fy=Math.max(e?(e.clientY-70):120,50);
+  fm.style.left=fx+'px'; fm.style.top=fy+'px';
+  const lk=document.getElementById('fm-lck');
+  if (lk) lk.textContent=d.locked?'🔓 Unlock':'🔒 Lock';
+  const cl=document.getElementById('fm-clr');
+  if (cl) cl.value=d.color||'#f0b90b';
+}
+function hideFM() { const fm=document.getElementById('float-menu'); if(fm) fm.classList.add('hidden'); }
+function deleteSel() {
+  if (!SEL) return;
+  DRW=DRW.filter(d=>d.id!==SEL); SEL=null; hideFM(); saveDrw(); redraw();
+}
+function colorSel(v) {
+  if (!SEL) return;
+  const d=DRW.find(x=>x.id===SEL); if(d){d.color=v;saveDrw();redraw();}
+}
+function lockSel() {
+  if (!SEL) return;
+  const d=DRW.find(x=>x.id===SEL);
+  if (d) {
+    d.locked=!d.locked; saveDrw();
+    if (d.locked){SEL=null;hideFM();}
+    else { const lk=document.getElementById('fm-lck'); if(lk) lk.textContent='🔒 Lock'; }
+    redraw();
+  }
+}
+
+// ── Subscribe to chart viewport changes ───────────────────────────
+function subscribeChartRedraw() {
+  if (!chart) return;
+  try { chart.timeScale().subscribeVisibleLogicalRangeChange(()=>redraw()); } catch {}
+  try { chart.priceScale('right').subscribeVisiblePriceRangeChange(()=>redraw()); } catch {}
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+function initDrwEngine() {
+  loadDrw();
+  buildSidebar();
+  updateSvgMode();
+  initDrawingEvents();
+  subscribeChartRedraw();
+  setTimeout(redraw,300);
+}
 </script>
 </body>
 </html>`;

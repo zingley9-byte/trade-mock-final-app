@@ -111,10 +111,30 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [webDrawings,  setWebDrawings] = useState<any[]>([]);
   const [webCurrent,   setWebCurrent]  = useState<any>(null);
   const [showWebDraw,  setShowWebDraw] = useState(true);
-  const [drawTick,     setDrawTick]    = useState(0);  // bumped on chart pan/zoom so hlines repaint
-  const [isWebFS,          setIsWebFS]          = useState(false);
+  const [drawTick,     setDrawTick]    = useState(0);
+  const [selectedDrwId,setSelectedDrwId] = useState<string|null>(null);
+  const [drwColor,     setDrwColor]    = useState("#f0b90b");
+  const [drwWidth,     setDrwWidth]    = useState(1.5);
+  const [floatMenu,    setFloatMenu]   = useState<{x:number;y:number;id:string}|null>(null);
+  const [subMenu,      setSubMenu]     = useState<string|null>(null);
+  const [openSubGroup, setOpenSubGroup]= useState<string|null>(null);
+  const [isWebFS,      setIsWebFS]     = useState(false);
   const wrapperRef  = useRef<HTMLDivElement>(null);
   const svgRef      = useRef<SVGSVGElement>(null);
+  const drwCurPts   = useRef<any[]>([]);
+  const drwFreehand = useRef<number[]>([]);
+  const drwMDown    = useRef(false);
+  const drwPreview  = useRef<{x:number;y:number}|null>(null);
+  const DRW_KEY = "tm_drw_v2";
+
+  // Load drawings from localStorage on mount
+  useEffect(()=>{
+    try { const s=localStorage.getItem(DRW_KEY); if(s) setWebDrawings(JSON.parse(s)); } catch{}
+  },[]);
+  // Save drawings when they change
+  useEffect(()=>{
+    try { localStorage.setItem(DRW_KEY, JSON.stringify(webDrawings)); } catch{}
+  },[webDrawings]);
 
   // Track browser fullscreen state
   useEffect(() => {
@@ -323,171 +343,405 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     };
   }, [symbol, timeframe, initChart]);
 
-  // ── SVG drawing overlay helpers ──────────────────────────────────────────
-  const DRAW_TOOLS = new Set(["crosshair","trendline","hline","brush","text","smile","ruler","zoom","pattern","nodes"]);
-  const TOGGLE_TOOLS = new Set(["magnet","lockedit","lock","eye"]);
-  const isDrawActive = activeTool && DRAW_TOOLS.has(activeTool) && activeTool !== "crosshair";
+  // ── Drawing helpers ───────────────────────────────────────────────────────
+  const isDrawActive = !!(activeTool && activeTool !== "cursor" && activeTool !== "delete");
+  const WEB_TOOL_GROUPS = [
+    { id:"cursor", label:"Cursor", icon:"⊕", items:[] },
+    { id:"lines",  label:"Lines",  icon:"⟋", items:[
+      {id:"trendline",label:"Trend Line"},{id:"arrow",label:"Arrow"},{id:"ray",label:"Ray"},
+      {id:"hline",label:"Horizontal Line"},{id:"vline",label:"Vertical Line"},{id:"channel",label:"Parallel Channel"},
+    ]},
+    { id:"fib",    label:"Fib",    icon:"≡", items:[{id:"fibretracement",label:"Fib Retracement"}] },
+    { id:"shapes", label:"Shapes", icon:"□", items:[{id:"rectangle",label:"Rectangle"},{id:"circle",label:"Circle"}] },
+    { id:"brush",  label:"Brush",  icon:"✏", items:[{id:"brush",label:"Brush"},{id:"highlighter",label:"Highlighter"}] },
+    { id:"text",   label:"Text",   icon:"T", items:[{id:"text",label:"Text"},{id:"note",label:"Note"},{id:"pricelabel",label:"Price Label"}] },
+    { id:"measure",label:"Measure",icon:"⊙", items:[
+      {id:"longposition",label:"Long Position"},{id:"shortposition",label:"Short Position"},
+      {id:"daterange",label:"Date Range"},{id:"pricerange",label:"Price Range"},
+    ]},
+  ];
+  const WEB_TOGGLE_TOOLS = [
+    { id:"hide",   label:"Hide/Show", icon:"👁" },
+    { id:"lock",   label:"Lock All",  icon:"🔒" },
+    { id:"delete", label:"Delete",    icon:"🗑" },
+  ];
 
-  // Primary tool for each group — clicking group icon directly activates this
-  const GROUP_PRIMARY: Record<string, string> = {
-    cursor:"__cursor__", lines:"trendline", fib:"trendline", patterns:"brush",
-    forecast:"ruler", brush:"brush", text:"text", emoji:"smile", ruler:"ruler", zoom:"zoom",
-  };
-
-  function getSvgXY(e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>, touch?: React.Touch) {
-    const r = e.currentTarget.getBoundingClientRect();
-    const clientX = touch ? touch.clientX : (e as React.MouseEvent).clientX;
-    const clientY = touch ? touch.clientY : (e as React.MouseEvent).clientY;
-    return { x: clientX - r.left, y: clientY - r.top };
+  function getToolPts(id: string) {
+    for (const g of WEB_TOOL_GROUPS) for (const it of g.items) if (it.id===id) return (it as any).pts ?? 2;
+    return 2;
   }
+
+  function getSvgXY(e: React.MouseEvent | React.TouchEvent | Touch, isTouchObj=false) {
+    const rect = svgRef.current?.getBoundingClientRect() ?? {left:0,top:0};
+    const clientX = isTouchObj ? (e as Touch).clientX : (e as React.MouseEvent).clientX;
+    const clientY = isTouchObj ? (e as Touch).clientY : (e as React.MouseEvent).clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+  function svgToData(x: number, y: number) {
+    const time = chartRef.current?.timeScale().coordinateToTime(x) ?? null;
+    const price = candleRef.current?.coordinateToPrice(y) ?? null;
+    return { time, price };
+  }
+  function dataToSvgXY(price: number, time: number) {
+    const x = chartRef.current?.timeScale().timeToCoordinate(time) ?? null;
+    const y = candleRef.current?.priceToCoordinate(price) ?? null;
+    return { x, y };
+  }
+  function fmtPrc(p: number) {
+    if (p>=10000) return p.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    if (p>=1) return p.toFixed(4); return p.toFixed(6);
+  }
+  function genDrwId() { return "drw_"+Date.now()+"_"+Math.random().toString(36).slice(2,6); }
+
   function handleToolClick(id: string) {
-    if (id === "eye")   { setShowWebDraw(v => !v); return; }
-    if (id === "clear") { setWebDrawings([]); return; }
-    setActiveTool(prev => prev === id ? null : id);
-  }
-
-  function applyDown(x: number, y: number) {
-    if (activeTool === "hline") {
-      const price = candleRef.current?.coordinateToPrice(y);
-      if (price != null) setWebDrawings(d => [...d, { type:"hline", price }]);
+    if (id==="hide") { setShowWebDraw(v=>!v); return; }
+    if (id==="lock") {
+      setWebDrawings(ds=>{ const allLk=ds.every(d=>d.locked); return ds.map(d=>({...d,locked:!allLk})); });
       return;
     }
-    if (activeTool === "trendline" || activeTool === "ruler") {
-      setWebCurrent({ type: activeTool, x1:x, y1:y, x2:x, y2:y }); return;
-    }
-    if (activeTool === "brush") {
-      setWebCurrent({ type:"brush", pts:[x,y], x1:x, y1:y, x2:x, y2:y }); return;
-    }
-    if (activeTool === "text") {
-      setWebDrawings(d => [...d, { type:"text", x, y }]); return;
-    }
-    if (activeTool === "smile") {
-      setWebDrawings(d => [...d, { type:"emoji", x, y }]); return;
-    }
-  }
-  function applyMove(x: number, y: number) {
-    if (!webCurrent) return;
-    if (webCurrent.type === "brush") {
-      setWebCurrent((c:any) => ({ ...c, x2:x, y2:y, pts:[...c.pts,x,y] }));
-    } else {
-      setWebCurrent((c:any) => ({ ...c, x2:x, y2:y }));
-    }
-  }
-  function applyUp(x: number, y: number) {
-    if (!webCurrent) return;
-    const cd = { ...webCurrent, x2:x, y2:y };
-    if (cd.type === "brush") {
-      if (cd.pts.length > 4) setWebDrawings(d => [...d, { type:"brush", pts:cd.pts }]);
-    } else if (cd.type === "ruler") {
-      if (Math.abs(cd.y2 - cd.y1) > 4) setWebDrawings(d => [...d, cd]);
-    } else {
-      if (Math.abs(cd.x2-cd.x1) > 5 || Math.abs(cd.y2-cd.y1) > 5) setWebDrawings(d => [...d, cd]);
-    }
-    setWebCurrent(null);
-    // Tool stays active — user must click Cursor to deselect
-  }
-
-  // Mouse handlers
-  function handleSvgDown(e: React.MouseEvent<SVGSVGElement>) {
-    const { x, y } = getSvgXY(e);
-    applyDown(x, y);
-  }
-  function handleSvgMove(e: React.MouseEvent<SVGSVGElement>) {
-    const { x, y } = getSvgXY(e);
-    applyMove(x, y);
-  }
-  function handleSvgUp(e: React.MouseEvent<SVGSVGElement>) {
-    const { x, y } = getSvgXY(e);
-    applyUp(x, y);
-  }
-
-  // Touch handlers (mobile)
-  function handleSvgTouchStart(e: React.TouchEvent<SVGSVGElement>) {
-    e.preventDefault();
-    const t = e.changedTouches[0];
-    const { x, y } = getSvgXY(e, t);
-    applyDown(x, y);
-  }
-  function handleSvgTouchMove(e: React.TouchEvent<SVGSVGElement>) {
-    e.preventDefault();
-    const t = e.changedTouches[0];
-    const { x, y } = getSvgXY(e, t);
-    applyMove(x, y);
-  }
-  function handleSvgTouchEnd(e: React.TouchEvent<SVGSVGElement>) {
-    e.preventDefault();
-    const t = e.changedTouches[0];
-    const { x, y } = getSvgXY(e, t);
-    applyUp(x, y);
+    setActiveTool(prev => prev===id ? null : id);
+    setSelectedDrwId(null); setFloatMenu(null);
+    drwCurPts.current=[]; drwFreehand.current=[]; setWebCurrent(null);
+    setOpenSubGroup(null);
   }
   function handleFullscreen() {
     const el = wrapperRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) el.requestFullscreen?.().catch(() => {});
+    if (!document.fullscreenElement) el.requestFullscreen?.().catch(()=>{});
     else document.exitFullscreen?.();
   }
-  function renderWebDraw(d: any, i: number) {
-    void drawTick; // dependency — causes repaint when chart pans so hlines follow price
-    if (d.type === "hline") {
-      const py = candleRef.current?.priceToCoordinate(d.price);
-      const svgH = svgRef.current?.clientHeight ?? 9999;
-      if (py == null || py < -10 || py > svgH + 10) return null;
-      return (
-        <g key={i}>
-          <line x1={0} y1={py} x2={9999} y2={py} stroke={C.gold} strokeWidth={1} strokeDasharray="4 2"/>
-          <rect x={4} y={py-9} width={82} height={18} rx={3} fill={C.panel} stroke={C.border}/>
-          <text x={8} y={py+4} style={{ fontSize:10, fill:C.gold, fontFamily:"monospace" }}>{fmt(d.price,2)}</text>
-        </g>
-      );
+
+  // ── SVG Pointer handlers ───────────────────────────────────────────────────
+  function onSvgPointerDown(e: React.PointerEvent<SVGSVGElement>) {
+    if (!activeTool || activeTool==="cursor") { setSelectedDrwId(null); setFloatMenu(null); return; }
+    const {x,y} = getSvgXY(e);
+    drwMDown.current = true;
+    (e.currentTarget as any).setPointerCapture?.(e.pointerId);
+
+    if (activeTool==="delete") return;
+    if (activeTool==="brush"||activeTool==="highlighter") {
+      drwFreehand.current=[x,y]; setWebCurrent({type:activeTool,free:[x,y]}); return;
     }
-    if (d.type === "trendline")
-      return <line key={i} x1={d.x1} y1={d.y1} x2={d.x2} y2={d.y2} stroke={C.gold} strokeWidth={1.5}/>;
-    if (d.type === "ruler") {
-      const mx=(d.x1+d.x2)/2, my=(d.y1+d.y2)/2;
-      const p1 = candleRef.current?.coordinateToPrice(d.y1) ?? 0;
-      const p2 = candleRef.current?.coordinateToPrice(d.y2) ?? 0;
-      const pct = p1 ? ((Math.abs(p2-p1)/Math.abs(p1))*100).toFixed(2) : "0.00";
-      return (
-        <g key={i}>
-          <line x1={Math.min(d.x1,d.x2)} y1={d.y1} x2={Math.max(d.x1,d.x2)} y2={d.y1} stroke={C.gold} strokeWidth={1}/>
-          <line x1={d.x2} y1={d.y1} x2={d.x2} y2={d.y2} stroke={C.gold} strokeWidth={1}/>
-          <line x1={Math.min(d.x1,d.x2)} y1={d.y2} x2={Math.max(d.x1,d.x2)} y2={d.y2} stroke={C.gold} strokeWidth={1}/>
-          <rect x={mx-30} y={my-9} width={60} height={18} rx={3} fill={C.panel} stroke={C.border}/>
-          <text x={mx} y={my+4} style={{ fontSize:10, fill:C.gold, textAnchor:"middle" as const }}>{pct}%</text>
-        </g>
-      );
+    const pt = svgToData(x,y);
+    if (!pt.time && pt.time!==0) return;
+    // single-click tools
+    if (activeTool==="hline") {
+      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"hline",pts:[{price:pt.price,time:pt.time}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
+      return;
     }
-    if (d.type === "brush") {
-      const pts = d.pts as number[];
-      if (pts.length < 4) return null;
-      let path = "";
-      for (let j=0; j<pts.length; j+=2) path += `${j===0?"M":"L"}${pts[j]},${pts[j+1]} `;
-      return <path key={i} d={path.trim()} stroke={C.gold} strokeWidth={1.5} fill="none"/>;
+    if (activeTool==="vline") {
+      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"vline",pts:[{price:pt.price,time:pt.time}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
+      return;
     }
-    if (d.type === "text")  return <text key={i} x={d.x} y={d.y} style={{ fontSize:14, fill:C.gold, fontWeight:"bold" }}>A</text>;
-    if (d.type === "emoji") return <text key={i} x={d.x} y={d.y} style={{ fontSize:18 }}>★</text>;
+    if (activeTool==="pricelabel") {
+      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"pricelabel",pts:[{price:pt.price,time:pt.time}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
+      return;
+    }
+    if (activeTool==="text"||activeTool==="note") {
+      const txt = window.prompt("Enter "+(activeTool==="text"?"text":"note")+":", activeTool==="text"?"Text":"Note");
+      if (txt==null) return;
+      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts:[{price:pt.price,time:pt.time}],color:drwColor,width:drwWidth,text:txt,visible:true,locked:false}]);
+      return;
+    }
+    // multi-point tools
+    if (drwCurPts.current.length===0) {
+      drwCurPts.current=[pt]; setWebCurrent({type:activeTool,pts:[pt],preview:null});
+    } else {
+      const newPts=[...drwCurPts.current,pt];
+      const needed=getToolPts(activeTool)||2;
+      if (newPts.length>=needed) {
+        setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts:newPts,color:drwColor,width:drwWidth,visible:true,locked:false}]);
+        drwCurPts.current=[]; setWebCurrent(null);
+      } else {
+        drwCurPts.current=newPts; setWebCurrent({type:activeTool,pts:newPts,preview:null});
+      }
+    }
+  }
+  function onSvgPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    if (!drwMDown.current) return;
+    const {x,y}=getSvgXY(e);
+    if (activeTool==="brush"||activeTool==="highlighter") {
+      drwFreehand.current=[...drwFreehand.current,x,y];
+      setWebCurrent((c:any)=>c?{...c,free:[...drwFreehand.current]}:null);
+      return;
+    }
+    if (drwCurPts.current.length>0) {
+      drwPreview.current={x,y};
+      setWebCurrent((c:any)=>c?{...c,preview:{x,y}}:null);
+    }
+  }
+  function onSvgPointerUp(e: React.PointerEvent<SVGSVGElement>) {
+    drwMDown.current=false;
+    if (activeTool==="brush"||activeTool==="highlighter") {
+      const fp=drwFreehand.current;
+      if (fp.length>=4) {
+        const pts:any[]=[];
+        for (let i=0;i<fp.length;i+=2) { const pt=svgToData(fp[i],fp[i+1]); if(pt.time) pts.push(pt); }
+        if (pts.length>=2) setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts,color:drwColor,width:drwWidth,visible:true,locked:false}]);
+      }
+      drwFreehand.current=[]; setWebCurrent(null);
+    }
+  }
+  function handleSvgDown(e: React.MouseEvent<SVGSVGElement>) { onSvgPointerDown(e as any); }
+  function handleSvgMove(e: React.MouseEvent<SVGSVGElement>) { onSvgPointerMove(e as any); }
+  function handleSvgUp(e: React.MouseEvent<SVGSVGElement>)   { onSvgPointerUp(e as any); }
+  function handleSvgTouchStart(e: React.TouchEvent<SVGSVGElement>) {
+    e.preventDefault(); const t=e.changedTouches[0]; onSvgPointerDown({clientX:t.clientX,clientY:t.clientY,currentTarget:e.currentTarget,pointerId:0,setPointerCapture:()=>{}} as any);
+  }
+  function handleSvgTouchMove(e: React.TouchEvent<SVGSVGElement>) {
+    e.preventDefault(); const t=e.changedTouches[0]; onSvgPointerMove({clientX:t.clientX,clientY:t.clientY,currentTarget:e.currentTarget} as any);
+  }
+  function handleSvgTouchEnd(e: React.TouchEvent<SVGSVGElement>) {
+    e.preventDefault(); onSvgPointerUp({} as any);
+  }
+
+  function onDrawingClick(id: string, e: React.MouseEvent) {
+    if (activeTool==="delete") { setWebDrawings(ds=>ds.filter(d=>d.id!==id)); return; }
+    if (!activeTool||activeTool==="cursor") {
+      const d=webDrawings.find(x=>x.id===id); if(!d||d.locked) return;
+      setSelectedDrwId(id); setFloatMenu({x:e.clientX,y:e.clientY,id});
+    }
+  }
+  function onHandlePointerDown(did: string, idx: number, e: React.PointerEvent) {
+    e.stopPropagation();
+    const d=webDrawings.find(x=>x.id===did); if(!d||d.locked) return;
+    setSelectedDrwId(did);
+    const onMove=(ev:PointerEvent)=>{
+      const rect=svgRef.current?.getBoundingClientRect()??{left:0,top:0};
+      const x=ev.clientX-rect.left,y=ev.clientY-rect.top;
+      const pt=svgToData(x,y); if(!pt.time&&pt.time!==0) return;
+      setWebDrawings(ds=>ds.map(dr=>{
+        if(dr.id!==did) return dr;
+        const newPts=[...dr.pts];
+        if(dr.type==="rectangle"){
+          if(idx===0) newPts[0]={price:pt.price,time:pt.time};
+          else if(idx===3) newPts[1]={price:pt.price,time:pt.time};
+          else if(idx===1) { newPts[0]={...newPts[0],time:pt.time}; newPts[1]={...newPts[1],price:(newPts[0]||{}).price}; }
+          else { newPts[0]={...newPts[0],time:pt.time}; if(newPts[1]) newPts[1]={...newPts[1],price:pt.price}; }
+        } else if(newPts[idx]!==undefined) newPts[idx]={price:pt.price,time:pt.time};
+        return {...dr,pts:newPts};
+      }));
+    };
+    const onUp=()=>{ document.removeEventListener("pointermove",onMove); document.removeEventListener("pointerup",onUp); };
+    document.addEventListener("pointermove",onMove); document.addEventListener("pointerup",onUp);
+  }
+
+  // ── Render each drawing type ────────────────────────────────────────────────
+  function H(x:any,y:any,did:string,idx:number) {
+    if (x==null||y==null||isNaN(x)||isNaN(y)) return null;
+    return <circle key={"h"+idx} cx={x} cy={y} r={5} fill="#fff" stroke="#2962FF" strokeWidth={2} style={{cursor:"move"}} onPointerDown={ev=>{ev.stopPropagation();onHandlePointerDown(did,idx,ev);}}/>;
+  }
+
+  function renderOneDraw(d: any, sel: boolean) {
+    void drawTick;
+    const c=d.color||C.gold, w=d.width||1.5, sc=sel?"#2962FF":c;
+    const hitProps = { style:{cursor:"move"} as any, onClick:(e:React.MouseEvent)=>{e.stopPropagation();onDrawingClick(d.id,e);} };
+
+    if (d.type==="trendline"||d.type==="arrow"||d.type==="ray") {
+      if (!d.pts||d.pts.length<2) return null;
+      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if (p1.x==null||p2.x==null) return null;
+      let x1=p1.x,y1=p1.y!,x2=p2.x,y2=p2.y!;
+      if (d.type==="ray") { const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1; x2=x1+(dx/len)*5000; y2=y1+(dy/len)*5000; }
+      const arrow=d.type==="arrow";
+      return <g key={d.id}>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={14} {...hitProps}/>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={sc} strokeWidth={w} strokeLinecap="round"/>
+        {arrow&&(()=>{const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1,nx=dx/len,ny=dy/len;return<polygon points={`${x2},${y2} ${x2-nx*10-ny*5},${y2-ny*10+nx*5} ${x2-nx*10+ny*5},${y2-ny*10-nx*5}`} fill={sc}/>;})()}
+        {sel&&[H(p1.x,p1.y,d.id,0),H(p2.x,p2.y,d.id,1)]}
+      </g>;
+    }
+    if (d.type==="hline") {
+      if (!d.pts||d.pts.length<1) return null;
+      const y=candleRef.current?.priceToCoordinate(d.pts[0].price);
+      if (y==null) return null;
+      const svgW=svgRef.current?.clientWidth??3000;
+      return <g key={d.id}>
+        <line x1={0} y1={y} x2={svgW} y2={y} stroke="transparent" strokeWidth={14} {...hitProps}/>
+        <line x1={0} y1={y} x2={svgW} y2={y} stroke={sc} strokeWidth={w} strokeDasharray="5 3"/>
+        <rect x={svgW-84} y={y-11} width={80} height={22} rx={3} fill={C.panel} stroke={sc} strokeWidth={1}/>
+        <text x={svgW-44} y={y+4} textAnchor="middle" style={{fontSize:10,fill:sc,fontFamily:"monospace"}}>{fmtPrc(d.pts[0].price)}</text>
+        {sel&&H(svgW/2,y,d.id,0)}
+      </g>;
+    }
+    if (d.type==="vline") {
+      if (!d.pts||d.pts.length<1) return null;
+      const x=chartRef.current?.timeScale().timeToCoordinate(d.pts[0].time);
+      if (x==null) return null;
+      const svgH=svgRef.current?.clientHeight??1000;
+      return <g key={d.id}>
+        <line x1={x} y1={0} x2={x} y2={svgH} stroke="transparent" strokeWidth={14} {...hitProps}/>
+        <line x1={x} y1={0} x2={x} y2={svgH} stroke={sc} strokeWidth={w} strokeDasharray="5 3"/>
+        {sel&&H(x,svgH/2,d.id,0)}
+      </g>;
+    }
+    if (d.type==="channel") {
+      if (!d.pts||d.pts.length<3) return null;
+      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time),p3=dataToSvgXY(d.pts[2].price,d.pts[2].time);
+      if (p1.x==null) return null;
+      const dy=p3.y!-p1.y!, q1y=p1.y!+dy, q2y=p2.y!+dy;
+      return <g key={d.id}>
+        <polygon points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${p2.x},${q2y} ${p1.x},${q1y}`} fill={sc+"22"} {...hitProps}/>
+        <line x1={p1.x} y1={p1.y!} x2={p2.x!} y2={p2.y!} stroke={sc} strokeWidth={w}/>
+        <line x1={p1.x} y1={q1y} x2={p2.x!} y2={q2y} stroke={sc} strokeWidth={w} strokeDasharray="5 3"/>
+        {sel&&[H(p1.x,p1.y,d.id,0),H(p2.x,p2.y,d.id,1),H(p3.x,p3.y,d.id,2)]}
+      </g>;
+    }
+    if (d.type==="fibretracement") {
+      if (!d.pts||d.pts.length<2) return null;
+      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if (p1.x==null) return null;
+      const range=d.pts[1].price-d.pts[0].price;
+      const LEVS=[0,0.236,0.382,0.5,0.618,0.786,1];
+      const LCLR=["#26a69a","#f59e0b","#ef5350","#787b86","#3b82f6","#8b5cf6","#26a69a"];
+      const svgW=svgRef.current?.clientWidth??3000;
+      const x0=Math.min(p1.x!,p2.x!);
+      return <g key={d.id}>
+        <line x1={p1.x!} y1={p1.y!} x2={p2.x!} y2={p2.y!} stroke={sc} strokeWidth={w} {...hitProps}/>
+        {LEVS.map((lv,i)=>{
+          const price=d.pts[0].price+range*lv;
+          const fy=candleRef.current?.priceToCoordinate(price);
+          if (fy==null) return null;
+          const lc=sel?"#2962FF":LCLR[i];
+          return <g key={i}>
+            <line x1={x0} y1={fy} x2={svgW} y2={fy} stroke={lc} strokeWidth={1} strokeDasharray="4 2" opacity={0.8}/>
+            <text x={x0+4} y={fy-3} style={{fontSize:9,fill:lc,fontFamily:"monospace"}}>{(lv*100).toFixed(1)}%  {fmtPrc(price)}</text>
+          </g>;
+        })}
+        {sel&&[H(p1.x,p1.y,d.id,0),H(p2.x,p2.y,d.id,1)]}
+      </g>;
+    }
+    if (d.type==="brush"||d.type==="highlighter") {
+      if (!d.pts||d.pts.length<2) return null;
+      const sw=d.type==="highlighter"?10:w, op=d.type==="highlighter"?0.4:1;
+      const ptStr=d.pts.map((pt:any)=>{const px=dataToSvgXY(pt.price,pt.time);return px.x!=null?`${px.x!.toFixed(1)},${px.y!.toFixed(1)}`:null;}).filter(Boolean).join(" ");
+      if (!ptStr) return null;
+      return <g key={d.id}>
+        <polyline points={ptStr} stroke="transparent" strokeWidth={16} fill="none" {...hitProps}/>
+        <polyline points={ptStr} stroke={sc} strokeWidth={sw} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={op}/>
+      </g>;
+    }
+    if (d.type==="rectangle") {
+      if (!d.pts||d.pts.length<2) return null;
+      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if (p1.x==null) return null;
+      const rx=Math.min(p1.x!,p2.x!),ry=Math.min(p1.y!,p2.y!),rw=Math.abs(p2.x!-p1.x!),rh=Math.abs(p2.y!-p1.y!);
+      return <g key={d.id}>
+        <rect x={rx} y={ry} width={rw} height={rh} stroke="transparent" strokeWidth={8} fill="transparent" {...hitProps}/>
+        <rect x={rx} y={ry} width={rw} height={rh} stroke={sc} strokeWidth={w} fill={sc+"22"}/>
+        {sel&&[H(p1.x,p1.y,d.id,0),H(p2.x,p1.y,d.id,1),H(p1.x,p2.y,d.id,2),H(p2.x,p2.y,d.id,3)]}
+      </g>;
+    }
+    if (d.type==="circle") {
+      if (!d.pts||d.pts.length<2) return null;
+      const ctr=dataToSvgXY(d.pts[0].price,d.pts[0].time),edg=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if (ctr.x==null) return null;
+      const r=Math.sqrt(Math.pow(edg.x!-ctr.x!,2)+Math.pow(edg.y!-ctr.y!,2));
+      return <g key={d.id}>
+        <circle cx={ctr.x!} cy={ctr.y!} r={r} stroke="transparent" strokeWidth={10} fill="transparent" {...hitProps}/>
+        <circle cx={ctr.x!} cy={ctr.y!} r={r} stroke={sc} strokeWidth={w} fill={sc+"22"}/>
+        {sel&&[H(ctr.x,ctr.y,d.id,0),H(edg.x,edg.y,d.id,1)]}
+      </g>;
+    }
+    if (d.type==="text") {
+      if (!d.pts||d.pts.length<1) return null;
+      const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null) return null;
+      const textHit={onClick:(e:React.MouseEvent)=>{e.stopPropagation();onDrawingClick(d.id,e);}};
+      return <g key={d.id}><text x={p.x!} y={p.y!} style={{fontSize:14,fill:sc,fontWeight:"bold",fontFamily:"sans-serif",cursor:"move"}} {...textHit}>{d.text||"Text"}</text>{sel&&H(p.x,p.y,d.id,0)}</g>;
+    }
+    if (d.type==="note") {
+      if (!d.pts||d.pts.length<1) return null;
+      const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null) return null;
+      const txt=d.text||"Note", bw=Math.max(60,txt.length*7+20);
+      return <g key={d.id}>
+        <rect x={p.x!} y={p.y!-22} width={bw} height={26} rx={4} fill={C.panel} stroke={sc} strokeWidth={1} {...hitProps}/>
+        <text x={p.x!+8} y={p.y!-5} style={{fontSize:12,fill:sc,fontFamily:"sans-serif"}}>{txt}</text>
+        {sel&&H(p.x!+bw/2,p.y!-9,d.id,0)}
+      </g>;
+    }
+    if (d.type==="pricelabel") {
+      if (!d.pts||d.pts.length<1) return null;
+      const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null) return null;
+      const svgW=svgRef.current?.clientWidth??3000;
+      return <g key={d.id}>
+        <line x1={p.x!} y1={p.y!} x2={svgW-86} y2={p.y!} stroke={sc} strokeWidth={1} strokeDasharray="3 2" {...hitProps}/>
+        <rect x={svgW-86} y={p.y!-11} width={82} height={22} rx={3} fill={sc}/>
+        <text x={svgW-45} y={p.y!+4} textAnchor="middle" style={{fontSize:10,fill:"#000",fontWeight:"bold",fontFamily:"monospace"}}>{fmtPrc(d.pts[0].price)}</text>
+        {sel&&H(p.x,p.y,d.id,0)}
+      </g>;
+    }
+    if (d.type==="longposition"||d.type==="shortposition") {
+      if (!d.pts||d.pts.length<2) return null;
+      const entry=dataToSvgXY(d.pts[0].price,d.pts[0].time),tgt=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if (entry.x==null) return null;
+      const svgW=svgRef.current?.clientWidth??3000;
+      const X=entry.x!,W2=svgW-X,ey=entry.y!,ty=tgt.y!;
+      const profC="#26a69a",lossC="#ef5350",fillC=ty<ey?profC:lossC;
+      return <g key={d.id}>
+        <rect x={X} y={Math.min(ey,ty)} width={W2} height={Math.abs(ty-ey)} fill={fillC+"44"} {...hitProps}/>
+        <line x1={X} y1={ey} x2={svgW} y2={ey} stroke="#d1d4dc" strokeWidth={1.5}/>
+        <line x1={X} y1={ty} x2={svgW} y2={ty} stroke={fillC} strokeWidth={1.5}/>
+        <text x={X+6} y={ey-4} style={{fontSize:9,fill:"#d1d4dc",fontFamily:"monospace"}}>Entry {fmtPrc(d.pts[0].price)}</text>
+        <text x={X+6} y={ty+12} style={{fontSize:9,fill:fillC,fontFamily:"monospace"}}>Target {fmtPrc(d.pts[1].price)}</text>
+        {d.pts.length>=3&&(()=>{const stop=dataToSvgXY(d.pts[2].price,d.pts[2].time);if(!stop.x) return null;const sy=stop.y!;return<g><rect x={X} y={Math.min(ey,sy)} width={W2} height={Math.abs(sy-ey)} fill={lossC+"44"}/><line x1={X} y1={sy} x2={svgW} y2={sy} stroke={lossC} strokeWidth={1.5}/><text x={X+6} y={sy+12} style={{fontSize:9,fill:lossC,fontFamily:"monospace"}}>Stop {fmtPrc(d.pts[2].price)}</text>{sel&&H(stop.x,stop.y,d.id,2)}</g>;})()}
+        {sel&&[H(entry.x,entry.y,d.id,0),H(tgt.x,tgt.y,d.id,1)]}
+      </g>;
+    }
+    if (d.type==="daterange") {
+      if (!d.pts||d.pts.length<2) return null;
+      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if (p1.x==null) return null;
+      const svgH=svgRef.current?.clientHeight??1000, x1=Math.min(p1.x!,p2.x!),x2=Math.max(p1.x!,p2.x!);
+      return <g key={d.id}>
+        <rect x={x1} y={0} width={x2-x1} height={svgH} fill={sc+"22"} {...hitProps}/>
+        <line x1={p1.x!} y1={0} x2={p1.x!} y2={svgH} stroke={sc} strokeWidth={w} strokeDasharray="4 2"/>
+        <line x1={p2.x!} y1={0} x2={p2.x!} y2={svgH} stroke={sc} strokeWidth={w} strokeDasharray="4 2"/>
+        {sel&&[H(p1.x,svgH/2,d.id,0),H(p2.x,svgH/2,d.id,1)]}
+      </g>;
+    }
+    if (d.type==="pricerange") {
+      if (!d.pts||d.pts.length<2) return null;
+      const y1=candleRef.current?.priceToCoordinate(d.pts[0].price),y2=candleRef.current?.priceToCoordinate(d.pts[1].price);
+      if (y1==null||y2==null) return null;
+      const svgW=svgRef.current?.clientWidth??3000;
+      return <g key={d.id}>
+        <rect x={0} y={Math.min(y1,y2)} width={svgW} height={Math.abs(y2-y1)} fill={sc+"22"} {...hitProps}/>
+        <line x1={0} y1={y1} x2={svgW} y2={y1} stroke={sc} strokeWidth={w} strokeDasharray="4 2"/>
+        <line x1={0} y1={y2} x2={svgW} y2={y2} stroke={sc} strokeWidth={w} strokeDasharray="4 2"/>
+        {sel&&[H(svgW/2,y1,d.id,0),H(svgW/2,y2,d.id,1)]}
+      </g>;
+    }
     return null;
+  }
+
+  function renderWebDraw(d: any, i: number) {
+    void drawTick;
+    if (d.visible===false) return null;
+    return renderOneDraw(d, d.id===selectedDrwId);
   }
   function renderWebCurrent() {
     if (!webCurrent) return null;
-    const cd = webCurrent;
-    if (cd.type === "trendline")
-      return <line x1={cd.x1} y1={cd.y1} x2={cd.x2} y2={cd.y2} stroke={C.gold} strokeWidth={1} strokeDasharray="4 2"/>;
-    if (cd.type === "ruler") return (
-      <g>
-        <line x1={Math.min(cd.x1,cd.x2)} y1={cd.y1} x2={Math.max(cd.x1,cd.x2)} y2={cd.y1} stroke={C.gold} strokeWidth={1} strokeDasharray="3 2"/>
-        <line x1={cd.x2} y1={cd.y1} x2={cd.x2} y2={cd.y2} stroke={C.gold} strokeWidth={1}/>
-        <line x1={Math.min(cd.x1,cd.x2)} y1={cd.y2} x2={Math.max(cd.x1,cd.x2)} y2={cd.y2} stroke={C.gold} strokeWidth={1} strokeDasharray="3 2"/>
-      </g>
-    );
-    if (cd.type === "brush") {
-      const pts = cd.pts as number[];
-      if (pts.length < 4) return null;
-      let path = "";
-      for (let j=0; j<pts.length; j+=2) path += `${j===0?"M":"L"}${pts[j]},${pts[j+1]} `;
-      return <path d={path.trim()} stroke={C.gold} strokeWidth={1.5} fill="none" strokeDasharray="4 2"/>;
+    const {type, pts, preview, free} = webCurrent;
+    // freehand in progress
+    if (type==="brush"||type==="highlighter") {
+      if (!free||free.length<4) return null;
+      const sw=type==="highlighter"?10:drwWidth, op=type==="highlighter"?0.4:1;
+      let ptStr="";
+      for (let i=0;i<free.length;i+=2) ptStr+=`${free[i].toFixed(1)},${free[i+1].toFixed(1)} `;
+      return <polyline points={ptStr} stroke={drwColor} strokeWidth={sw} fill="none" strokeLinecap="round" opacity={op}/>;
     }
-    return null;
+    // multi-point in progress
+    if (!pts||pts.length===0) return null;
+    const lines:React.ReactNode[]=[];
+    for (let i=0;i<pts.length-1;i++) {
+      const a=dataToSvgXY(pts[i].price,pts[i].time),b=dataToSvgXY(pts[i+1].price,pts[i+1].time);
+      if (a.x!=null&&b.x!=null) lines.push(<line key={i} x1={a.x!} y1={a.y!} x2={b.x!} y2={b.y!} stroke={drwColor} strokeWidth={drwWidth} strokeDasharray="4 2"/>);
+    }
+    if (preview && pts.length>0) {
+      const last=pts[pts.length-1], lp=dataToSvgXY(last.price,last.time);
+      if (lp.x!=null) lines.push(<line key="prev" x1={lp.x!} y1={lp.y!} x2={preview.x} y2={preview.y} stroke={drwColor} strokeWidth={drwWidth} strokeDasharray="4 2" opacity={0.6}/>);
+    }
+    return <g>{lines}</g>;
   }
 
   function selectTf(tf: string) { setTfState(tf); setShowTf(false); }
@@ -552,8 +806,70 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         <TBtn title="Take snapshot"><IcCamera/></TBtn>
       </div>
 
-      {/* ── Body: chart ── */}
+      {/* ── Body: sidebar + chart ── */}
       <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
+
+        {/* ── Drawing Sidebar ── */}
+        <div style={{ width:44, background:C.panel, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", alignItems:"center", padding:"4px 0", gap:1, flexShrink:0, zIndex:20, overflow:"visible", position:"relative" }}>
+          {/* Cursor */}
+          <button title="Cursor" onClick={()=>handleToolClick("cursor")}
+            style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(!activeTool||activeTool==="cursor")?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(!activeTool||activeTool==="cursor")?"#2962FF":"#787b86",fontSize:14 }}>
+            ⊕
+          </button>
+          {/* Tool groups */}
+          {WEB_TOOL_GROUPS.slice(1).map(g=>{
+            const isAct = g.items.some((it:any)=>it.id===activeTool);
+            return (
+              <div key={g.id} style={{position:"relative"}}>
+                <button title={g.label}
+                  onClick={()=>{ if(g.items.length===1){handleToolClick(g.items[0].id);setOpenSubGroup(null);}else{setOpenSubGroup(v=>v===g.id?null:g.id);}}}
+                  style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:isAct?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:isAct?"#2962FF":"#787b86",fontSize:13,fontWeight:"bold",position:"relative" }}>
+                  {g.icon}
+                  {g.items.length>1&&<span style={{position:"absolute",right:3,bottom:4,width:0,height:0,borderLeft:"3px solid transparent",borderRight:"3px solid transparent",borderTop:`3px solid ${isAct?"#2962FF":"#4a4e5a"}`}}/>}
+                </button>
+                {openSubGroup===g.id&&(
+                  <div style={{ position:"fixed",left:46,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,minWidth:180,padding:"4px 0",zIndex:500,boxShadow:"0 4px 24px #00000090" }}>
+                    <div style={{padding:"4px 12px",fontSize:9,fontWeight:"700",color:C.dim,textTransform:"uppercase",letterSpacing:".6px",borderBottom:`1px solid ${C.border}`,marginBottom:2}}>{g.label}</div>
+                    {g.items.map((it:any)=>(
+                      <button key={it.id} onClick={()=>{handleToolClick(it.id);setOpenSubGroup(null);}}
+                        style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 12px",fontSize:12,color:activeTool===it.id?"#2962FF":C.text,cursor:"pointer",border:"none",background:activeTool===it.id?"#2962FF18":"none",width:"100%",textAlign:"left" }}>
+                        <span style={{width:6,height:6,borderRadius:"50%",background:activeTool===it.id?"#2962FF":"none",border:`1px solid ${activeTool===it.id?"#2962FF":"#3a3e4a"}`,flexShrink:0}}/>
+                        {it.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {/* Separator */}
+          <div style={{width:28,height:1,background:C.border,margin:"3px 0"}}/>
+          {/* Toggle tools */}
+          {WEB_TOGGLE_TOOLS.map(t=>(
+            <button key={t.id} title={t.label} onClick={()=>handleToolClick(t.id)}
+              style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF":"#787b86",fontSize:13 }}>
+              {t.icon}
+            </button>
+          ))}
+        </div>
+
+        {/* Float menu for selected drawing */}
+        {floatMenu&&(()=>{
+          const d=webDrawings.find(x=>x.id===floatMenu.id);
+          return d?<div style={{position:"fixed",left:Math.min(floatMenu.x,window.innerWidth-220),top:Math.max(floatMenu.y-70,50),background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 6px",display:"flex",alignItems:"center",gap:4,zIndex:600,boxShadow:"0 4px 20px #00000090"}}>
+            <button onClick={()=>{setWebDrawings(ds=>ds.filter(x=>x.id!==floatMenu.id));setFloatMenu(null);setSelectedDrwId(null);}} style={{background:"none",border:"none",color:"#ef5350",cursor:"pointer",padding:"4px 8px",fontSize:11,borderRadius:4,display:"flex",alignItems:"center",gap:4}}>🗑 Delete</button>
+            <div style={{width:1,height:18,background:C.border}}/>
+            <input type="color" value={d.color||"#f0b90b"} onChange={e=>{setDrwColor(e.target.value);setWebDrawings(ds=>ds.map(x=>x.id===floatMenu.id?{...x,color:e.target.value}:x));}} style={{width:22,height:22,border:"2px solid #3a3e4a",borderRadius:4,cursor:"pointer",padding:0,background:"none"}}/>
+            <div style={{width:1,height:18,background:C.border}}/>
+            <button onClick={()=>{setWebDrawings(ds=>ds.map(x=>x.id===floatMenu.id?{...x,locked:!x.locked}:x));setFloatMenu(null);setSelectedDrwId(null);}} style={{background:"none",border:"none",color:"#f59e0b",cursor:"pointer",padding:"4px 8px",fontSize:11,borderRadius:4}}>
+              {d.locked?"🔓 Unlock":"🔒 Lock"}
+            </button>
+            <button onClick={()=>{setFloatMenu(null);setSelectedDrwId(null);}} style={{background:"none",border:"none",color:"#787b86",cursor:"pointer",padding:"4px 8px",fontSize:12}}>✕</button>
+          </div>:null;
+        })()}
+
+        {/* Backdrop to close submenus */}
+        {openSubGroup&&<div style={{position:"fixed",inset:0,zIndex:499}} onClick={()=>setOpenSubGroup(null)}/>}
 
         {/* Chart container — fills remaining height via flex:1 */}
         <div style={{ flex:1, position:"relative", overflow:"hidden", minHeight: 0 }}>
