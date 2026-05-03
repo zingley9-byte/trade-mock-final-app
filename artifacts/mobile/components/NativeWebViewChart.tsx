@@ -1,14 +1,15 @@
 /**
  * NativeWebViewChart — Full TradingView-style chart for Android & iOS
- * Uses react-native-webview + lightweight-charts (CDN) + Binance REST+WS
+ * Uses react-native-webview + lightweight-charts (bundled inline) + Binance REST+WS
  * Identical look to the web chart: dark theme, candles, volume, crosshair,
  * timeframe picker, drawing toolbar, fullscreen, OHLCV tooltip, IST clock.
  */
 import React, { useRef, useState, useCallback } from "react";
 import {
-  View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Platform,
+  View, StyleSheet, ActivityIndicator, TouchableOpacity, Text,
 } from "react-native";
 import { WebView } from "react-native-webview";
+import { LWC_SCRIPT } from "../lib/lwcScript";
 
 interface Props {
   symbol?: string;
@@ -26,8 +27,8 @@ function buildHtml(symbol: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html,body{width:100%;height:100%;background:#131722;overflow:hidden;}
-#root{display:flex;flex-direction:column;width:100%;height:100%;}
+html,body{width:100%;height:100dvh;background:#131722;overflow:hidden;margin:0;padding:0;}
+#root{display:flex;flex-direction:column;width:100%;height:100dvh;}
 
 /* ── Top toolbar ── */
 #topbar{
@@ -266,8 +267,8 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;}
   </div>
 </div>
 
-<!-- lightweight-charts CDN -->
-<script src="https://unpkg.com/lightweight-charts@5.0.5/dist/lightweight-charts.standalone.production.js"></script>
+<!-- lightweight-charts bundled inline — no CDN dependency -->
+<script>${LWC_SCRIPT}</script>
 
 <script>
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -676,22 +677,30 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
       ) : (
         <WebView
           ref={webviewRef}
-          source={{ html }}
+          key={`${bin}-${height}`}
+          source={{ html, baseUrl: "" }}
           style={styles.webview}
           originWhitelist={["*"]}
           javaScriptEnabled
           domStorageEnabled
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction={false}
+          allowFileAccess
+          allowUniversalAccessFromFileURLs
+          allowFileAccessFromFileURLs
+          mixedContentMode="always"
           onLoad={onLoad}
           onError={onError}
-          scrollEnabled={false}
+          onHttpError={onError}
           bounces={false}
           overScrollMode="never"
           showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
-          mixedContentMode="compatibility"
+          scrollEnabled={false}
+          nestedScrollEnabled={false}
           onShouldStartLoadWithRequest={() => true}
+          androidHardwareAccelerationDisabled={false}
+          renderToHardwareTextureAndroid
         />
       )}
     </View>

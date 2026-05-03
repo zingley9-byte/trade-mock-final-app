@@ -1,15 +1,17 @@
 import React from "react";
+import { ViewStyle } from "react-native";
 import Svg, { Path, Circle, Line, Polyline, Rect, G, Polygon } from "react-native-svg";
 
 interface Props {
   name: string;
   size?: number;
   color?: string;
+  style?: ViewStyle;
 }
 
-export default function SvgIcon({ name, size = 24, color = "#fff" }: Props) {
+export default function SvgIcon({ name, size = 24, color = "#fff", style }: Props) {
   const s = size;
-  const p = { width: s, height: s, viewBox: "0 0 24 24" };
+  const p = { width: s, height: s, viewBox: "0 0 24 24", style };
   const sp = { stroke: color, strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
   const sp2 = { stroke: color, strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
 
