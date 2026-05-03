@@ -282,6 +282,8 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
       <div id="chart"></div>
       <!-- Drawing SVG overlay -->
       <svg id="drw-svg"></svg>
+      <!-- Drawing status bar (debug helper) -->
+      <div id="drw-status" style="position:absolute;top:4px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:10px;padding:2px 8px;border-radius:8px;pointer-events:none;z-index:600;letter-spacing:.5px;"></div>
     </div>
   </div>
 
@@ -1098,75 +1100,100 @@ let _lastX = 0, _lastY = 0;
 // 3-point tools that need a third click after the initial drag
 const THREE_PT = new Set(['channel','longposition','shortposition']);
 
-function initDrawingEvents() {
-  // ── Touch events on #chart-wrap (most reliable on Android WebView) ─────────
-  // Using chart-wrap div instead of SVG because Android WebView reliably
-  // delivers touches to div elements, SVG touch detection can be inconsistent.
-  const wrap = document.getElementById('chart-wrap');
-  if (wrap) {
-    wrap.addEventListener('touchstart', function(e) {
-      // In cursor/no-tool mode, let LWC handle pan/zoom normally
-      if (!TOOL || TOOL==='cursor') return;
-      var t = e.targetTouches[0];
-      var el = document.elementFromPoint(t.clientX, t.clientY);
-      // Skip if touch is on sidebar / menus
-      if (el && el.closest && (el.closest('#sidebar')||el.closest('#sb-sub')||el.closest('#float-menu'))) return;
+// ── Returns true if a point is inside #chart-wrap ────────────────
+function ptInWrap(cx, cy) {
+  var el = document.getElementById('chart-wrap');
+  if (!el) return false;
+  var r = el.getBoundingClientRect();
+  return cx>=r.left && cx<=r.right && cy>=r.top && cy<=r.bottom;
+}
 
-      // ── Delete mode: hit-test drawings and delete tapped one ──
-      if (TOOL==='delete') {
-        e.preventDefault();
-        // Walk up to find a data-did attribute (drawing hit area)
-        var cur = el;
-        while (cur && cur !== wrap) {
-          var did = cur.getAttribute && cur.getAttribute('data-did');
-          if (did) { DRW=DRW.filter(function(d){return d.id!==did;}); saveDrw(); redraw(); return; }
-          cur = cur.parentElement;
-        }
-        return; // tapped empty area — nothing to delete
-      }
-
-      e.preventDefault(); // stop LWC from consuming this touch
-      onSvgDown({target:el, clientX:t.clientX, clientY:t.clientY, pointerId:-1, preventDefault:function(){}});
-    }, {passive:false});
-
-    wrap.addEventListener('touchmove', function(e) {
-      if (!M_DOWN) return;
-      e.preventDefault();
-      var t = e.targetTouches[0];
-      _lastX=t.clientX; _lastY=t.clientY;
-      onSvgMove({clientX:t.clientX, clientY:t.clientY, preventDefault:function(){}});
-    }, {passive:false});
-
-    wrap.addEventListener('touchend', function(e) {
-      if (!M_DOWN) return;
-      e.preventDefault();
-      var t = e.changedTouches[0] || {clientX:_lastX, clientY:_lastY};
-      onSvgUp({clientX:t.clientX, clientY:t.clientY});
-    }, {passive:false});
-
-    wrap.addEventListener('touchcancel', function() {
-      M_DOWN=false; IP=null; CUR_PTS=[]; _previewPt=null; redraw();
-    });
+// ── Walk DOM upward looking for data-did, stopping at boundary ───
+function findDid(el) {
+  var cur = el;
+  for (var i=0; i<20 && cur && cur.tagName; i++) {
+    var did = cur.getAttribute && cur.getAttribute('data-did');
+    if (did) return did;
+    cur = cur.parentElement;
   }
+  return null;
+}
 
-  // ── Pointer events on SVG (web/desktop fallback) ───────────────────────────
-  const svg = document.getElementById('drw-svg');
+// ── Update small status bar (debug helper, visible on device) ────
+function dbg(msg) {
+  var el = document.getElementById('drw-status');
+  if (el) el.textContent = msg;
+}
+
+function initDrawingEvents() {
+  // ── document-level touch (most reliable on Android WebView) ──────────────
+  document.addEventListener('touchstart', function(e) {
+    var touch = e.changedTouches && e.changedTouches[0];
+    if (!touch) return;
+    var cx = touch.clientX, cy = touch.clientY;
+
+    // Only handle touches that land inside #chart-wrap
+    if (!ptInWrap(cx, cy)) return;
+
+    // Let LWC handle panning when no drawing tool active
+    if (!TOOL || TOOL==='cursor') {
+      dbg('cursor');
+      return;
+    }
+
+    // Ignore touches on sidebar overlay elements
+    var el = document.elementFromPoint(cx, cy);
+    if (el && el.closest && (el.closest('#sidebar')||el.closest('#sb-sub')||el.closest('#float-menu'))) return;
+
+    dbg('T:'+TOOL+' DOWN');
+
+    // ── Delete mode ──
+    if (TOOL==='delete') {
+      e.preventDefault();
+      var did = findDid(el);
+      if (did) { DRW=DRW.filter(function(d){return d.id!==did;}); saveDrw(); redraw(); dbg('deleted '+did); }
+      return;
+    }
+
+    e.preventDefault();
+    onSvgDown({target:el, clientX:cx, clientY:cy, pointerId:-1, preventDefault:function(){}});
+  }, {passive:false});
+
+  document.addEventListener('touchmove', function(e) {
+    if (!M_DOWN) return;
+    var touch = e.changedTouches && e.changedTouches[0];
+    if (!touch) return;
+    e.preventDefault();
+    _lastX=touch.clientX; _lastY=touch.clientY;
+    dbg('T:'+TOOL+' MOVE');
+    onSvgMove({clientX:touch.clientX, clientY:touch.clientY, preventDefault:function(){}});
+  }, {passive:false});
+
+  document.addEventListener('touchend', function(e) {
+    if (!M_DOWN) return;
+    var touch = e.changedTouches && e.changedTouches[0];
+    var cx = touch ? touch.clientX : _lastX;
+    var cy = touch ? touch.clientY : _lastY;
+    e.preventDefault();
+    dbg('T:'+TOOL+' UP');
+    onSvgUp({clientX:cx, clientY:cy});
+  }, {passive:false});
+
+  document.addEventListener('touchcancel', function() {
+    if (M_DOWN) { M_DOWN=false; IP=null; CUR_PTS=[]; _previewPt=null; redraw(); }
+  });
+
+  // ── Pointer events — web/desktop only (skips touch pointerType) ───────────
+  var svg = document.getElementById('drw-svg');
   if (svg) {
     svg.addEventListener('pointerdown', function(e) {
-      if (e.pointerType==='touch') return;
-      onSvgDown(e);
+      if (e.pointerType==='touch') return; onSvgDown(e);
     }, {passive:false});
     svg.addEventListener('pointermove', function(e) {
-      if (e.pointerType==='touch') return;
-      onSvgMove(e);
+      if (e.pointerType==='touch') return; onSvgMove(e);
     }, {passive:false});
     svg.addEventListener('pointerup', function(e) {
-      if (e.pointerType==='touch') return;
-      onSvgUp(e);
-    });
-    svg.addEventListener('pointercancel', function(e) {
-      if (e.pointerType==='touch') return;
-      M_DOWN=false; IP=null; CUR_PTS=[]; _previewPt=null; redraw();
+      if (e.pointerType==='touch') return; onSvgUp(e);
     });
   }
 }
