@@ -64,47 +64,6 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 }
 .tf-item:active,.tf-item.active{background:#26a69a18;color:#26a69a;}
 
-/* ── Drawing sidebar ── */
-#sidebar{
-  width:44px;background:#1e222d;border-right:1px solid #2a2e39;
-  display:flex;flex-direction:column;align-items:center;
-  padding:4px 0;overflow-y:auto;flex-shrink:0;
-}
-#sidebar.collapsed{width:10px;overflow:hidden;}
-.side-btn{
-  width:34px;height:32px;display:flex;align-items:center;justify-content:center;
-  background:none;border:none;border-radius:5px;cursor:pointer;
-  color:#787b86;margin:1px 0;flex-shrink:0;position:relative;
-}
-.side-btn:active,.side-btn.active{background:#f0b90b18;color:#f0b90b;}
-.side-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
-.sep-line{width:28px;height:1px;background:#2a2e39;margin:4px 0;flex-shrink:0;}
-.corner-tri{position:absolute;right:3px;bottom:4px;width:0;height:0;
-  border-left:3px solid transparent;border-right:3px solid transparent;border-top:3px solid #4a4e5a;}
-.side-btn.active .corner-tri{border-top-color:#f0b90b;}
-
-/* ── Sub-tool dropdown ── */
-#tool-menu{
-  position:fixed;left:46px;
-  background:#1e222d;border:1px solid #2a2e39;border-radius:7px;
-  width:188px;z-index:200;padding:4px 0;
-  box-shadow:0 4px 20px #00000070;
-}
-#tool-menu.hidden{display:none;}
-.tool-menu-title{
-  padding:5px 12px;font-size:10px;font-weight:700;color:#787b86;
-  text-transform:uppercase;letter-spacing:.6px;
-  border-bottom:1px solid #2a2e39;margin-bottom:2px;
-}
-.tool-item{
-  display:flex;align-items:center;gap:8px;
-  padding:9px 12px;font-size:12px;color:#d1d4dc;cursor:pointer;
-}
-.tool-item:active{background:#ffffff08;}
-.tool-item.active{color:#f0b90b;background:#f0b90b12;}
-.tool-dot{width:6px;height:6px;border-radius:3px;border:1px solid #2a2e39;flex-shrink:0;}
-.tool-item.active .tool-dot{background:#f0b90b;border-color:#f0b90b;}
-
 /* ── Body / chart area ── */
 #body{display:flex;flex:1;min-height:0;}
 #chart-wrap{flex:1;position:relative;min-width:0;}
@@ -229,15 +188,6 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
   <!-- BODY -->
   <div id="body">
 
-    <!-- Drawing sidebar -->
-    <div id="sidebar">
-      <!-- Collapse toggle -->
-      <button class="side-btn" id="collapse-btn" onclick="toggleSidebar()" style="margin-bottom:2px;" title="Toggle sidebar">
-        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-      </button>
-      <!-- Tool buttons injected by JS -->
-    </div>
-
     <!-- Chart area -->
     <div id="chart-wrap">
       <div id="ohlcv" class="hidden"></div>
@@ -248,9 +198,6 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
       <div id="chart"></div>
     </div>
   </div>
-
-  <!-- Sub-tool dropdown -->
-  <div id="tool-menu" class="hidden"></div>
 
   <!-- Backdrop for menus -->
   <div id="backdrop" onclick="closeAllMenus()"></div>
@@ -538,121 +485,14 @@ function selectTf(tf) {
   loadData(SYMBOL, tf);
 }
 
-// ── Drawing toolbar ──────────────────────────────────────────────────────────
-const TOOL_GROUPS = [
-  { id:'cursor',   icon:'<circle cx="12" cy="12" r="3"/><line x1="12" y1="1" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="1" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="23" y2="12"/>', label:'Cursor',
-    items:[{id:null,label:'Default cursor'},{id:'crosshair',label:'Crosshair'}]},
-  { id:'lines',    icon:'<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>', label:'Trend Line Tools',
-    items:[{id:'trendline',label:'Trend line'},{id:'trendline',label:'Ray'},{id:'hline',label:'Horizontal line'},{id:'hline',label:'Vertical line'}]},
-  { id:'fib',      icon:'<line x1="3" y1="5" x2="21" y2="5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="3" y1="20" x2="21" y2="20"/>', label:'Fibonacci Tools',
-    items:[{id:'trendline',label:'Fib retracement'},{id:'trendline',label:'Fib extension'},{id:'trendline',label:'Fib channel'}]},
-  { id:'patterns', icon:'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>', label:'Pattern Tools',
-    items:[{id:'brush',label:'XABCD pattern'},{id:'brush',label:'Triangle pattern'},{id:'brush',label:'Head & shoulders'}]},
-  { id:'forecast', icon:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="8"/><line x1="22" y1="12" x2="16" y2="12"/>', label:'Forecast & Measure',
-    items:[{id:'ruler',label:'Long position'},{id:'ruler',label:'Short position'},{id:'ruler',label:'Price range'}]},
-  { id:'brush',    icon:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L3 14.67V21h6.33l10.06-10.06a5.5 5.5 0 0 0 0-7.78z"/>', label:'Brush Tools',
-    items:[{id:'brush',label:'Brush'},{id:'brush',label:'Highlighter'},{id:'brush',label:'Arrow'}]},
-  { id:'text',     icon:'<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>', label:'Text Tools',
-    items:[{id:'text',label:'Text'},{id:'text',label:'Note'},{id:'text',label:'Price label'}]},
-  { id:'emoji',    icon:'<circle cx="12" cy="12" r="10"/><path d="M8 13s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>', label:'Emoji & Icons',
-    items:[{id:'emoji',label:'Emoji'},{id:'emoji',label:'Flag marker'},{id:'emoji',label:'Star marker'}]},
-  { id:'ruler',    icon:'<path d="M2 20L20 2"/><line x1="7" y1="17" x2="7" y2="14"/><line x1="10" y1="14" x2="10" y2="11"/><line x1="13" y1="11" x2="13" y2="8"/>', label:'Ruler Tools',
-    items:[{id:'ruler',label:'Measure distance'},{id:'ruler',label:'Measure price change'}]},
-  { id:'zoom',     icon:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>', label:'Zoom Tools',
-    items:[{id:'zoom',label:'Zoom in'},{id:'zoom',label:'Zoom out'},{id:null,label:'Reset zoom'}]},
-  'sep',
-  { id:'magnet',   icon:'<path d="M6 15A6 6 0 1 0 18 15"/><line x1="6" y1="15" x2="6" y2="20"/><line x1="18" y1="15" x2="18" y2="20"/><line x1="3" y1="20" x2="9" y2="20"/><line x1="15" y1="20" x2="21" y2="20"/>', label:'Magnet Mode', toggle:true,
-    items:[{id:'magnet',label:'Strong magnet'},{id:null,label:'Magnet off'}]},
-  { id:'lock',     icon:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>', label:'Lock Drawings', toggle:true,
-    items:[{id:'lock',label:'Lock all drawings'},{id:null,label:'Unlock all'}]},
-  { id:'eye',      icon:'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>', label:'Visibility', toggle:true,
-    items:[{id:'eye',label:'Hide drawings'},{id:'eye',label:'Show drawings'},{id:'clear',label:'Delete all drawings'}]},
-];
-
-let openGroupId = null;
-let sidebarCollapsed = false;
-
-function buildSidebar() {
-  const sb = document.getElementById('sidebar');
-  // Keep the collapse button (first child)
-  while (sb.children.length > 1) sb.removeChild(sb.lastChild);
-
-  TOOL_GROUPS.forEach((g, i) => {
-    if (g === 'sep') {
-      const sep = document.createElement('div'); sep.className = 'sep-line'; sb.appendChild(sep); return;
-    }
-    const btn = document.createElement('button');
-    btn.className = 'side-btn';
-    btn.title = g.label;
-    btn.dataset.id = g.id;
-    btn.innerHTML = '<svg viewBox="0 0 24 24">'+g.icon+'</svg><div class="corner-tri"></div>';
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openToolMenu(g.id, btn);
-    });
-    sb.appendChild(btn);
-  });
-}
-
-function openToolMenu(groupId, btnEl) {
-  const menu = document.getElementById('tool-menu');
-  const backdrop = document.getElementById('backdrop');
-  if (openGroupId === groupId) { closeAllMenus(); return; }
-  openGroupId = groupId;
-
-  const group = TOOL_GROUPS.find(g => g !== 'sep' && g.id === groupId);
-  if (!group || group === 'sep') return;
-
-  // Position
-  const rect = btnEl.getBoundingClientRect();
-  menu.style.top = rect.top + 'px';
-
-  // Build items
-  menu.innerHTML = '<div class="tool-menu-title">'+group.label+'</div>';
-  group.items.forEach(item => {
-    const el = document.createElement('div');
-    el.className = 'tool-item';
-    el.innerHTML = '<div class="tool-dot"></div><span>'+item.label+'</span>';
-    el.addEventListener('click', () => {
-      closeAllMenus();
-    });
-    menu.appendChild(el);
-  });
-
-  menu.classList.remove('hidden');
-  backdrop.classList.add('show');
-
-  // Highlight active sidebar button
-  document.querySelectorAll('.side-btn').forEach(b => b.classList.remove('active'));
-  btnEl.classList.add('active');
-}
-
-function toggleSidebar() {
-  sidebarCollapsed = !sidebarCollapsed;
-  const sb = document.getElementById('sidebar');
-  const btn = document.getElementById('collapse-btn');
-  if (sidebarCollapsed) {
-    sb.classList.add('collapsed');
-    btn.querySelector('svg').innerHTML = '<polyline points="9 18 15 12 9 6"/>';
-  } else {
-    sb.classList.remove('collapsed');
-    btn.querySelector('svg').innerHTML = '<polyline points="15 18 9 12 15 6"/>';
-  }
-  setTimeout(resizeChart, 50);
-}
-
 function closeAllMenus() {
   document.getElementById('tf-menu').classList.add('hidden');
-  document.getElementById('tool-menu').classList.add('hidden');
   document.getElementById('backdrop').classList.remove('show');
-  openGroupId = null;
-  document.querySelectorAll('.side-btn').forEach(b => b.classList.remove('active'));
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 window.addEventListener('load', () => {
   initChart();
-  buildSidebar();
   loadData(SYMBOL, currentTf);
 });
 
