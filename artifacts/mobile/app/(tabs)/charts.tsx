@@ -563,65 +563,65 @@ export default function ChartsScreen() {
   const isWeb   = Platform.OS === "web";
 
   return (
-    <View style={[s.root, { backgroundColor: colors.background, paddingBottom: tabBarH, flexDirection: isWeb ? "row" : "column" }]}>
+    <View style={[s.root, { backgroundColor: colors.background, paddingBottom: tabBarH }]}>
 
-      {/* ── Left Column (main content) ── */}
-      <View style={{ flex: 1, flexDirection: "column" }}>
-
-        {/* ── Coin Header ── */}
-        <View style={[s.coinHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <TouchableOpacity style={s.coinLeft} onPress={() => setSymbolPickerVis(true)} activeOpacity={0.75}>
-            <CoinLogo symbolId={selectedSymbol.id} size={28} />
-            <View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Text style={[s.symbolName, { color: colors.foreground }]}>
-                  {ticker}USDT
-                </Text>
-                <Ionicons name="chevron-down-outline" size={13} color={colors.mutedForeground} />
-              </View>
-              <Text style={[s.symbolSub, { color: colors.mutedForeground }]}>
-                {selectedSymbol.name} Perpetual
+      {/* ── Coin Header (full width) ── */}
+      <View style={[s.coinHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <TouchableOpacity style={s.coinLeft} onPress={() => setSymbolPickerVis(true)} activeOpacity={0.75}>
+          <CoinLogo symbolId={selectedSymbol.id} size={28} />
+          <View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text style={[s.symbolName, { color: colors.foreground }]}>
+                {ticker}USDT
               </Text>
+              <Ionicons name="chevron-down-outline" size={13} color={colors.mutedForeground} />
             </View>
-          </TouchableOpacity>
-
-          <View style={s.coinRight}>
-            <Text style={[s.coinPrice, { color: priceColor }]}>
-              {currSym}{fmtP(currentPrice, currencyMode, usdToInr)}
+            <Text style={[s.symbolSub, { color: colors.mutedForeground }]}>
+              {selectedSymbol.name} Perpetual
             </Text>
-            <View style={[s.changeBadge, { backgroundColor: isPositive ? colors.bullBg : colors.bearBg }]}>
-              <Text style={[s.changeText, { color: priceColor }]}>
-                {isPositive ? "+" : ""}{priceChange24h.toFixed(2)}%
-              </Text>
-            </View>
           </View>
+        </TouchableOpacity>
 
-          <TouchableOpacity style={[s.gearBtn, { backgroundColor: colors.muted }]}>
-            <Ionicons name="settings-outline" size={15} color={colors.mutedForeground} />
-          </TouchableOpacity>
+        <View style={s.coinRight}>
+          <Text style={[s.coinPrice, { color: priceColor }]}>
+            {currSym}{fmtP(currentPrice, currencyMode, usdToInr)}
+          </Text>
+          <View style={[s.changeBadge, { backgroundColor: isPositive ? colors.bullBg : colors.bearBg }]}>
+            <Text style={[s.changeText, { color: priceColor }]}>
+              {isPositive ? "+" : ""}{priceChange24h.toFixed(2)}%
+            </Text>
+          </View>
         </View>
 
-        {/* ── Sub-tabs ── */}
-        <View style={[s.subNav, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.subNavInner}>
-            {subTabs.map(({ key, label }) => {
-              const active = subTab === key;
-              return (
-                <TouchableOpacity key={key} onPress={() => setSubTab(key)} style={s.subNavItem} activeOpacity={0.7}>
-                  <Text style={[s.subNavText, { color: active ? colors.primary : colors.mutedForeground }]}>
-                    {label}
-                  </Text>
-                  {active && <View style={[s.subNavUnderline, { backgroundColor: colors.primary }]} />}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          <TouchableOpacity style={[s.navGear, { backgroundColor: colors.muted }]}>
-            <Ionicons name="settings-outline" size={14} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={[s.gearBtn, { backgroundColor: colors.muted }]}>
+          <Ionicons name="settings-outline" size={15} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
 
-        {/* ── Content Area ── */}
+      {/* ── Sub-tabs (full width) ── */}
+      <View style={[s.subNav, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.subNavInner}>
+          {subTabs.map(({ key, label }) => {
+            const active = subTab === key;
+            return (
+              <TouchableOpacity key={key} onPress={() => setSubTab(key)} style={s.subNavItem} activeOpacity={0.7}>
+                <Text style={[s.subNavText, { color: active ? colors.primary : colors.mutedForeground }]}>
+                  {label}
+                </Text>
+                {active && <View style={[s.subNavUnderline, { backgroundColor: colors.primary }]} />}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+        <TouchableOpacity style={[s.navGear, { backgroundColor: colors.muted }]}>
+          <Ionicons name="settings-outline" size={14} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Middle Row: Chart + Desktop Crypto Panel ── */}
+      <View style={{ flex: 1, flexDirection: "row" }}>
+
+        {/* Chart / order book / trades — takes all remaining width */}
         <View style={{ flex: 1 }} onLayout={onChartLayout}>
           <View style={subTab === "traded" ? { flex: 1 } : { height: 0, overflow: "hidden" as const }}>
             <TradingViewChart symbol={selectedSymbol.id} height={chartHeight} />
@@ -634,50 +634,49 @@ export default function ChartsScreen() {
           )}
         </View>
 
-        {/* ── Bottom Quick Trade Bar ── */}
-        <View style={[s.tradeBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-          <TouchableOpacity onPress={handleShort} style={[s.tradeBtn, s.shortBtn]} activeOpacity={0.82}>
-            <Text style={s.tradeBtnTop}>Short</Text>
-            <Text style={s.tradeBtnPrice} numberOfLines={1}>
-              {fmtP(currentPrice, currencyMode, usdToInr)}
-            </Text>
-          </TouchableOpacity>
+        {/* Desktop-only crypto panel (right side) */}
+        {isWeb && (
+          <DesktopCryptoPanel
+            colors={colors}
+            symbolPrices={symbolPrices}
+            symbolChanges={symbolChanges}
+            selectedId={selectedSymbol.id}
+            currencyMode={currencyMode}
+            usdToInr={usdToInr}
+            onSelect={handleSelectSymbol}
+          />
+        )}
+      </View>
 
-          <View style={[s.lotBox, { borderColor: colors.border }]}>
-            <Text style={[s.lotTop, { color: colors.mutedForeground }]} numberOfLines={1}>
-              1 Lot = {lotSize} {ticker}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setSymbolPickerVis(true)}
-              style={[s.lotTicker, { backgroundColor: colors.muted, borderRadius: 6 }]}
-            >
-              <Text style={[s.lotTickerText, { color: colors.foreground }]}>{ticker}</Text>
-              <Ionicons name="chevron-down-outline" size={11} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          </View>
+      {/* ── Bottom Quick Trade Bar (full width) ── */}
+      <View style={[s.tradeBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+        <TouchableOpacity onPress={handleShort} style={[s.tradeBtn, s.shortBtn]} activeOpacity={0.82}>
+          <Text style={s.tradeBtnTop}>Short</Text>
+          <Text style={s.tradeBtnPrice} numberOfLines={1}>
+            {fmtP(currentPrice, currencyMode, usdToInr)}
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleLong} style={[s.tradeBtn, s.longBtn]} activeOpacity={0.82}>
-            <Text style={s.tradeBtnTop}>Long</Text>
-            <Text style={s.tradeBtnPrice} numberOfLines={1}>
-              {fmtP(currentPrice, currencyMode, usdToInr)}
-            </Text>
+        <View style={[s.lotBox, { borderColor: colors.border }]}>
+          <Text style={[s.lotTop, { color: colors.mutedForeground }]} numberOfLines={1}>
+            1 Lot = {lotSize} {ticker}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setSymbolPickerVis(true)}
+            style={[s.lotTicker, { backgroundColor: colors.muted, borderRadius: 6 }]}
+          >
+            <Text style={[s.lotTickerText, { color: colors.foreground }]}>{ticker}</Text>
+            <Ionicons name="chevron-down-outline" size={11} color={colors.mutedForeground} />
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity onPress={handleLong} style={[s.tradeBtn, s.longBtn]} activeOpacity={0.82}>
+          <Text style={s.tradeBtnTop}>Long</Text>
+          <Text style={s.tradeBtnPrice} numberOfLines={1}>
+            {fmtP(currentPrice, currencyMode, usdToInr)}
+          </Text>
+        </TouchableOpacity>
       </View>
-
-      {/* ── Right Column: Desktop Crypto Panel ── */}
-      {isWeb && (
-        <DesktopCryptoPanel
-          colors={colors}
-          symbolPrices={symbolPrices}
-          symbolChanges={symbolChanges}
-          selectedId={selectedSymbol.id}
-          currencyMode={currencyMode}
-          usdToInr={usdToInr}
-          onSelect={handleSelectSymbol}
-        />
-      )}
 
       {/* ── Modals ── */}
       <QuickTradeModal
