@@ -4,10 +4,10 @@
  * Identical look to the web chart: dark theme, candles, volume, crosshair,
  * timeframe picker, drawing toolbar, fullscreen, OHLCV tooltip, IST clock.
  */
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import {
   View, StyleSheet, ActivityIndicator, TouchableOpacity, Text,
-  Modal, StatusBar, useWindowDimensions, Platform,
+  Modal, StatusBar, useWindowDimensions, Platform, BackHandler,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import { LWC_SCRIPT } from "../lib/lwcScript";
@@ -711,6 +711,20 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
   const html   = buildHtml(bin, false);
   const htmlFS = buildHtml(bin, true);
+
+  // Android: intercept hardware back button when fullscreen is open
+  // prevents the back event from leaking to the Charts screen and opening the coin picker
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const handler = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (isFullscreen) {
+        setIsFullscreen(false);
+        return true; // consumed — do NOT propagate
+      }
+      return false; // let Expo Router handle it normally
+    });
+    return () => handler.remove();
+  }, [isFullscreen]);
 
   const onLoad    = useCallback(() => { setLoading(false); setFsLoading(false); }, []);
   const onError   = useCallback(() => { setLoading(false); setFsLoading(false); setError(true); }, []);
