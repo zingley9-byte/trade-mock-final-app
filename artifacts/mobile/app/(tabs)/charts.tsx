@@ -611,9 +611,6 @@ export default function ChartsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={[s.gearBtn, { backgroundColor: colors.muted }]}>
-          <SvgIcon name="settings-outline" size={15} color={colors.mutedForeground} />
-        </TouchableOpacity>
       </View>
 
       {/* ── Sub-tabs (full width) ── */}
@@ -631,9 +628,6 @@ export default function ChartsScreen() {
             );
           })}
         </ScrollView>
-        <TouchableOpacity style={[s.navGear, { backgroundColor: colors.muted }]}>
-          <SvgIcon name="settings-outline" size={14} color={colors.mutedForeground} />
-        </TouchableOpacity>
       </View>
 
       {/* ── Middle Row: Chart + Desktop Crypto Panel ── */}
