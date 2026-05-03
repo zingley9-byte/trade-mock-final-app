@@ -27,8 +27,8 @@ function buildHtml(symbol: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html,body{width:100%;height:100dvh;background:#131722;overflow:hidden;margin:0;padding:0;}
-#root{display:flex;flex-direction:column;width:100%;height:100dvh;}
+html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;padding:0;}
+#root{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;}
 
 /* ── Top toolbar ── */
 #topbar{
@@ -357,15 +357,16 @@ function initChart() {
     handleScale: true,
   });
 
-  candleSeries = chart.addCandlestickSeries({
+  candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
     upColor: '#26a69a', downColor: '#ef5350',
     borderUpColor: '#26a69a', borderDownColor: '#ef5350',
     wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+    lastValueVisible: true, priceLineVisible: true,
   });
 
-  volSeries = chart.addHistogramSeries({
+  volSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
     color: '#26a69a', priceFormat: { type: 'volume' },
-    priceScaleId: 'vol',
+    priceScaleId: 'vol', lastValueVisible: false, priceLineVisible: false,
   });
   chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
 
