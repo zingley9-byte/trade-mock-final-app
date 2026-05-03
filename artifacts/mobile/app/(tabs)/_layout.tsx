@@ -2,6 +2,7 @@ import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import React, { useEffect } from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SvgIcon from "@/components/SvgIcon";
 import { getFirebaseAuth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -56,9 +57,21 @@ function UserSyncEffect() {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const isIOS = Platform.OS === "ios";
-  const isWeb = Platform.OS === "web";
+  const isDark      = colorScheme === "dark";
+  const isIOS       = Platform.OS === "ios";
+  const isAndroid   = Platform.OS === "android";
+  const isWeb       = Platform.OS === "web";
+  const insets      = useSafeAreaInsets();
+
+  // Android: use actual bottom inset + min 20px buffer so tabs sit above gesture bar
+  const androidBottomInset = isAndroid ? Math.max(insets.bottom, 20) : 0;
+
+  // Tab bar total height: content (icon + label) + bottom safe area
+  const TAB_CONTENT_H = isWeb ? 56 : 54;
+  const tabBarHeight  = TAB_CONTENT_H + (isIOS ? 0 : androidBottomInset) + (isWeb ? 8 : 0);
+
+  // Padding inside the bar so icons sit in the top portion, not the gesture zone
+  const tabBarPaddingBottom = isAndroid ? androidBottomInset + 4 : isWeb ? 8 : 6;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#0a0e1a" }}>
@@ -67,35 +80,43 @@ export default function TabLayout() {
       <UserSyncEffect />
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: ACTIVE_COLOR,
+          tabBarActiveTintColor:   ACTIVE_COLOR,
           tabBarInactiveTintColor: INACTIVE_COLOR,
           headerShown: false,
           tabBarStyle: {
-            position: "absolute",
+            position:        "absolute",
+            left:            0,
+            right:           0,
+            bottom:          0,
             backgroundColor: isIOS ? "transparent" : TAB_BAR_BG,
-            borderTopWidth: StyleSheet.hairlineWidth,
-            borderTopColor: "#1e293b",
-            elevation: 8,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: -2 },
-            shadowOpacity: 0.3,
-            shadowRadius: 4,
-            height: isWeb ? 64 : 58,
-            paddingBottom: isWeb ? 8 : 6,
+            borderTopWidth:  StyleSheet.hairlineWidth,
+            borderTopColor:  "#1e293b",
+            elevation:       20,
+            zIndex:          9999,
+            shadowColor:     "#000",
+            shadowOffset:    { width: 0, height: -2 },
+            shadowOpacity:   0.3,
+            shadowRadius:    4,
+            height:          tabBarHeight,
+            paddingBottom:   tabBarPaddingBottom,
+            paddingTop:      6,
           },
           tabBarBackground: () =>
             isIOS ? (
               <BlurView
                 intensity={80}
-                tint={isDark ? "dark" : "dark"}
+                tint="dark"
                 style={StyleSheet.absoluteFill}
               />
             ) : null,
           tabBarLabelStyle: {
-            fontSize: 10,
-            fontWeight: "600" as const,
-            marginBottom: 2,
-            color: undefined,
+            fontSize:     10,
+            fontWeight:   "600" as const,
+            marginBottom: 0,
+            color:        undefined,
+          },
+          tabBarItemStyle: {
+            minHeight: 44,
           },
         }}
       >
