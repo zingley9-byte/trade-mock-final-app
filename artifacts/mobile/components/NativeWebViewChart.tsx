@@ -324,18 +324,36 @@ function toggleVol() {
   document.getElementById('vol-label').style.bottom = volCollapsed ? '6px' : '22%';
 }
 
+// ── RN bridge helper — retries on Android where bridge may not be ready ──────
+function postRN(payload) {
+  var msg = JSON.stringify(payload);
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(msg);
+    return;
+  }
+  // Android: bridge sometimes not ready yet — poll up to 10× / 50ms
+  var attempts = 0;
+  var t = setInterval(function() {
+    attempts++;
+    if (window.ReactNativeWebView) {
+      clearInterval(t);
+      window.ReactNativeWebView.postMessage(msg);
+    } else if (attempts >= 10) {
+      clearInterval(t);
+    }
+  }, 50);
+}
+
 // ── Fullscreen (React Native bridge) ────────────────────────────────────────
 function toggleFS() {
   isFS = !isFS;
-  const btn = document.getElementById('fs-btn');
+  var btn = document.getElementById('fs-btn');
   if (isFS) {
     btn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>';
   } else {
     btn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
   }
-  if (window.ReactNativeWebView) {
-    window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'toggleFS', value: isFS }));
-  }
+  postRN({ type: 'toggleFS', value: isFS });
   setTimeout(resizeChart, 80);
 }
 
@@ -652,7 +670,7 @@ function ChartWebView({
   return (
     <WebView
       key={`${binKey}-${h}`}
-      source={{ html, baseUrl: "" }}
+      source={{ html, baseUrl: Platform.OS === "android" ? "file:///android_asset/" : "" }}
       style={styles.webview}
       originWhitelist={["*"]}
       javaScriptEnabled
