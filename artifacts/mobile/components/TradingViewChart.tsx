@@ -411,88 +411,135 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     else document.exitFullscreen?.();
   }
 
-  // ── SVG Pointer handlers ───────────────────────────────────────────────────
+  // ── SVG Pointer handlers — DRAG model ─────────────────────────────────────
+  const THREE_PT_TOOLS = new Set(["channel","longposition","shortposition"]);
+
   function onSvgPointerDown(e: React.PointerEvent<SVGSVGElement>) {
     if (!activeTool || activeTool==="cursor") { setSelectedDrwId(null); setFloatMenu(null); return; }
-    const {x,y} = getSvgXY(e);
-    drwMDown.current = true;
-    (e.currentTarget as any).setPointerCapture?.(e.pointerId);
-
     if (activeTool==="delete") return;
+    e.preventDefault();
+    const {x,y} = getSvgXY(e);
+
+    // Freehand
     if (activeTool==="brush"||activeTool==="highlighter") {
-      drwFreehand.current=[x,y]; setWebCurrent({type:activeTool,free:[x,y]}); return;
+      drwMDown.current=true; drwFreehand.current=[x,y];
+      setWebCurrent({type:activeTool,free:[x,y]});
+      try { (e.currentTarget as any).setPointerCapture(e.pointerId); } catch(_){}
+      return;
     }
+
     const pt = svgToData(x,y);
-    if (!pt.time && pt.time!==0) return;
-    // single-click tools
+    if (pt.price==null) return; // chart not ready
+
+    // 3-point tool awaiting 3rd click
+    if (THREE_PT_TOOLS.has(activeTool) && drwCurPts.current.length===2) {
+      const newPts=[...drwCurPts.current,pt];
+      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts:newPts,color:drwColor,width:drwWidth,visible:true,locked:false}]);
+      drwCurPts.current=[]; setWebCurrent(null); return;
+    }
+
+    // Single-click tools
     if (activeTool==="hline") {
-      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"hline",pts:[{price:pt.price,time:pt.time}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
+      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"hline",pts:[{price:pt.price,time:pt.time??0}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
       return;
     }
     if (activeTool==="vline") {
+      if (!pt.time) return;
       setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"vline",pts:[{price:pt.price,time:pt.time}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
       return;
     }
     if (activeTool==="pricelabel") {
-      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"pricelabel",pts:[{price:pt.price,time:pt.time}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
+      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"pricelabel",pts:[{price:pt.price,time:pt.time??0}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
       return;
     }
     if (activeTool==="text"||activeTool==="note") {
       const txt = window.prompt("Enter "+(activeTool==="text"?"text":"note")+":", activeTool==="text"?"Text":"Note");
       if (txt==null) return;
-      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts:[{price:pt.price,time:pt.time}],color:drwColor,width:drwWidth,text:txt,visible:true,locked:false}]);
+      setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts:[{price:pt.price,time:pt.time??0}],color:drwColor,width:drwWidth,text:txt,visible:true,locked:false}]);
       return;
     }
-    // multi-point tools
-    if (drwCurPts.current.length===0) {
-      drwCurPts.current=[pt]; setWebCurrent({type:activeTool,pts:[pt],preview:null});
-    } else {
-      const newPts=[...drwCurPts.current,pt];
-      const needed=getToolPts(activeTool)||2;
-      if (newPts.length>=needed) {
-        setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts:newPts,color:drwColor,width:drwWidth,visible:true,locked:false}]);
-        drwCurPts.current=[]; setWebCurrent(null);
-      } else {
-        drwCurPts.current=newPts; setWebCurrent({type:activeTool,pts:newPts,preview:null});
-      }
-    }
+
+    // Drag-to-draw: start with 2 identical pts, second updates as mouse moves
+    drwMDown.current=true;
+    drwCurPts.current=[pt,pt];
+    setWebCurrent({type:activeTool,pts:[pt,pt],preview:{x,y}});
+    try { (e.currentTarget as any).setPointerCapture(e.pointerId); } catch(_){}
   }
+
   function onSvgPointerMove(e: React.PointerEvent<SVGSVGElement>) {
-    if (!drwMDown.current) return;
+    e.preventDefault();
     const {x,y}=getSvgXY(e);
+
+    // Freehand
     if (activeTool==="brush"||activeTool==="highlighter") {
+      if (!drwMDown.current) return;
       drwFreehand.current=[...drwFreehand.current,x,y];
       setWebCurrent((c:any)=>c?{...c,free:[...drwFreehand.current]}:null);
       return;
     }
-    if (drwCurPts.current.length>0) {
-      drwPreview.current={x,y};
+
+    // Live drag: update second point
+    if (drwMDown.current && drwCurPts.current.length>=2) {
+      const pt=svgToData(x,y);
+      if (pt.price!=null) drwCurPts.current[1]=pt;
+      setWebCurrent((c:any)=>c?{...c,pts:[...drwCurPts.current],preview:{x,y}}:null);
+      return;
+    }
+
+    // 3-pt tool hover preview of 3rd point
+    if (!drwMDown.current && activeTool && THREE_PT_TOOLS.has(activeTool) && drwCurPts.current.length===2) {
       setWebCurrent((c:any)=>c?{...c,preview:{x,y}}:null);
     }
   }
+
   function onSvgPointerUp(e: React.PointerEvent<SVGSVGElement>) {
+    if (!drwMDown.current) return;
     drwMDown.current=false;
+    const {x,y}=getSvgXY(e);
+
+    // Freehand finish
     if (activeTool==="brush"||activeTool==="highlighter") {
       const fp=drwFreehand.current;
       if (fp.length>=4) {
         const pts:any[]=[];
-        for (let i=0;i<fp.length;i+=2) { const pt=svgToData(fp[i],fp[i+1]); if(pt.time) pts.push(pt); }
+        for (let i=0;i<fp.length;i+=2) { const pt=svgToData(fp[i],fp[i+1]); if(pt.price!=null) pts.push(pt); }
         if (pts.length>=2) setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts,color:drwColor,width:drwWidth,visible:true,locked:false}]);
       }
-      drwFreehand.current=[]; setWebCurrent(null);
+      drwFreehand.current=[]; setWebCurrent(null); return;
+    }
+
+    // Drag-to-draw finish
+    if (drwCurPts.current.length>=2) {
+      const pt=svgToData(x,y);
+      if (pt.price!=null) drwCurPts.current[1]=pt;
+      const pts=drwCurPts.current;
+
+      if (activeTool && THREE_PT_TOOLS.has(activeTool)) {
+        // Keep in-progress for 3rd click
+        setWebCurrent({type:activeTool,pts:[...pts],preview:null});
+      } else {
+        // Save if actually dragged
+        const svgP1=dataToSvgXY(pts[0].price,pts[0].time);
+        const svgP2=dataToSvgXY(pts[1].price,pts[1].time);
+        const moved=svgP1.x!=null&&svgP2.x!=null&&(Math.abs((svgP2.x??0)-(svgP1.x??0))>4||Math.abs((svgP2.y??0)-(svgP1.y??0))>4);
+        if (moved) {
+          setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts:[...pts],color:drwColor,width:drwWidth,visible:true,locked:false}]);
+        }
+        drwCurPts.current=[]; setWebCurrent(null);
+      }
     }
   }
   function handleSvgDown(e: React.MouseEvent<SVGSVGElement>) { onSvgPointerDown(e as any); }
   function handleSvgMove(e: React.MouseEvent<SVGSVGElement>) { onSvgPointerMove(e as any); }
   function handleSvgUp(e: React.MouseEvent<SVGSVGElement>)   { onSvgPointerUp(e as any); }
   function handleSvgTouchStart(e: React.TouchEvent<SVGSVGElement>) {
-    e.preventDefault(); const t=e.changedTouches[0]; onSvgPointerDown({clientX:t.clientX,clientY:t.clientY,currentTarget:e.currentTarget,pointerId:0,setPointerCapture:()=>{}} as any);
+    e.preventDefault(); const t=e.changedTouches[0]; onSvgPointerDown({clientX:t.clientX,clientY:t.clientY,currentTarget:e.currentTarget,pointerId:0,preventDefault:()=>{}} as any);
   }
   function handleSvgTouchMove(e: React.TouchEvent<SVGSVGElement>) {
-    e.preventDefault(); const t=e.changedTouches[0]; onSvgPointerMove({clientX:t.clientX,clientY:t.clientY,currentTarget:e.currentTarget} as any);
+    e.preventDefault(); const t=e.changedTouches[0]; onSvgPointerMove({clientX:t.clientX,clientY:t.clientY,currentTarget:e.currentTarget,preventDefault:()=>{}} as any);
   }
   function handleSvgTouchEnd(e: React.TouchEvent<SVGSVGElement>) {
-    e.preventDefault(); onSvgPointerUp({} as any);
+    e.preventDefault(); onSvgPointerUp({clientX:0,clientY:0} as any);
   }
 
   function onDrawingClick(id: string, e: React.MouseEvent) {

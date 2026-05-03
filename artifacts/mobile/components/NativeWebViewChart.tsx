@@ -1011,6 +1011,9 @@ function renderIP() {
 let _previewPt = null;
 
 // ── Pointer events ───────────────────────────────────────────────
+// 3-point tools that need a third click after the initial drag
+const THREE_PT = new Set(['channel','longposition','shortposition']);
+
 function initDrawingEvents() {
   const svg = document.getElementById('drw-svg');
   if (!svg) return;
@@ -1021,66 +1024,110 @@ function initDrawingEvents() {
 }
 
 function onSvgDown(e) {
-  if (e.target.closest && (e.target.closest('#float-menu')||e.target.closest('#sidebar')||e.target.closest('#sb-sub'))) return;
+  if (e.target && e.target.closest && (e.target.closest('#float-menu')||e.target.closest('#sidebar')||e.target.closest('#sb-sub'))) return;
   closeSub();
   const {x,y}=clientToSvg(e.clientX,e.clientY);
-  M_DOWN=true;
-  e.currentTarget.setPointerCapture(e.pointerId);
 
   if (!TOOL||TOOL==='cursor') { SEL=null; hideFM(); redraw(); return; }
   if (TOOL==='delete') return;
 
-  // Freehand
-  if (TOOL==='brush'||TOOL==='highlighter') { IP=TOOL; FREE_PTS=[x,y]; return; }
+  e.preventDefault();
+
+  // Freehand — start tracking
+  if (TOOL==='brush'||TOOL==='highlighter') {
+    IP=TOOL; FREE_PTS=[x,y]; M_DOWN=true;
+    try { e.target.setPointerCapture(e.pointerId); } catch(_){}
+    return;
+  }
 
   const pt=svgToData(x,y);
-  if (!pt.time&&pt.time!==0) return;
+  if (pt.price==null) return; // chart not ready
 
-  // Single-click tools
+  // ── 3-point tool: waiting for 3rd click ──
+  if (IP && THREE_PT.has(IP) && CUR_PTS.length===2) {
+    CUR_PTS.push(pt); finishDrawing(); return;
+  }
+
+  // ── Single-click tools ──
   if (TOOL==='hline') {
-    const id=genId(); DRW.push({id,type:'hline',pts:[{price:pt.price,time:pt.time}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
+    const id=genId(); DRW.push({id,type:'hline',pts:[{price:pt.price,time:pt.time||0}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
   }
   if (TOOL==='vline') {
+    if (!pt.time) return;
     const id=genId(); DRW.push({id,type:'vline',pts:[{price:pt.price,time:pt.time}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
   }
   if (TOOL==='pricelabel') {
-    const id=genId(); DRW.push({id,type:'pricelabel',pts:[{price:pt.price,time:pt.time}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
+    const id=genId(); DRW.push({id,type:'pricelabel',pts:[{price:pt.price,time:pt.time||0}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
   }
   if (TOOL==='text'||TOOL==='note') {
-    const def=TOOL==='text'?'Text':'Note';
-    const txt=prompt('Enter '+(TOOL==='text'?'text':'note')+':',def);
+    const txt=prompt('Enter '+(TOOL==='text'?'text':'note')+':',TOOL==='text'?'Text':'Note');
     if (txt==null) return;
-    const id=genId(); DRW.push({id,type:TOOL,pts:[{price:pt.price,time:pt.time}],color:CLR,width:WID,text:txt,visible:true,locked:false}); saveDrw(); redraw(); return;
+    const id=genId(); DRW.push({id,type:TOOL,pts:[{price:pt.price,time:pt.time||0}],color:CLR,width:WID,text:txt,visible:true,locked:false}); saveDrw(); redraw(); return;
   }
 
-  // Multi-point tools
-  if (CUR_PTS.length===0) { IP=TOOL; CUR_PTS=[pt]; }
-  else {
-    CUR_PTS.push(pt);
-    const needed=getToolPts(TOOL)||2;
-    if (CUR_PTS.length>=needed) finishDrawing();
-  }
+  // ── Drag-to-draw: start drag with 2 identical points ──
+  IP=TOOL; CUR_PTS=[pt,pt]; M_DOWN=true;
+  _previewPt={x,y};
+  try { e.target.setPointerCapture(e.pointerId); } catch(_){}
+  redraw();
 }
 
 function onSvgMove(e) {
-  if (!M_DOWN) return;
   e.preventDefault();
   const {x,y}=clientToSvg(e.clientX,e.clientY);
-  if (IP==='brush'||IP==='highlighter') { FREE_PTS.push(x,y); redraw(); return; }
-  if (IP&&CUR_PTS.length>0) {
-    _previewPt={x,y}; redraw();
+
+  if (IP==='brush'||IP==='highlighter') {
+    if (!M_DOWN) return;
+    FREE_PTS.push(x,y); redraw(); return;
+  }
+
+  // Always update preview (even without M_DOWN, for 3-pt tools awaiting 3rd click)
+  _previewPt={x,y};
+
+  if (M_DOWN && IP && CUR_PTS.length>=2) {
+    // Update second point live (drag model)
+    const pt=svgToData(x,y);
+    if (pt.price!=null) { CUR_PTS[1]=pt; }
+    redraw();
+  } else if (!M_DOWN && IP && THREE_PT.has(IP) && CUR_PTS.length===2) {
+    // 3-pt tool: hover preview of third point
+    redraw();
   }
 }
 
 function onSvgUp(e) {
-  M_DOWN=false; _previewPt=null;
+  if (!M_DOWN) return;
+  M_DOWN=false;
+  const {x,y}=clientToSvg(e.clientX,e.clientY);
+
+  // Freehand finish
   if (IP==='brush'||IP==='highlighter') {
+    FREE_PTS.push(x,y);
     if (FREE_PTS.length>=4) {
       const pts=[];
-      for (let i=0;i<FREE_PTS.length;i+=2) { const pt=svgToData(FREE_PTS[i],FREE_PTS[i+1]); if(pt.time) pts.push(pt); }
+      for (let i=0;i<FREE_PTS.length;i+=2) { const pt=svgToData(FREE_PTS[i],FREE_PTS[i+1]); if(pt.price!=null) pts.push(pt); }
       if (pts.length>=2) { const id=genId(); DRW.push({id,type:IP,pts,color:CLR,width:WID,visible:true,locked:false}); saveDrw(); }
     }
-    IP=null; FREE_PTS=[]; CUR_PTS=[]; redraw();
+    IP=null; FREE_PTS=[]; CUR_PTS=[]; _previewPt=null; redraw(); return;
+  }
+
+  // Drag-to-draw finish
+  if (IP && CUR_PTS.length>=2) {
+    const pt=svgToData(x,y);
+    if (pt.price!=null) CUR_PTS[1]=pt;
+
+    if (THREE_PT.has(IP)) {
+      // Don't finish yet — wait for 3rd click
+      // Show the 2-pt drawing in-progress; M_DOWN is now false
+      _previewPt=null;
+      redraw();
+    } else {
+      // Only save if user actually dragged (not a zero-length tap)
+      const p1=dataToSvg(CUR_PTS[0].price,CUR_PTS[0].time);
+      const p2=dataToSvg(CUR_PTS[1].price,CUR_PTS[1].time);
+      const moved = p1.x!=null&&p2.x!=null && (Math.abs(p2.x-p1.x)>4||Math.abs(p2.y-p1.y)>4);
+      if (moved) { finishDrawing(); } else { IP=null; CUR_PTS=[]; _previewPt=null; redraw(); }
+    }
   }
 }
 
