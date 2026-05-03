@@ -356,7 +356,7 @@ export default function LandingPage() {
                 <Text style={s.h1Yellow}>Without Risk</Text>
               </Text>
               <Text style={s.sub}>
-                Trade Mock helps you learn crypto trading with live charts, mock balance, portfolio, and history. Improve your skills before you trade real.
+                Trade Mock is a crypto trading simulation app for educational purposes only. We do not provide financial advice. Practice with live charts, mock balance, portfolio, and history — risk free.
               </Text>
               <View style={s.ctaRow}>
                 <TouchableOpacity style={s.btnPrimary} onPress={goAuth}>

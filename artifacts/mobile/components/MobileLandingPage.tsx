@@ -233,7 +233,7 @@ export default function MobileLandingPage() {
           <View style={s.heroRow}>
             <View style={s.heroLeft}>
               <Text style={s.h1}>Practice Trading{"\n"}<Text style={s.h1Yellow}>Without Risk</Text></Text>
-              <Text style={s.sub}>Trade Mock helps you learn crypto trading with live charts, mock balance, portfolio, and history. Improve your skills before you trade real.</Text>
+              <Text style={s.sub}>Trade Mock is a crypto trading simulation app for educational purposes only. We do not provide financial advice. Practice risk-free with live charts and virtual funds.</Text>
               <TouchableOpacity style={s.btnPrimary} onPress={goAuth}>
                 <Text style={s.btnPrimaryTxt}>Get Started →</Text>
               </TouchableOpacity>

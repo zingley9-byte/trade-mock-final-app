@@ -24,10 +24,17 @@ module.exports = {
       },
       package: "com.trademock.app",
     },
+    description: "Trade Mock is a crypto trading simulation app for educational purposes only. We do not provide financial advice.",
     web: {
       bundler: "metro",
       output: "single",
       favicon: "./assets/images/logo.png",
+      name: "Trade Mock",
+      shortName: "TradeMock",
+      description: "Trade Mock is a crypto trading simulation app for educational purposes only. We do not provide financial advice.",
+      lang: "en",
+      backgroundColor: "#000000",
+      themeColor: "#0B0E11",
     },
     plugins: [
       ["expo-router", { origin: "https://replit.com/" }],
