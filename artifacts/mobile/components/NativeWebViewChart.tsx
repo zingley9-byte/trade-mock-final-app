@@ -1061,6 +1061,7 @@ function renderIP() {
 }
 
 let _previewPt = null;
+let _lastX = 0, _lastY = 0;
 
 // ── Pointer events ───────────────────────────────────────────────
 // 3-point tools that need a third click after the initial drag
@@ -1069,10 +1070,47 @@ const THREE_PT = new Set(['channel','longposition','shortposition']);
 function initDrawingEvents() {
   const svg = document.getElementById('drw-svg');
   if (!svg) return;
-  svg.addEventListener('pointerdown', onSvgDown, {passive:false});
-  svg.addEventListener('pointermove', onSvgMove, {passive:false});
-  svg.addEventListener('pointerup',   onSvgUp,   {passive:false});
-  svg.addEventListener('pointercancel', onSvgUp, {passive:false});
+
+  // ── Touch events (primary – Android/iOS WebView) ──────────────────────────
+  svg.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    onSvgDown({target:e.target, clientX:t.clientX, clientY:t.clientY, pointerId:-1, preventDefault:function(){}});
+  }, {passive:false});
+
+  svg.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    onSvgMove({clientX:t.clientX, clientY:t.clientY, preventDefault:function(){}});
+  }, {passive:false});
+
+  svg.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    const t = e.changedTouches[0] || (e.touches && e.touches[0]) || {clientX:_lastX||0,clientY:_lastY||0};
+    onSvgUp({clientX:t.clientX, clientY:t.clientY});
+  }, {passive:false});
+
+  svg.addEventListener('touchcancel', function() {
+    M_DOWN=false; IP=null; CUR_PTS=[]; _previewPt=null; redraw();
+  });
+
+  // ── Pointer events (fallback – web/desktop, skips if touch) ───────────────
+  svg.addEventListener('pointerdown', function(e) {
+    if (e.pointerType==='touch') return; // already handled above
+    onSvgDown(e);
+  }, {passive:false});
+  svg.addEventListener('pointermove', function(e) {
+    if (e.pointerType==='touch') return;
+    onSvgMove(e);
+  }, {passive:false});
+  svg.addEventListener('pointerup', function(e) {
+    if (e.pointerType==='touch') return;
+    onSvgUp(e);
+  });
+  svg.addEventListener('pointercancel', function(e) {
+    if (e.pointerType==='touch') return;
+    onSvgUp(e);
+  });
 }
 
 function onSvgDown(e) {
@@ -1126,6 +1164,7 @@ function onSvgDown(e) {
 
 function onSvgMove(e) {
   e.preventDefault();
+  _lastX=e.clientX; _lastY=e.clientY;
   const {x,y}=clientToSvg(e.clientX,e.clientY);
 
   if (IP==='brush'||IP==='highlighter') {
