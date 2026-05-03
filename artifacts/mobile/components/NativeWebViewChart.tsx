@@ -218,8 +218,56 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
   <!-- BODY -->
   <div id="body">
 
-    <!-- Drawing sidebar -->
-    <div id="sidebar"></div>
+    <!-- Drawing sidebar — hardcoded so it always shows regardless of JS state -->
+    <div id="sidebar">
+      <!-- Cursor -->
+      <button class="sb-btn" id="sb-cursor" title="Cursor" onclick="setToolGroup('cursor')">
+        <svg viewBox="0 0 24 24"><path d="M5 3l14 9-7 1-4 7z"/></svg>
+      </button>
+      <!-- Lines -->
+      <button class="sb-btn" id="sb-lines" title="Lines" onclick="openSubById('lines',this)">
+        <svg viewBox="0 0 24 24"><line x1="5" y1="17" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
+        <div class="sb-tri"></div>
+      </button>
+      <!-- Fibonacci -->
+      <button class="sb-btn" id="sb-fib" title="Fibonacci" onclick="openSubById('fib',this)">
+        <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <div class="sb-tri"></div>
+      </button>
+      <!-- Shapes -->
+      <button class="sb-btn" id="sb-shapes" title="Shapes" onclick="openSubById('shapes',this)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        <div class="sb-tri"></div>
+      </button>
+      <!-- Brush -->
+      <button class="sb-btn" id="sb-brush" title="Brushes" onclick="openSubById('brush',this)">
+        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L3 14.67V21h6.33l10.06-10.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <div class="sb-tri"></div>
+      </button>
+      <!-- Text -->
+      <button class="sb-btn" id="sb-text" title="Text" onclick="openSubById('text',this)">
+        <svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+        <div class="sb-tri"></div>
+      </button>
+      <!-- Measure -->
+      <button class="sb-btn" id="sb-measure" title="Measure" onclick="openSubById('measure',this)">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+        <div class="sb-tri"></div>
+      </button>
+      <div class="sb-sep"></div>
+      <!-- Hide/Show -->
+      <button class="sb-btn" id="sb-hide" title="Hide/Show" onclick="toggleHide(this)">
+        <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <!-- Lock -->
+      <button class="sb-btn" id="sb-lock" title="Lock All" onclick="toggleLockAll(this)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </button>
+      <!-- Delete Mode -->
+      <button class="sb-btn" id="sb-delete" title="Delete Mode" onclick="toggleDeleteMode(this)">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </button>
+    </div>
 
     <!-- Chart area -->
     <div id="chart-wrap">
@@ -664,49 +712,53 @@ function fmtP(p) {
 }
 
 // ── Sidebar ─────────────────────────────────────────────────────
+// ── Sidebar active-state refresh (HTML is now hardcoded, just update classes) ──
 function buildSidebar() {
-  const sb = document.getElementById('sidebar');
-  if (!sb) return;
-  sb.innerHTML = '';
-  TOOL_GROUPS.forEach(g => {
-    if (g === 'sep') { const d=document.createElement('div'); d.className='sb-sep'; sb.appendChild(d); return; }
-    const isActive = TOOL === g.id || g.items.some(it=>it.id===TOOL)
-                  || (g.id==='hide'&&HIDE) || (g.id==='delete'&&TOOL==='delete');
-    const btn = document.createElement('button');
-    btn.className = 'sb-btn' + (isActive?' act':'');
-    btn.title = g.label;
-    btn.dataset.gid = g.id;
-    btn.innerHTML = '<svg viewBox="0 0 24 24">'+g.icon+'</svg>' + (g.items.length>0?'<div class="sb-tri"></div>':'');
-    btn.addEventListener('pointerdown', e => { e.stopPropagation(); handleGroupBtn(g, btn); });
-    sb.appendChild(btn);
+  const IDS = {cursor:'sb-cursor',lines:'sb-lines',fib:'sb-fib',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',measure:'sb-measure',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
+  const toolToGroup = {trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',fibretracement:'fib',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text',longposition:'measure',shortposition:'measure',daterange:'measure',pricerange:'measure'};
+  Object.entries(IDS).forEach(([gid,btnId]) => {
+    const btn = document.getElementById(btnId); if(!btn) return;
+    const isActive = (TOOL===gid) || (toolToGroup[TOOL]===gid) || (gid==='hide'&&HIDE) || (gid==='delete'&&TOOL==='delete') || (gid==='cursor'&&(!TOOL||TOOL==='cursor'));
+    btn.classList.toggle('act', !!isActive);
   });
 }
 
-function handleGroupBtn(g, btnEl) {
-  if (g.id === 'hide') { HIDE=!HIDE; btnEl.classList.toggle('act',HIDE); redraw(); return; }
-  if (g.id === 'lock') {
-    const allLk = DRW.every(d=>d.locked);
-    DRW.forEach(d=>d.locked=!allLk); saveDrw(); btnEl.classList.toggle('act',!allLk); return;
-  }
-  if (g.id === 'delete') { TOOL=TOOL==='delete'?null:'delete'; updateSvgMode(); buildSidebar(); closeSub(); return; }
-  if (g.id === 'cursor') { TOOL='cursor'; SEL=null; hideFM(); updateSvgMode(); buildSidebar(); closeSub(); return; }
-  if (g.items.length === 0) return;
-  if (g.items.length === 1) { setTool(g.items[0].id); closeSub(); return; }
-  if (SUB_OPEN === g.id) { closeSub(); return; }
-  openSub(g, btnEl);
+// ── Called from hardcoded HTML buttons ──
+function setToolGroup(gid) {
+  TOOL = gid==='cursor' ? 'cursor' : null;
+  SEL=null; CUR_PTS=[]; FREE_PTS=[]; IP=null;
+  hideFM(); updateSvgMode(); buildSidebar(); closeSub(); redraw();
 }
 
-function openSub(g, btnEl) {
-  SUB_OPEN = g.id;
+function openSubById(gid, btnEl) {
+  const g = TOOL_GROUPS.find(x=>x!=='sep'&&x.id===gid);
+  if (!g) return;
+  if (g.items.length === 1) { setTool(g.items[0].id); return; }
+  if (SUB_OPEN === gid) { closeSub(); return; }
+  SUB_OPEN = gid;
   const sub = document.getElementById('sb-sub');
   const r = btnEl.getBoundingClientRect();
-  sub.style.top = r.top+'px';
+  sub.style.top = Math.min(r.top, window.innerHeight-200)+'px';
   let html = '<div class="sub-title">'+g.label+'</div>';
   g.items.forEach(it => {
     html += '<button class="sub-item'+(TOOL===it.id?' act':'') + '" onclick="setTool(\''+it.id+'\');closeSub()"><div class="sub-dot"></div>'+it.label+'</button>';
   });
   sub.innerHTML = html; sub.classList.remove('hidden');
 }
+
+function toggleHide(btnEl) {
+  HIDE=!HIDE; buildSidebar(); redraw();
+}
+function toggleLockAll(btnEl) {
+  const allLk = DRW.length>0&&DRW.every(d=>d.locked);
+  DRW.forEach(d=>d.locked=!allLk); saveDrw(); buildSidebar();
+}
+function toggleDeleteMode(btnEl) {
+  TOOL = TOOL==='delete' ? null : 'delete';
+  CUR_PTS=[]; FREE_PTS=[]; IP=null; SEL=null;
+  hideFM(); updateSvgMode(); buildSidebar(); closeSub();
+}
+
 function closeSub() { SUB_OPEN=null; const s=document.getElementById('sb-sub'); if(s) s.classList.add('hidden'); }
 
 function setTool(id) {
@@ -1245,12 +1297,11 @@ function initDrwEngine() {
   setTimeout(redraw,300);
 }
 
-// Build sidebar + attach events IMMEDIATELY (before chart loads)
-// This guarantees sidebar is always visible even if load event is delayed
+// Attach SVG events + init active states IMMEDIATELY (sidebar HTML is already in DOM)
 (function immediateInit() {
   try {
     loadDrw();
-    buildSidebar();
+    buildSidebar();   // just refreshes .act classes on hardcoded buttons
     updateSvgMode();
     initDrawingEvents();
   } catch(e) {}
