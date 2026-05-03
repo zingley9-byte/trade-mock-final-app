@@ -174,6 +174,42 @@ export default function SvgIcon({ name, size = 24, color = "#fff" }: Props) {
     case "trophy-outline":
       return <Svg {...p}><Path {...sp} d="M6 9H3l1.5-6h15L21 9h-3"/><Path {...sp} d="M6 9a6 6 0 0 0 12 0"/><Line {...sp} x1="12" y1="15" x2="12" y2="19"/><Path {...sp} d="M8 19h8"/></Svg>;
 
+    // ── People / User management ────────────────────────────────────────────
+    case "people-outline":
+    case "users":
+      return <Svg {...p}><Path {...sp} d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><Circle {...sp} cx="9" cy="7" r="4"/><Path {...sp} d="M23 21v-2a4 4 0 0 0-3-3.87"/><Path {...sp} d="M16 3.13a4 4 0 0 1 0 7.75"/></Svg>;
+    case "person-add-outline":
+      return <Svg {...p}><Path {...sp} d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><Circle {...sp} cx="9" cy="7" r="4"/><Line {...sp} x1="19" y1="8" x2="19" y2="14"/><Line {...sp} x1="22" y1="11" x2="16" y2="11"/></Svg>;
+    case "person-remove-outline":
+      return <Svg {...p}><Path {...sp} d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><Circle {...sp} cx="9" cy="7" r="4"/><Line {...sp} x1="22" y1="11" x2="16" y2="11"/></Svg>;
+
+    // ── Status / Alerts ─────────────────────────────────────────────────────
+    case "alert-circle-outline":
+      return <Svg {...p}><Circle {...sp} cx="12" cy="12" r="10"/><Line {...sp} x1="12" y1="8" x2="12" y2="12"/><Line {...sp} x1="12" y1="16" x2="12.01" y2="16" strokeWidth={2.5}/></Svg>;
+    case "information-circle-outline":
+      return <Svg {...p}><Circle {...sp} cx="12" cy="12" r="10"/><Line {...sp} x1="12" y1="16" x2="12" y2="12"/><Line {...sp} x1="12" y1="8" x2="12.01" y2="8" strokeWidth={2.5}/></Svg>;
+    case "warning-outline":
+      return <Svg {...p}><Path {...sp} d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><Line {...sp} x1="12" y1="9" x2="12" y2="13"/><Line {...sp} x1="12" y1="17" x2="12.01" y2="17" strokeWidth={2.5}/></Svg>;
+    case "checkmark-outline":
+    case "checkmark":
+      return <Svg {...p}><Polyline {...sp} points="20 6 9 17 4 12"/></Svg>;
+    case "checkmark-circle-outline":
+      return <Svg {...p}><Path {...sp} d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><Polyline {...sp} points="22 4 12 14.01 9 11.01"/></Svg>;
+    case "notifications-off-outline":
+      return <Svg {...p}><Path {...sp} d="M13.73 21a2 2 0 0 1-3.46 0"/><Path {...sp} d="M18.63 13A17.89 17.89 0 0 1 18 8"/><Path {...sp} d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><Path {...sp} d="M18 8a6 6 0 0 0-9.33-5"/><Line {...sp} x1="1" y1="1" x2="23" y2="23"/></Svg>;
+    case "shield-outline":
+      return <Svg {...p}><Path {...sp} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></Svg>;
+
+    // ── Extra Actions ───────────────────────────────────────────────────────
+    case "refresh-outline":
+      return <Svg {...p}><Polyline {...sp} points="23 4 23 10 17 10"/><Polyline {...sp} points="1 20 1 14 7 14"/><Path {...sp} d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></Svg>;
+    case "file-tray-outline":
+      return <Svg {...p}><Path {...sp} d="M22 12h-6l-2 3H10l-2-3H2"/><Path {...sp} d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></Svg>;
+    case "activity":
+      return <Svg {...p}><Polyline {...sp} points="22 12 18 12 15 21 9 3 6 12 2 12"/></Svg>;
+    case "layers":
+      return <Svg {...p}><Polygon {...sp} points="12 2 2 7 12 12 22 7 12 2"/><Polyline {...sp} points="2 17 12 22 22 17"/><Polyline {...sp} points="2 12 12 17 22 12"/></Svg>;
+
     // ── Default fallback ────────────────────────────────────
     default:
       return (

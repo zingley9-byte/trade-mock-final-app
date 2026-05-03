@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Announcement, useAdmin } from "@/context/AdminContext";
 
@@ -80,7 +80,7 @@ export default function AdminAnnouncements() {
       <View style={s.card}>
         <View style={s.cardTop}>
           <View style={[s.typeIcon, { backgroundColor: color + "22" }]}>
-            <Ionicons name={TYPE_ICONS[a.type] as any} size={16} color={color} />
+            <SvgIcon name={TYPE_ICONS[a.type] as any} size={16} color={color} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.cardTitle}>{a.title}</Text>
@@ -94,7 +94,7 @@ export default function AdminAnnouncements() {
             style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
           />
           <TouchableOpacity onPress={() => handleDelete(a)} style={{ padding: 4 }}>
-            <Ionicons name="trash-outline" size={16} color={BEAR} />
+            <SvgIcon name="trash-outline" size={16} color={BEAR} />
           </TouchableOpacity>
         </View>
         <Text style={s.cardMsg}>{a.message}</Text>
@@ -111,18 +111,18 @@ export default function AdminAnnouncements() {
     <View style={[s.root, { paddingTop: insets.top }]}>
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
-          <Ionicons name="arrow-back-outline" size={20} color={FG} />
+          <SvgIcon name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Announcements ({announcements.length})</Text>
         <TouchableOpacity style={s.addBtn} onPress={() => setAddModal(true)}>
-          <Ionicons name="add-outline" size={16} color="#fff" />
+          <SvgIcon name="add-outline" size={16} color="#fff" />
           <Text style={s.addBtnText}>New</Text>
         </TouchableOpacity>
       </View>
 
       {announcements.length === 0 ? (
         <View style={s.center}>
-          <Ionicons name="notifications-off-outline" size={40} color={MUTED} />
+          <SvgIcon name="notifications-off-outline" size={40} color={MUTED} />
           <Text style={s.emptyText}>No announcements yet</Text>
           <TouchableOpacity style={s.emptyBtn} onPress={() => setAddModal(true)}>
             <Text style={s.emptyBtnText}>Create First Announcement</Text>
@@ -154,7 +154,7 @@ export default function AdminAnnouncements() {
                   style={[s.typeBtn, aType === t && { backgroundColor: TYPE_COLORS[t] + "33", borderColor: TYPE_COLORS[t] }]}
                   onPress={() => setAType(t)}
                 >
-                  <Ionicons name={TYPE_ICONS[t] as any} size={14} color={aType === t ? TYPE_COLORS[t] : MUTED} />
+                  <SvgIcon name={TYPE_ICONS[t] as any} size={14} color={aType === t ? TYPE_COLORS[t] : MUTED} />
                   <Text style={[s.typeBtnText, { color: aType === t ? TYPE_COLORS[t] : MUTED }]}>
                     {t.charAt(0).toUpperCase() + t.slice(1)}
                   </Text>
@@ -182,7 +182,7 @@ export default function AdminAnnouncements() {
             />
 
             <TouchableOpacity style={s.confirmBtn} onPress={handleCreate} activeOpacity={0.85}>
-              <Ionicons name="send-outline" size={16} color="#fff" />
+              <SvgIcon name="send-outline" size={16} color="#fff" />
               <Text style={s.confirmText}>Publish Announcement</Text>
             </TouchableOpacity>
           </ScrollView>

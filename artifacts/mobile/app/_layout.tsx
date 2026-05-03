@@ -4,7 +4,6 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
-import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
@@ -36,10 +35,6 @@ function AppProviders({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    // Explicitly require Ionicons TTF — spread (...Ionicons.font) is unreliable
-    // on Android with new architecture; direct require always works.
-    Ionicons: require("@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"),
-    // App text fonts
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,

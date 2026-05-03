@@ -16,7 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
@@ -67,14 +67,14 @@ function RowItem({
       { backgroundColor: colors.card },
     ]}>
       <View style={[styles.iconWrap, { backgroundColor: iconBg }]}>
-        <Ionicons name={icon as any} size={15} color="#fff" />
+        <SvgIcon name={icon as any} size={15} color="#fff" />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowLabel, { color: colors.foreground }]}>{label}</Text>
         {sub && <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{sub}</Text>}
       </View>
       {right}
-      {showChevron && <Ionicons name="chevron-forward-outline" size={15} color={colors.mutedForeground} style={{ marginLeft: 4 }} />}
+      {showChevron && <SvgIcon name="chevron-forward-outline" size={15} color={colors.mutedForeground} style={{ marginLeft: 4 }} />}
     </View>
   );
   return onPress ? (
@@ -174,7 +174,7 @@ function FontSizeModal({
                 <Text style={[styles.pickerLabel, { color: colors.foreground }]}>{o.label}</Text>
                 <Text style={[styles.pickerSub, { color: colors.mutedForeground }]}>{o.desc}</Text>
               </View>
-              {value === o.key && <Ionicons name="checkmark-outline" size={16} color={colors.primary} />}
+              {value === o.key && <SvgIcon name="checkmark-outline" size={16} color={colors.primary} />}
             </TouchableOpacity>
           ))}
         </View>
@@ -207,7 +207,7 @@ function ChartBgModal({
                 <Text style={[styles.pickerLabel, { color: colors.foreground }]}>{o.label}</Text>
                 <Text style={[styles.pickerSub, { color: colors.mutedForeground }]}>{o.desc}</Text>
               </View>
-              {value === o.key && <Ionicons name="checkmark-outline" size={16} color={colors.primary} />}
+              {value === o.key && <SvgIcon name="checkmark-outline" size={16} color={colors.primary} />}
             </TouchableOpacity>
           ))}
         </View>
@@ -368,11 +368,11 @@ export default function SettingsScreen() {
             <Image source={{ uri: avatar }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: colors.muted }]}>
-              <Ionicons name="person-outline" size={30} color={colors.mutedForeground} />
+              <SvgIcon name="person-outline" size={30} color={colors.mutedForeground} />
             </View>
           )}
           <View style={[styles.cameraBadge, { backgroundColor: colors.primary }]}>
-            <Ionicons name="camera-outline" size={10} color="#fff" />
+            <SvgIcon name="camera-outline" size={10} color="#fff" />
           </View>
         </TouchableOpacity>
         <View style={styles.profileInfo}>
@@ -389,7 +389,7 @@ export default function SettingsScreen() {
           style={[styles.editBtn, { backgroundColor: colors.primary + "18", borderColor: colors.primary + "40" }]}
           onPress={() => setEditProfileOpen(true)}
         >
-          <Ionicons name="pencil-outline" size={13} color={colors.primary} />
+          <SvgIcon name="pencil-outline" size={13} color={colors.primary} />
           <Text style={[styles.editBtnText, { color: colors.primary }]}>Edit</Text>
         </TouchableOpacity>
       </View>
@@ -484,13 +484,13 @@ export default function SettingsScreen() {
               activeOpacity={0.8}
             >
               <View style={[styles.adminIconWrap, { backgroundColor: "#7c3aed22" }]}>
-                <Ionicons name="shield-outline" size={18} color="#7c3aed" />
+                <SvgIcon name="shield-outline" size={18} color="#7c3aed" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.adminBtnLabel, { color: "#7c3aed" }]}>Admin Panel</Text>
                 <Text style={[styles.adminBtnSub, { color: colors.mutedForeground }]}>Manage users, coins & announcements</Text>
               </View>
-              <Ionicons name="chevron-forward-outline" size={16} color="#7c3aed" />
+              <SvgIcon name="chevron-forward-outline" size={16} color="#7c3aed" />
             </TouchableOpacity>
           </View>
         </>

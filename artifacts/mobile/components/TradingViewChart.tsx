@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Platform, View, Text } from "react-native";
 import MobileCandleChart from "./MobileCandleChart";
+import NativeWebViewChart from "./NativeWebViewChart";
 
 // ─── Theme ───────────────────────────────────────────────────────────────────
 const C = {
@@ -928,8 +929,9 @@ function BotBtn({ label }: { label: string }) {
 // ─── Public export ────────────────────────────────────────────────────────────
 export default function TradingViewChart({ symbol = "BTCUSDT", height }: { symbol?: string; height?: number }) {
   const h = height ?? 480;
-  if (Platform.OS !== "web") {
-    return <MobileCandleChart symbol={symbol} height={h} />;
+  if (Platform.OS === "web") {
+    return <WebChart symbol={symbol} height={h} />;
   }
-  return <WebChart symbol={symbol} height={h} />;
+  // Android & iOS — WebView-based TradingView-style chart (lightweight-charts via CDN)
+  return <NativeWebViewChart symbol={symbol} height={h} />;
 }
