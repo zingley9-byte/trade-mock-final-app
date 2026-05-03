@@ -1,7 +1,10 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { getFirebaseAuth } from "@/lib/firebase";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import {
+  collection, doc, setDoc, updateDoc, deleteDoc,
+  onSnapshot, query, orderBy, getDoc,
+} from "firebase/firestore";
 
 export const ADMIN_EMAIL = "Zingley9@gmail.com";
 
@@ -17,6 +20,9 @@ export interface AdminUser {
   tradeCount: number;
   totalPnl: number;
   role: UserRole;
+  lastSeen?: number;
+  needsReset?: boolean;
+  fakeBalanceAdded?: number;
 }
 
 export interface Announcement {
@@ -28,10 +34,25 @@ export interface Announcement {
   active: boolean;
 }
 
-const ADMIN_USERS_KEY         = "admin_users_v1";
-const ADMIN_ANNOUNCEMENTS_KEY = "admin_announcements_v1";
-const ADMIN_BLOCKED_KEY       = "admin_blocked_v1";
-const ADMIN_FAKE_BALANCES_KEY = "admin_fake_balances_v1";
+export interface AppConfig {
+  bannerAds: boolean;
+  interstitialAds: boolean;
+  rewardedAds: boolean;
+  maintenanceMode: boolean;
+  bannerAdUnitId: string;
+  interstitialAdUnitId: string;
+  rewardedAdUnitId: string;
+}
+
+const DEFAULT_CONFIG: AppConfig = {
+  bannerAds: true,
+  interstitialAds: true,
+  rewardedAds: true,
+  maintenanceMode: false,
+  bannerAdUnitId: "ca-app-pub-xxxxxx/yyyyyy",
+  interstitialAdUnitId: "ca-app-pub-xxxxxx/zzzzzz",
+  rewardedAdUnitId: "ca-app-pub-xxxxxx/wwwwww",
+};
 
 function isAdminEmail(email: string | null | undefined): boolean {
   return !!email && email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
@@ -44,19 +65,22 @@ interface AdminContextType {
   users: AdminUser[];
   announcements: Announcement[];
   blockedUids: string[];
-  fakeBalances: Record<string, number>;
+  appConfig: AppConfig;
   loading: boolean;
   refreshUsers: () => Promise<void>;
   blockUser: (uid: string) => Promise<void>;
   unblockUser: (uid: string) => Promise<void>;
   addFakeBalance: (uid: string, amount: number) => Promise<void>;
+  resetUserFund: (uid: string) => Promise<void>;
   addAnnouncement: (a: Omit<Announcement, "id" | "createdAt">) => Promise<void>;
   updateAnnouncement: (id: string, updates: Partial<Announcement>) => Promise<void>;
   deleteAnnouncement: (id: string) => Promise<void>;
+  updateAppConfig: (updates: Partial<AppConfig>) => Promise<void>;
   registerUserActivity: (
     uid: string, email: string, name: string,
     balance: number, tradeCount: number, totalPnl: number
   ) => Promise<void>;
+  checkAndApplyAdminReset: (uid: string, applyReset: () => void) => Promise<void>;
 }
 
 const AdminContext = createContext<AdminContextType | null>(null);
@@ -67,9 +91,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [adminEmail, setAdminEmail]   = useState<string | null>(null);
   const [users, setUsers]             = useState<AdminUser[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [blockedUids, setBlockedUids] = useState<string[]>([]);
-  const [fakeBalances, setFakeBalances] = useState<Record<string, number>>({});
+  const [appConfig, setAppConfig]     = useState<AppConfig>(DEFAULT_CONFIG);
   const [loading, setLoading]         = useState(true);
+
+  const usersUnsubRef = useRef<(() => void) | null>(null);
+  const announcementsUnsubRef = useRef<(() => void) | null>(null);
+  const configUnsubRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -85,100 +112,164 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    loadData();
+    const db = getFirebaseDb();
+
+    usersUnsubRef.current?.();
+    usersUnsubRef.current = onSnapshot(
+      query(collection(db, "users"), orderBy("createdAt", "desc")),
+      (snap) => {
+        const list: AdminUser[] = [];
+        snap.forEach((d) => list.push(d.data() as AdminUser));
+        setUsers(list);
+      },
+      () => {}
+    );
+
+    announcementsUnsubRef.current?.();
+    announcementsUnsubRef.current = onSnapshot(
+      query(collection(db, "announcements"), orderBy("createdAt", "desc")),
+      (snap) => {
+        const list: Announcement[] = [];
+        snap.forEach((d) => list.push(d.data() as Announcement));
+        setAnnouncements(list);
+      },
+      () => {}
+    );
+
+    configUnsubRef.current?.();
+    configUnsubRef.current = onSnapshot(
+      doc(db, "admin_config", "app"),
+      (snap) => {
+        if (snap.exists()) {
+          setAppConfig({ ...DEFAULT_CONFIG, ...(snap.data() as Partial<AppConfig>) });
+        }
+      },
+      () => {}
+    );
+
+    return () => {
+      usersUnsubRef.current?.();
+      announcementsUnsubRef.current?.();
+      configUnsubRef.current?.();
+    };
   }, []);
 
-  async function loadData() {
-    try {
-      const [usersRaw, announcementsRaw, blockedRaw, fakeRaw] = await Promise.all([
-        AsyncStorage.getItem(ADMIN_USERS_KEY),
-        AsyncStorage.getItem(ADMIN_ANNOUNCEMENTS_KEY),
-        AsyncStorage.getItem(ADMIN_BLOCKED_KEY),
-        AsyncStorage.getItem(ADMIN_FAKE_BALANCES_KEY),
-      ]);
-      if (usersRaw)         setUsers(JSON.parse(usersRaw));
-      if (announcementsRaw) setAnnouncements(JSON.parse(announcementsRaw));
-      if (blockedRaw)       setBlockedUids(JSON.parse(blockedRaw));
-      if (fakeRaw)          setFakeBalances(JSON.parse(fakeRaw));
-    } catch {}
+  async function refreshUsers() {
+    const db = getFirebaseDb();
+    const snap = await import("firebase/firestore").then(({ getDocs, collection, query, orderBy: ob }) =>
+      getDocs(query(collection(db, "users"), ob("createdAt", "desc")))
+    );
+    const list: AdminUser[] = [];
+    snap.forEach((d) => list.push(d.data() as AdminUser));
+    setUsers(list);
   }
 
-  async function refreshUsers() {
-    const raw = await AsyncStorage.getItem(ADMIN_USERS_KEY);
-    if (raw) setUsers(JSON.parse(raw));
-  }
+  const blockedUids = users.filter((u) => u.blocked).map((u) => u.uid);
 
   async function blockUser(uid: string) {
     const userToBlock = users.find((u) => u.uid === uid);
     if (userToBlock && isAdminEmail(userToBlock.email)) return;
-    const next = [...blockedUids.filter((u) => u !== uid), uid];
-    setBlockedUids(next);
-    await AsyncStorage.setItem(ADMIN_BLOCKED_KEY, JSON.stringify(next));
+    const db = getFirebaseDb();
+    await updateDoc(doc(db, "users", uid), { blocked: true });
   }
 
   async function unblockUser(uid: string) {
-    const next = blockedUids.filter((u) => u !== uid);
-    setBlockedUids(next);
-    await AsyncStorage.setItem(ADMIN_BLOCKED_KEY, JSON.stringify(next));
+    const db = getFirebaseDb();
+    await updateDoc(doc(db, "users", uid), { blocked: false });
   }
 
   async function addFakeBalance(uid: string, amount: number) {
-    const next = { ...fakeBalances, [uid]: (fakeBalances[uid] ?? 0) + amount };
-    setFakeBalances(next);
-    await AsyncStorage.setItem(ADMIN_FAKE_BALANCES_KEY, JSON.stringify(next));
+    const db = getFirebaseDb();
+    const userDoc = users.find((u) => u.uid === uid);
+    const currentBal = userDoc?.balance ?? 0;
+    const currentFake = userDoc?.fakeBalanceAdded ?? 0;
+    await updateDoc(doc(db, "users", uid), {
+      balance: currentBal + amount,
+      fakeBalanceAdded: currentFake + amount,
+    });
+  }
+
+  async function resetUserFund(uid: string) {
+    const db = getFirebaseDb();
+    await updateDoc(doc(db, "users", uid), {
+      balance: 1000000,
+      tradeCount: 0,
+      totalPnl: 0,
+      fakeBalanceAdded: 0,
+      needsReset: true,
+    });
+  }
+
+  async function checkAndApplyAdminReset(uid: string, applyReset: () => void) {
+    try {
+      const db = getFirebaseDb();
+      const snap = await getDoc(doc(db, "users", uid));
+      if (snap.exists() && snap.data()?.needsReset === true) {
+        applyReset();
+        await updateDoc(doc(db, "users", uid), { needsReset: false });
+      }
+    } catch {}
   }
 
   async function addAnnouncement(a: Omit<Announcement, "id" | "createdAt">) {
-    const item: Announcement = { ...a, id: Date.now().toString(), createdAt: Date.now() };
-    const next = [item, ...announcements];
-    setAnnouncements(next);
-    await AsyncStorage.setItem(ADMIN_ANNOUNCEMENTS_KEY, JSON.stringify(next));
+    const db = getFirebaseDb();
+    const id = Date.now().toString();
+    const item: Announcement = { ...a, id, createdAt: Date.now() };
+    await setDoc(doc(db, "announcements", id), item);
   }
 
   async function updateAnnouncement(id: string, updates: Partial<Announcement>) {
-    const next = announcements.map((a) => (a.id === id ? { ...a, ...updates } : a));
-    setAnnouncements(next);
-    await AsyncStorage.setItem(ADMIN_ANNOUNCEMENTS_KEY, JSON.stringify(next));
+    const db = getFirebaseDb();
+    await updateDoc(doc(db, "announcements", id), updates as Record<string, unknown>);
   }
 
   async function deleteAnnouncement(id: string) {
-    const next = announcements.filter((a) => a.id !== id);
-    setAnnouncements(next);
-    await AsyncStorage.setItem(ADMIN_ANNOUNCEMENTS_KEY, JSON.stringify(next));
+    const db = getFirebaseDb();
+    await deleteDoc(doc(db, "announcements", id));
+  }
+
+  async function updateAppConfig(updates: Partial<AppConfig>) {
+    const db = getFirebaseDb();
+    const current = { ...DEFAULT_CONFIG, ...appConfig, ...updates };
+    await setDoc(doc(db, "admin_config", "app"), current, { merge: true });
+    setAppConfig(current);
   }
 
   async function registerUserActivity(
     uid: string, email: string, name: string,
     balance: number, tradeCount: number, totalPnl: number
   ) {
-    const raw = await AsyncStorage.getItem(ADMIN_USERS_KEY);
-    const existing: AdminUser[] = raw ? JSON.parse(raw) : [];
-    const idx     = existing.findIndex((u) => u.uid === uid);
-    const admin   = isAdminEmail(email);
-    const blocked = admin ? false : blockedUids.includes(uid);
-    const userRole: UserRole = admin ? "admin" : "user";
+    try {
+      const db = getFirebaseDb();
+      const userRef = doc(db, "users", uid);
+      const existing = await getDoc(userRef);
+      const admin = isAdminEmail(email);
+      const userRole: UserRole = admin ? "admin" : "user";
 
-    if (idx >= 0) {
-      existing[idx] = {
-        ...existing[idx],
-        email, name, balance, tradeCount, totalPnl,
-        blocked, role: userRole,
-      };
-    } else {
-      existing.push({
-        uid, email, name, balance, blocked,
-        createdAt: Date.now(), tradeCount, totalPnl, role: userRole,
-      });
-    }
-    setUsers(existing);
-    await AsyncStorage.setItem(ADMIN_USERS_KEY, JSON.stringify(existing));
+      if (existing.exists()) {
+        const data = existing.data() as AdminUser;
+        if (data.needsReset) return;
+        await updateDoc(userRef, {
+          email, name, balance, tradeCount, totalPnl,
+          role: userRole, lastSeen: Date.now(),
+        });
+      } else {
+        await setDoc(userRef, {
+          uid, email, name, balance, tradeCount, totalPnl,
+          blocked: false, role: userRole,
+          createdAt: Date.now(), lastSeen: Date.now(),
+          needsReset: false, fakeBalanceAdded: 0,
+        });
+      }
+    } catch {}
   }
 
   return (
     <AdminContext.Provider value={{
-      isAdmin, role, adminEmail, users, announcements, blockedUids, fakeBalances, loading,
-      refreshUsers, blockUser, unblockUser, addFakeBalance,
-      addAnnouncement, updateAnnouncement, deleteAnnouncement, registerUserActivity,
+      isAdmin, role, adminEmail, users, announcements, appConfig, blockedUids, loading,
+      refreshUsers, blockUser, unblockUser, addFakeBalance, resetUserFund,
+      addAnnouncement, updateAnnouncement, deleteAnnouncement, updateAppConfig,
+      registerUserActivity, checkAndApplyAdminReset,
     }}>
       {children}
     </AdminContext.Provider>

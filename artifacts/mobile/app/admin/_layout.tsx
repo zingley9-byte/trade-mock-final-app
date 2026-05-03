@@ -9,6 +9,8 @@ export default function AdminLayout() {
       <Stack.Screen name="user-detail" />
       <Stack.Screen name="coins" />
       <Stack.Screen name="announcements" />
+      <Stack.Screen name="earnings" />
+      <Stack.Screen name="google-ads" />
     </Stack>
   );
 }

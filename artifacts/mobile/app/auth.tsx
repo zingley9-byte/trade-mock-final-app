@@ -16,16 +16,39 @@ import {
   View,
 } from "react-native";
 import { TM_AUTH_KEY } from "@/constants/authKeys";
-import { getFirebaseAuth } from "@/lib/firebase";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import LoadingCandleAnimation from "@/components/LoadingCandleAnimation";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
 } from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { ADMIN_EMAIL } from "@/context/AdminContext";
 
 async function saveUser(uid: string, email: string, name: string) {
   await AsyncStorage.setItem(TM_AUTH_KEY, JSON.stringify({ uid, email, name }));
+}
+
+async function ensureFirestoreUser(uid: string, email: string, name: string) {
+  try {
+    const db = getFirebaseDb();
+    const userRef = doc(db, "users", uid);
+    const existing = await getDoc(userRef);
+    if (!existing.exists()) {
+      const isAdmin = email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+      await setDoc(userRef, {
+        uid, email, name, balance: 1000000,
+        tradeCount: 0, totalPnl: 0,
+        blocked: false, role: isAdmin ? "admin" : "user",
+        createdAt: Date.now(), lastSeen: Date.now(),
+        needsReset: false, fakeBalanceAdded: 0,
+      });
+    } else {
+      const { updateDoc } = await import("firebase/firestore");
+      await updateDoc(userRef, { email, name, lastSeen: Date.now() });
+    }
+  } catch {}
 }
 
 export default function AuthScreen() {
@@ -74,15 +97,17 @@ export default function AuthScreen() {
       if (mode === "login") {
         const cred = await signInWithEmailAndPassword(fbAuth, email.trim(), password);
         const user = cred.user;
-        await saveUser(user.uid, user.email ?? email, user.displayName ?? email.split("@")[0]);
+        const displayName = user.displayName ?? email.split("@")[0];
+        await saveUser(user.uid, user.email ?? email, displayName);
+        await ensureFirestoreUser(user.uid, user.email ?? email, displayName);
       } else {
         const cred = await createUserWithEmailAndPassword(fbAuth, email.trim(), password);
         await updateProfile(cred.user, { displayName: name.trim() });
         await saveUser(cred.user.uid, email, name.trim());
+        await ensureFirestoreUser(cred.user.uid, email.trim(), name.trim());
       }
       router.replace("/(tabs)");
     } catch (e: any) {
-      console.log(e?.code, e?.message);
       if (e?.code === "auth/email-already-in-use") {
         setError("Email already registered. Please login.");
       } else if (e?.code === "auth/invalid-email") {
@@ -251,7 +276,6 @@ export default function AuthScreen() {
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
-      {/* Loading overlay during auth */}
       {loading && (
         <LoadingCandleAnimation
           overlay

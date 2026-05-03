@@ -21,10 +21,11 @@ const MUTED    = "#64748b";
 const FG       = "#f1f5f9";
 const BEAR     = "#ff4d4d";
 const BULL     = "#00c896";
+const GOLD     = "#f59e0b";
 
 export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
-  const { isAdmin, loading, users, announcements, blockedUids, refreshUsers } = useAdmin();
+  const { isAdmin, loading, users, announcements, blockedUids, refreshUsers, appConfig } = useAdmin();
 
   useEffect(() => { refreshUsers(); }, []);
 
@@ -32,6 +33,7 @@ export default function AdminDashboard() {
     return (
       <View style={[s.center, { backgroundColor: ADMIN_BG }]}>
         <ActivityIndicator color={PRIMARY} size="large" />
+        <Text style={{ color: MUTED, marginTop: 12, fontSize: 13 }}>Loading admin panel…</Text>
       </View>
     );
   }
@@ -55,41 +57,48 @@ export default function AdminDashboard() {
   const blockedCount = blockedUids.length;
 
   const stats = [
-    { label: "Total Users",       value: users.length.toString(),      icon: "users",          color: "#3b82f6" },
-    { label: "Active Users",      value: activeUsers.toString(),        icon: "person-add-outline",     color: BULL },
-    { label: "Blocked",           value: blockedCount.toString(),       icon: "person-remove-outline",         color: BEAR },
-    { label: "Total Trades",      value: totalTrades.toString(),        icon: "activity",       color: "#f59e0b" },
-    { label: "Total P&L",         value: `${totalPnl >= 0 ? "+" : ""}₹${Math.abs(totalPnl).toFixed(0)}`, icon: "trending-up-outline", color: totalPnl >= 0 ? BULL : BEAR },
-    { label: "Announcements",     value: announcements.filter((a) => a.active).length.toString(), icon: "notifications-outline", color: "#8b5cf6" },
-    { label: "Coins Listed",      value: SYMBOLS.length.toString(),     icon: "layers",         color: "#f59e0b" },
+    { label: "Total Users",    value: users.length.toString(),      icon: "people-outline",          color: "#3b82f6" },
+    { label: "Active",         value: activeUsers.toString(),        icon: "person-add-outline",      color: BULL },
+    { label: "Blocked",        value: blockedCount.toString(),       icon: "person-remove-outline",   color: BEAR },
+    { label: "Total Trades",   value: totalTrades.toString(),        icon: "swap-horizontal-outline", color: GOLD },
+    { label: "Total P&L",      value: `${totalPnl >= 0 ? "+" : ""}₹${Math.abs(totalPnl / 1000).toFixed(0)}K`, icon: "trending-up-outline", color: totalPnl >= 0 ? BULL : BEAR },
+    { label: "Announcements",  value: announcements.filter((a) => a.active).length.toString(), icon: "notifications-outline", color: "#8b5cf6" },
+    { label: "Coins Listed",   value: SYMBOLS.length.toString(),     icon: "layers-outline",          color: GOLD },
   ];
 
   const menuItems = [
-    { label: "Users",          icon: "users",       route: "/admin/users",         color: "#3b82f6", sub: `${users.length} registered` },
-    { label: "Coins",          icon: "layers",      route: "/admin/coins",         color: "#f59e0b", sub: `${SYMBOLS.length} listed` },
-    { label: "Announcements",  icon: "notifications-outline",        route: "/admin/announcements", color: "#8b5cf6", sub: `${announcements.length} total` },
+    { label: "Users",          icon: "people-outline",          route: "/admin/users",         color: "#3b82f6", sub: `${users.length} registered` },
+    { label: "Earnings",       icon: "cash-outline",            route: "/admin/earnings",      color: BULL,      sub: "Revenue & ad performance" },
+    { label: "Google Ads",     icon: "megaphone-outline",       route: "/admin/google-ads",    color: GOLD,      sub: `${[appConfig.bannerAds, appConfig.interstitialAds, appConfig.rewardedAds].filter(Boolean).length}/3 active` },
+    { label: "Announcements",  icon: "notifications-outline",   route: "/admin/announcements", color: "#8b5cf6", sub: `${announcements.length} total` },
+    { label: "Coins",          icon: "layers-outline",          route: "/admin/coins",         color: "#f59e0b", sub: `${SYMBOLS.length} listed` },
   ];
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backIcon}>
           <SvgIcon name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Admin Panel</Text>
           <Text style={s.headerSub}>Trade Mock Control Center</Text>
         </View>
         <View style={s.adminBadge}>
-          <SvgIcon name="shield-outline" size={12} color={PRIMARY} />
+          <SvgIcon name="shield-checkmark-outline" size={12} color={PRIMARY} />
           <Text style={s.adminBadgeText}>ADMIN</Text>
         </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
-        {/* Stats grid */}
+        {appConfig.maintenanceMode && (
+          <View style={s.maintenanceBanner}>
+            <SvgIcon name="warning-outline" size={16} color="#fbbf24" />
+            <Text style={s.maintenanceText}>Maintenance Mode is ON — app is disabled for users</Text>
+          </View>
+        )}
+
         <Text style={s.sectionLabel}>OVERVIEW</Text>
         <View style={s.statsGrid}>
           {stats.map((st) => (
@@ -103,7 +112,6 @@ export default function AdminDashboard() {
           ))}
         </View>
 
-        {/* Quick actions */}
         <Text style={s.sectionLabel}>MANAGE</Text>
         <View style={s.menuList}>
           {menuItems.map((item, i) => (
@@ -125,7 +133,6 @@ export default function AdminDashboard() {
           ))}
         </View>
 
-        {/* Recent users preview */}
         {users.length > 0 && (
           <>
             <Text style={s.sectionLabel}>RECENT USERS</Text>
@@ -157,6 +164,15 @@ export default function AdminDashboard() {
             </TouchableOpacity>
           </>
         )}
+
+        {users.length === 0 && (
+          <View style={s.emptyUsers}>
+            <SvgIcon name="people-outline" size={40} color={MUTED} />
+            <Text style={s.emptyTitle}>No users yet</Text>
+            <Text style={s.emptySub}>Users will appear here after they sign up and open the app</Text>
+          </View>
+        )}
+
       </ScrollView>
     </View>
   );
@@ -165,14 +181,10 @@ export default function AdminDashboard() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: ADMIN_BG },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
-
-  // Access denied
-  deniedTitle: { fontSize: 22, fontWeight: "700", color: FG, marginTop: 12 },
+  deniedTitle: { fontSize: 22, fontWeight: "700", color: "#f1f5f9", marginTop: 12 },
   deniedSub: { fontSize: 14, color: MUTED },
   backBtn: { marginTop: 16, backgroundColor: PRIMARY, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   backBtnText: { color: "#fff", fontWeight: "700" },
-
-  // Header
   header: {
     flexDirection: "row", alignItems: "center", gap: 12,
     paddingHorizontal: 16, paddingVertical: 14,
@@ -183,15 +195,17 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700", color: FG },
   headerSub: { fontSize: 11, color: MUTED, marginTop: 1 },
   adminBadge: {
-    marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4,
+    flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: PRIMARY + "22", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
   },
   adminBadgeText: { fontSize: 10, fontWeight: "700", color: PRIMARY, letterSpacing: 0.5 },
-
-  // Section labels
+  maintenanceBanner: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    margin: 14, backgroundColor: "#78350f33", borderRadius: 12,
+    borderWidth: 1, borderColor: "#92400e", padding: 12,
+  },
+  maintenanceText: { flex: 1, color: "#fbbf24", fontSize: 13, fontWeight: "600" },
   sectionLabel: { fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 0.8, marginHorizontal: 16, marginTop: 20, marginBottom: 8 },
-
-  // Stats grid
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, paddingHorizontal: 14 },
   statCard: {
     width: "30%", flexGrow: 1, backgroundColor: SURFACE,
@@ -201,8 +215,6 @@ const s = StyleSheet.create({
   statIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   statValue: { fontSize: 20, fontWeight: "700" },
   statLabel: { fontSize: 10, color: MUTED, textAlign: "center", fontWeight: "500" },
-
-  // Menu list
   menuList: { marginHorizontal: 14, backgroundColor: SURFACE, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: "hidden" },
   menuRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
@@ -212,14 +224,13 @@ const s = StyleSheet.create({
   menuIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   menuLabel: { fontSize: 14, fontWeight: "600", color: FG },
   menuSub: { fontSize: 11, color: MUTED, marginTop: 2 },
-
-  // Badges
   blockedBadge: { backgroundColor: BEAR + "22", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   blockedText: { fontSize: 9, fontWeight: "700", color: BEAR, letterSpacing: 0.5 },
   activeBadge: { backgroundColor: BULL + "22", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   activeText: { fontSize: 9, fontWeight: "700", color: BULL, letterSpacing: 0.5 },
-
-  // View all
   viewAll: { alignItems: "center", paddingVertical: 14 },
   viewAllText: { color: PRIMARY, fontSize: 14, fontWeight: "600" },
+  emptyUsers: { alignItems: "center", paddingVertical: 32, gap: 8 },
+  emptyTitle: { fontSize: 16, fontWeight: "600", color: MUTED },
+  emptySub: { fontSize: 12, color: MUTED, textAlign: "center", maxWidth: 260, lineHeight: 18 },
 });

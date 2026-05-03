@@ -1,7 +1,7 @@
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import React, { useEffect } from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import SvgIcon from "@/components/SvgIcon";
 import { getFirebaseAuth } from "@/lib/firebase";
@@ -26,18 +26,22 @@ const TAB_BG         = "rgba(20, 24, 33, 0.97)";
 const NAV_CONTENT_H  = 76;
 
 function UserSyncEffect() {
-  const { balance, tradeHistory } = useTradingContext();
-  const { registerUserActivity } = useAdmin();
+  const { balance, tradeHistory, resetAccount } = useTradingContext();
+  const { registerUserActivity, checkAndApplyAdminReset } = useAdmin();
   const [authUser, setAuthUser] = React.useState<{ uid: string; email: string; name: string } | null>(null);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
     const unsub = onAuthStateChanged(auth, (user) => {
       if (user) {
-        setAuthUser({
+        const u = {
           uid:   user.uid,
           email: user.email ?? "",
           name:  user.displayName ?? user.email?.split("@")[0] ?? "User",
+        };
+        setAuthUser(u);
+        checkAndApplyAdminReset(user.uid, () => {
+          resetAccount();
         });
       } else {
         setAuthUser(null);
@@ -77,9 +81,9 @@ export default function TabLayout() {
   const isAndroid = Platform.OS === "android";
 
   const bottomInset = isIOS
-    ? insets.bottom          // iPhone home indicator
+    ? insets.bottom
     : isAndroid
-      ? Math.max(insets.bottom, 16)   // Android gesture bar
+      ? Math.max(insets.bottom, 16)
       : 0;
 
   const tabBarHeight    = NAV_CONTENT_H + bottomInset;

@@ -24,13 +24,19 @@ const MUTED    = "#64748b";
 const FG       = "#f1f5f9";
 const BEAR     = "#ff4d4d";
 const BULL     = "#00c896";
+const GOLD     = "#f59e0b";
 
 export default function UserDetail() {
   const insets = useSafeAreaInsets();
   const { uid } = useLocalSearchParams<{ uid: string }>();
-  const { users, blockedUids, blockUser, unblockUser, addFakeBalance, isAdmin, loading: authLoading } = useAdmin();
+  const {
+    users, blockedUids, blockUser, unblockUser,
+    addFakeBalance, resetUserFund,
+    isAdmin, loading: authLoading,
+  } = useAdmin();
   const [balanceModal, setBalanceModal] = useState(false);
   const [amountInput, setAmountInput] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   if (authLoading) {
     return (
@@ -57,6 +63,7 @@ export default function UserDetail() {
 
   const isBlocked = blockedUids.includes(user.uid);
   const pnlColor  = user.totalPnl >= 0 ? BULL : BEAR;
+  const lastSeen  = user.lastSeen ? new Date(user.lastSeen).toLocaleString("en-IN") : "N/A";
 
   function handleBlock() {
     Alert.alert(
@@ -69,7 +76,15 @@ export default function UserDetail() {
         {
           text: isBlocked ? "Unblock" : "Block",
           style: isBlocked ? "default" : "destructive",
-          onPress: () => isBlocked ? unblockUser(user!.uid) : blockUser(user!.uid),
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              if (isBlocked) await unblockUser(user!.uid);
+              else await blockUser(user!.uid);
+            } finally {
+              setActionLoading(false);
+            }
+          },
         },
       ]
     );
@@ -78,10 +93,42 @@ export default function UserDetail() {
   async function handleAddBalance() {
     const amt = parseFloat(amountInput);
     if (!amt || amt <= 0) { Alert.alert("Error", "Enter a valid amount"); return; }
-    await addFakeBalance(user!.uid, amt);
-    setBalanceModal(false);
-    setAmountInput("");
-    Alert.alert("Done", `₹${amt.toLocaleString()} added to ${user!.name}'s account.`);
+    setActionLoading(true);
+    try {
+      await addFakeBalance(user!.uid, amt);
+      setBalanceModal(false);
+      setAmountInput("");
+      Alert.alert("Done", `₹${amt.toLocaleString()} added to ${user!.name}'s account.`);
+    } catch {
+      Alert.alert("Error", "Could not add balance. Try again.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  function handleFundReset() {
+    Alert.alert(
+      "Reset Fund",
+      `Reset ${user!.name}'s account to ₹10,00,000?\n\nThis will clear their trade history and P&L. Takes effect when they reopen the app.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset Fund",
+          style: "destructive",
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              await resetUserFund(user!.uid);
+              Alert.alert("Fund Reset", `${user!.name}'s balance reset to ₹10,00,000.\n\nChange will apply when they reopen the app.`);
+            } catch {
+              Alert.alert("Error", "Could not reset fund. Try again.");
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
   }
 
   const stats = [
@@ -93,17 +140,18 @@ export default function UserDetail() {
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
           <SvgIcon name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>User Detail</Text>
-        {isBlocked && <View style={s.blockedBadge}><Text style={s.blockedText}>BLOCKED</Text></View>}
+        {actionLoading && <ActivityIndicator color={PRIMARY} size="small" />}
+        {!actionLoading && isBlocked && (
+          <View style={s.blockedBadge}><Text style={s.blockedText}>BLOCKED</Text></View>
+        )}
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-        {/* Profile card */}
         <View style={s.profileCard}>
           <View style={s.avatar}>
             <Text style={s.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
@@ -111,9 +159,15 @@ export default function UserDetail() {
           <Text style={s.userName}>{user.name}</Text>
           <Text style={s.userEmail}>{user.email}</Text>
           <Text style={s.userId}>UID: {user.uid.slice(0, 16)}…</Text>
+          <Text style={s.lastSeen}>Last seen: {lastSeen}</Text>
+          {(user.fakeBalanceAdded ?? 0) > 0 && (
+            <View style={s.fakeBonusBadge}>
+              <SvgIcon name="gift-outline" size={11} color={GOLD} />
+              <Text style={s.fakeBonusText}>+₹{(user.fakeBalanceAdded ?? 0).toLocaleString("en-IN")} admin bonus</Text>
+            </View>
+          )}
         </View>
 
-        {/* Stats */}
         <Text style={s.sectionLabel}>ACCOUNT STATS</Text>
         <View style={s.statsGrid}>
           {stats.map((st) => (
@@ -124,9 +178,9 @@ export default function UserDetail() {
           ))}
         </View>
 
-        {/* Actions */}
         <Text style={s.sectionLabel}>ACTIONS</Text>
         <View style={s.actionList}>
+
           <TouchableOpacity style={s.actionRow} onPress={() => setBalanceModal(true)} activeOpacity={0.7}>
             <View style={[s.actionIcon, { backgroundColor: "#22c55e22" }]}>
               <SvgIcon name="add-circle-outline" size={18} color="#22c55e" />
@@ -134,6 +188,17 @@ export default function UserDetail() {
             <View style={{ flex: 1 }}>
               <Text style={s.actionLabel}>Add Fake Balance</Text>
               <Text style={s.actionSub}>Add virtual money to this account</Text>
+            </View>
+            <SvgIcon name="chevron-forward-outline" size={16} color={MUTED} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.actionRow} onPress={handleFundReset} activeOpacity={0.7}>
+            <View style={[s.actionIcon, { backgroundColor: GOLD + "22" }]}>
+              <SvgIcon name="refresh-circle-outline" size={18} color={GOLD} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.actionLabel, { color: GOLD }]}>Reset Fund</Text>
+              <Text style={s.actionSub}>Reset balance to ₹10,00,000 · clears history</Text>
             </View>
             <SvgIcon name="chevron-forward-outline" size={16} color={MUTED} />
           </TouchableOpacity>
@@ -157,9 +222,9 @@ export default function UserDetail() {
             <SvgIcon name="chevron-forward-outline" size={16} color={MUTED} />
           </TouchableOpacity>
         </View>
+
       </ScrollView>
 
-      {/* Add Balance Modal */}
       <Modal visible={balanceModal} transparent animationType="slide" onRequestClose={() => setBalanceModal(false)}>
         <Pressable style={s.backdrop} onPress={() => setBalanceModal(false)} />
         <View style={s.sheet}>
@@ -182,9 +247,13 @@ export default function UserDetail() {
               </TouchableOpacity>
             ))}
           </View>
-          <TouchableOpacity style={s.confirmBtn} onPress={handleAddBalance} activeOpacity={0.85}>
-            <SvgIcon name="add-outline" size={16} color="#fff" />
-            <Text style={s.confirmText}>Add Balance</Text>
+          <TouchableOpacity style={s.confirmBtn} onPress={handleAddBalance} activeOpacity={0.85} disabled={actionLoading}>
+            {actionLoading ? <ActivityIndicator color="#fff" /> : (
+              <>
+                <SvgIcon name="add-outline" size={16} color="#fff" />
+                <Text style={s.confirmText}>Add Balance</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </Modal>
@@ -204,19 +273,22 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700", color: FG, flex: 1 },
   backBtn: { marginTop: 12, backgroundColor: PRIMARY, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
   backBtnText: { color: "#fff", fontWeight: "700" },
-
   profileCard: {
     margin: 16, backgroundColor: SURFACE, borderRadius: 16, borderWidth: 1, borderColor: BORDER,
-    padding: 24, alignItems: "center", gap: 6,
+    padding: 24, alignItems: "center", gap: 4,
   },
   avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#3b82f622", alignItems: "center", justifyContent: "center", marginBottom: 4 },
   avatarText: { fontSize: 30, fontWeight: "700", color: "#3b82f6" },
   userName: { fontSize: 20, fontWeight: "700", color: FG },
   userEmail: { fontSize: 13, color: MUTED },
   userId: { fontSize: 10, color: MUTED, marginTop: 4 },
-
+  lastSeen: { fontSize: 11, color: MUTED, marginTop: 2 },
+  fakeBonusBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8,
+    backgroundColor: GOLD + "22", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
+  },
+  fakeBonusText: { fontSize: 11, color: GOLD, fontWeight: "600" },
   sectionLabel: { fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 0.8, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
-
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, paddingHorizontal: 14 },
   statCard: {
     flex: 1, minWidth: "44%", backgroundColor: SURFACE, borderRadius: 14,
@@ -224,7 +296,6 @@ const s = StyleSheet.create({
   },
   statValue: { fontSize: 18, fontWeight: "700" },
   statLabel: { fontSize: 11, color: MUTED },
-
   actionList: { marginHorizontal: 14, backgroundColor: SURFACE, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: "hidden" },
   actionRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
@@ -234,11 +305,8 @@ const s = StyleSheet.create({
   actionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   actionLabel: { fontSize: 14, fontWeight: "600", color: FG },
   actionSub: { fontSize: 11, color: MUTED, marginTop: 2 },
-
   blockedBadge: { backgroundColor: BEAR + "22", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   blockedText: { fontSize: 10, fontWeight: "700", color: BEAR, letterSpacing: 0.5 },
-
-  // Add balance modal
   backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)" },
   sheet: {
     position: "absolute", bottom: 0, left: 0, right: 0,
