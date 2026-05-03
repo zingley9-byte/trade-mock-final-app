@@ -5,11 +5,13 @@ import { router } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import { Animated, Dimensions, Image, Platform, StyleSheet, Text, View } from "react-native";
 import LandingPage from "@/components/LandingPage";
+import MobileLandingPage from "@/components/MobileLandingPage";
 
 const { width, height } = Dimensions.get("window");
 
-// Desktop = web + screen width ≥ 768px. Mobile web goes directly to dashboard.
+// Desktop web = width ≥ 768. Mobile web = 768 below.
 const isDesktopWeb = Platform.OS === "web" && width >= 768;
+const isMobileWeb  = Platform.OS === "web" && width < 768;
 
 // ── Mobile/Native: existing animated splash + auth routing ─────────────────
 function NativeSplash() {
@@ -90,9 +92,10 @@ function NativeSplash() {
 }
 
 // ── Root export ────────────────────────────────────────────────────────────
-// Desktop web → landing page | mobile web + native → splash/auth flow
+// Desktop web → full landing page | mobile web → mobile landing | native → splash/auth
 export default function IndexScreen() {
   if (isDesktopWeb) return <LandingPage />;
+  if (isMobileWeb)  return <MobileLandingPage />;
   return <NativeSplash />;
 }
 
