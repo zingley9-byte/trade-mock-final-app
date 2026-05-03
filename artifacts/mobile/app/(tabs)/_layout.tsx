@@ -1,11 +1,15 @@
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useEffect } from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { getFirebaseAuth } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 import AppHeader from "@/components/AppHeader";
 import TradeFlashOverlay from "@/components/TradeFlashOverlay";
+import { useTradingContext } from "@/context/TradingContext";
+import { useAdmin } from "@/context/AdminContext";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -17,10 +21,40 @@ const TAB_ICONS: Record<string, [IoniconsName, IoniconsName]> = {
   history:   ["time",      "time-outline"],
 };
 
-// Active = green, Inactive = white — clearly visible on dark tab bar
 const ACTIVE_COLOR   = "#00c896";
 const INACTIVE_COLOR = "#ffffff";
 const TAB_BAR_BG     = "#0d1117";
+
+function UserSyncEffect() {
+  const { balance, tradeHistory } = useTradingContext();
+  const { registerUserActivity } = useAdmin();
+  const [authUser, setAuthUser] = React.useState<{ uid: string; email: string; name: string } | null>(null);
+
+  useEffect(() => {
+    const auth = getFirebaseAuth();
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setAuthUser({
+          uid:   user.uid,
+          email: user.email ?? "",
+          name:  user.displayName ?? user.email?.split("@")[0] ?? "User",
+        });
+      } else {
+        setAuthUser(null);
+      }
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (!authUser) return;
+    const totalPnl   = tradeHistory.reduce((sum, t) => sum + t.pnl, 0);
+    const tradeCount = tradeHistory.length;
+    registerUserActivity(authUser.uid, authUser.email, authUser.name, balance, tradeCount, totalPnl);
+  }, [authUser, balance, tradeHistory]);
+
+  return null;
+}
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -32,6 +66,7 @@ export default function TabLayout() {
     <View style={{ flex: 1, backgroundColor: "#0a0e1a" }}>
       <AppHeader />
       <TradeFlashOverlay />
+      <UserSyncEffect />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: ACTIVE_COLOR,
