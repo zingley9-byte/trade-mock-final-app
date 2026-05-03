@@ -579,7 +579,7 @@ export default function ChartsScreen() {
   ];
 
   const { width: winW } = useWindowDimensions();
-  const tabBarH      = Platform.OS === "web" ? 64 : 50 + insets.bottom;
+  const tabBarH      = Platform.OS === "web" ? 68 : 76 + insets.bottom;
   // Only show desktop side-panel when screen is genuinely wide (tablet/desktop)
   const isDesktopWeb = Platform.OS === "web" && winW >= 768;
 

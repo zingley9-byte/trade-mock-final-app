@@ -23,7 +23,7 @@ const TAB_ICONS: Record<string, [string, string]> = {
 const ACTIVE_COLOR   = "#00c896";
 const INACTIVE_COLOR = "#ffffff";
 const TAB_BG         = "rgba(20, 24, 33, 0.97)";
-const NAV_CONTENT_H  = 76;
+const NAV_CONTENT_H  = 68;
 
 function UserSyncEffect() {
   const { balance, tradeHistory, resetAccount } = useTradingContext();
