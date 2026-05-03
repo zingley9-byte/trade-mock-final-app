@@ -17,7 +17,7 @@ interface Props {
   height?: number;
 }
 
-function buildHtml(symbol: string): string {
+function buildHtml(symbol: string, initialFS = false): string {
   const bin = symbol.replace("/","").toUpperCase().endsWith("USDT")
     ? symbol.replace("/","").toUpperCase()
     : symbol.replace("/","").toUpperCase() + "USDT";
@@ -195,10 +195,10 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
       </svg>
     </button>
     <button class="tb-btn" id="fs-btn" title="Fullscreen" onclick="toggleFS()">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-        <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
-        <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
-      </svg>
+      ${initialFS
+        ? `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>`
+        : `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>`
+      }
     </button>
     <button class="tb-btn" title="Screenshot">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -283,7 +283,7 @@ let chart, candleSeries, volSeries;
 let ws, retryTimer, retryDelay = 3000;
 let loadId = 0;
 let volCollapsed = false;
-let isFS = false;
+let isFS = ${initialFS ? 'true' : 'false'};
 
 // ── IST Clock ───────────────────────────────────────────────────────────────
 function tickIST() {
@@ -691,7 +691,8 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     ? symbol.replace("/","").toUpperCase()
     : symbol.replace("/","").toUpperCase() + "USDT";
 
-  const html = buildHtml(bin);
+  const html   = buildHtml(bin, false);
+  const htmlFS = buildHtml(bin, true);
 
   const onLoad    = useCallback(() => { setLoading(false); setFsLoading(false); }, []);
   const onError   = useCallback(() => { setLoading(false); setFsLoading(false); setError(true); }, []);
@@ -714,28 +715,6 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     } catch (_) {}
   }, []);
 
-  const renderChart = (h: number, loadSetter: () => void) => (
-    error ? (
-      <View style={styles.errBox}>
-        <Text style={styles.errIcon}>⚠</Text>
-        <Text style={styles.errTitle}>Chart failed to load</Text>
-        <Text style={styles.errSub}>Check internet connection</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={retry}>
-          <Text style={styles.retryTxt}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    ) : (
-      <ChartWebView
-        html={html}
-        binKey={bin}
-        h={h}
-        onLoad={loadSetter}
-        onError={onError}
-        onMsg={onMessage}
-      />
-    )
-  );
-
   return (
     <>
       {/* ── Normal view ── */}
@@ -746,10 +725,30 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
             <Text style={styles.loadingTxt}>Loading chart…</Text>
           </View>
         )}
-        {!isFullscreen && renderChart(height, onLoad)}
+        {!isFullscreen && (
+          error ? (
+            <View style={styles.errBox}>
+              <Text style={styles.errIcon}>⚠</Text>
+              <Text style={styles.errTitle}>Chart failed to load</Text>
+              <Text style={styles.errSub}>Check internet connection</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={retry}>
+                <Text style={styles.retryTxt}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <ChartWebView
+              html={html}
+              binKey={`${bin}-normal`}
+              h={height}
+              onLoad={onLoad}
+              onError={onError}
+              onMsg={onMessage}
+            />
+          )
+        )}
       </View>
 
-      {/* ── Fullscreen Modal ── */}
+      {/* ── Fullscreen Modal — uses htmlFS (initialFS=true) so exit works ── */}
       <Modal
         visible={isFullscreen}
         animationType="fade"
@@ -765,7 +764,14 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
               <Text style={styles.loadingTxt}>Loading chart…</Text>
             </View>
           )}
-          {renderChart(screenH, onLoad)}
+          <ChartWebView
+            html={htmlFS}
+            binKey={`${bin}-fs`}
+            h={screenH}
+            onLoad={onLoad}
+            onError={onError}
+            onMsg={onMessage}
+          />
         </View>
       </Modal>
     </>
