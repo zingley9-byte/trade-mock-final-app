@@ -804,7 +804,21 @@ function clientToCanvas(cx, cy) {
   return { x: cx - r.left, y: cy - r.top };
 }
 function svgToData(x, y) {
-  try { return { time: chart.timeScale().coordinateToTime(x), price: candleSeries.coordinateToPrice(y) }; }
+  try {
+    var ts = chart.timeScale();
+    var time = ts.coordinateToTime(x);
+    // coordinateToTime returns null in empty space (e.g. future to the right of last bar).
+    // Scan left for the nearest bar time so the drawing point stays valid.
+    if (time == null) {
+      for (var d = 2; d <= 120; d += 2) {
+        time = ts.coordinateToTime(x - d);
+        if (time != null) break;
+        time = ts.coordinateToTime(x + d);
+        if (time != null) break;
+      }
+    }
+    return { time: time, price: candleSeries.coordinateToPrice(y) };
+  }
   catch(e) { return { time:null, price:null }; }
 }
 function dataToSvg(price, time) {
@@ -1103,13 +1117,25 @@ function drawInProgress(ctx) {
     ctx.stroke(); ctx.restore(); return;
   }
   ctx.setLineDash([4,2]); cStroke(ctx,CLR,WID);
-  for (var j=0;j<CUR_PTS.length-1;j++) {
-    var a=dataToSvg(CUR_PTS[j].price,CUR_PTS[j].time), b=dataToSvg(CUR_PTS[j+1].price,CUR_PTS[j+1].time);
-    if (a.x!=null&&b.x!=null) { ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
-  }
-  if (_previewPt&&CUR_PTS.length>0) {
-    var last=CUR_PTS[CUR_PTS.length-1], lp=dataToSvg(last.price,last.time);
-    if (lp.x!=null) { ctx.globalAlpha=0.6; ctx.beginPath(); ctx.moveTo(lp.x,lp.y); ctx.lineTo(_previewPt.x,_previewPt.y); ctx.stroke(); }
+
+  if (M_DOWN && _previewPt && CUR_PTS.length>=1) {
+    // During live drag: always draw from the first stored anchor → finger pixel.
+    // This keeps the line visible even when the finger is in empty/future space.
+    var anchor=dataToSvg(CUR_PTS[0].price,CUR_PTS[0].time);
+    if (anchor.x!=null) {
+      ctx.beginPath(); ctx.moveTo(anchor.x,anchor.y);
+      ctx.lineTo(_previewPt.x,_previewPt.y); ctx.stroke();
+    }
+  } else {
+    // Between clicks (3-pt tools): draw stored segments + dashed preview to finger
+    for (var j=0;j<CUR_PTS.length-1;j++) {
+      var a=dataToSvg(CUR_PTS[j].price,CUR_PTS[j].time), b=dataToSvg(CUR_PTS[j+1].price,CUR_PTS[j+1].time);
+      if (a.x!=null&&b.x!=null) { ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+    }
+    if (_previewPt&&CUR_PTS.length>0) {
+      var last=CUR_PTS[CUR_PTS.length-1], lp=dataToSvg(last.price,last.time);
+      if (lp.x!=null) { ctx.globalAlpha=0.6; ctx.beginPath(); ctx.moveTo(lp.x,lp.y); ctx.lineTo(_previewPt.x,_previewPt.y); ctx.stroke(); }
+    }
   }
   ctx.setLineDash([]); ctx.restore();
 }
@@ -1609,7 +1635,7 @@ function onMove(e) {
 
   if(M_DOWN&&IP&&CUR_PTS.length>=2){
     var pt=svgToData(x,y);
-    if(pt.price!=null) CUR_PTS[1]=pt;
+    if(pt.price!=null && pt.time!=null) CUR_PTS[1]=pt;
     scheduleRedraw();
   } else if(!M_DOWN&&IP&&THREE_PT.has(IP)&&CUR_PTS.length===2){
     scheduleRedraw();
@@ -1636,7 +1662,10 @@ function onUp(e) {
   // Drag-to-draw finish
   if(IP&&CUR_PTS.length>=2){
     var upt=svgToData(x,y);
-    if(upt.price!=null) CUR_PTS[1]=upt;
+    if(upt.price!=null && upt.time!=null) CUR_PTS[1]=upt;
+
+    // If second point still has no valid time, cancel (nothing to save)
+    if(CUR_PTS[1].time==null){IP=null;CUR_PTS=[];_previewPt=null;scheduleRedraw();return;}
 
     if(THREE_PT.has(IP)){
       _previewPt=null;scheduleRedraw();
