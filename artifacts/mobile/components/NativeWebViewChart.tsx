@@ -322,29 +322,15 @@ const TF_MAP   = {
 };
 let currentTf  = '5m';
 let chart, candleSeries, volSeries;
-let ws, retryTimer, retryDelay = 500;
+let ws, tickerWs, retryTimer, retryDelay = 500;
 let loadId = 0;
 let lastMsgAt = 0;
 let stalenessTimer = null;
 let volCollapsed = false;
 let isFS = ${initialFS ? 'true' : 'false'};
+// Tracks the live (incomplete) candle so aggTrade can update close in real-time
+let liveCandle = null;
 
-// ── RAF update queue — coalesce rapid WS ticks into one frame ────────────────
-// Binance sends kline updates every ~250 ms; without batching, rapid markets
-// trigger multiple layout/paint passes per frame causing jitter.
-let _pendingCandle = null, _pendingVol = null, _rafId = null;
-function scheduleUpdate(candle, vol) {
-  _pendingCandle = candle;
-  _pendingVol    = vol;
-  if (_rafId) return;
-  _rafId = requestAnimationFrame(function() {
-    _rafId = null;
-    if (!candleSeries || !_pendingCandle) return;
-    try { candleSeries.update(_pendingCandle); } catch(_) {}
-    try { volSeries.update(_pendingVol);    } catch(_) {}
-    _pendingCandle = null; _pendingVol = null;
-  });
-}
 
 // ── IST Clock ───────────────────────────────────────────────────────────────
 function tickIST() {
@@ -501,7 +487,7 @@ async function loadData(sym, tf) {
   const interval = TF_MAP[tf] || '5m';
   try {
     const res = await fetch(
-      'https://api.binance.com/api/v3/klines?symbol='+sym+'&interval='+interval+'&limit=500'
+      'https://api.binance.com/api/v3/klines?symbol='+sym+'&interval='+interval+'&limit=200'
     );
     if (!res.ok || loadId !== id) return;
     const data = await res.json();
@@ -544,8 +530,39 @@ function armStaleness(sym, tf, id) {
   }, 12000);
 }
 
+// ── aggTrade stream — every single trade → ultra-fast close price updates ────
+// Runs in parallel with the kline stream. Kline gives full OHLCV; aggTrade
+// gives the latest trade price on every transaction (~10-50/s for BTC).
+function connectTradeWS(sym, id) {
+  if (tickerWs) { try { tickerWs.close(); } catch(_){} tickerWs = null; }
+  const url = 'wss://stream.binance.com:9443/ws/' + sym.toLowerCase() + '@aggTrade';
+  tickerWs = new WebSocket(url);
+
+  tickerWs.onmessage = e => {
+    // Only update if we have a live candle reference from the kline stream
+    if (loadId !== id || !liveCandle || !candleSeries) return;
+    try {
+      const msg = JSON.parse(e.data);
+      const price = parseFloat(msg.p);
+      // Update close; also expand high/low so wicks are accurate
+      if (price > liveCandle.high) liveCandle.high = price;
+      if (price < liveCandle.low)  liveCandle.low  = price;
+      liveCandle.close = price;
+      try { candleSeries.update({ ...liveCandle }); } catch(_) {}
+    } catch(_) {}
+  };
+
+  // Silently reconnect — don't affect the main badge
+  tickerWs.onclose = () => {
+    if (loadId !== id) return;
+    setTimeout(() => connectTradeWS(sym, id), 2000);
+  };
+}
+
 function connectWS(sym, tf, id) {
   if (ws) { try { ws.close(); } catch(_){} ws = null; }
+  if (tickerWs) { try { tickerWs.close(); } catch(_){} tickerWs = null; }
+  liveCandle = null;
   clearTimeout(retryTimer);
   clearStaleness();
   const interval = TF_MAP[tf] || '5m';
@@ -559,6 +576,8 @@ function connectWS(sym, tf, id) {
     lastMsgAt = Date.now();
     setWsBadge('live');
     armStaleness(sym, tf, id);
+    // Start the fast trade stream as soon as kline is connected
+    connectTradeWS(sym, id);
   };
 
   ws.onmessage = e => {
@@ -578,9 +597,10 @@ function connectWS(sym, tf, id) {
         value: parseFloat(k.v),
         color: parseFloat(k.c) >= parseFloat(k.o) ? '#26a69a55' : '#ef535055',
       };
-      // RAF-batched: coalesce rapid ticks into one frame so the chart never
-      // repaints more than 60× per second regardless of WS message rate.
-      scheduleUpdate(candle, vol);
+      // Keep liveCandle in sync so aggTrade can update it between kline ticks
+      liveCandle = { ...candle };
+      try { candleSeries.update(candle); } catch(_) {}
+      try { volSeries.update(vol);       } catch(_) {}
     } catch(_) {}
   };
 
@@ -589,6 +609,7 @@ function connectWS(sym, tf, id) {
   ws.onclose = () => {
     if (loadId !== id) return;
     clearStaleness();
+    if (tickerWs) { try { tickerWs.close(); } catch(_){} tickerWs = null; }
     setWsBadge('reconnecting');
     retryTimer = setTimeout(() => connectWS(sym, tf, loadId), retryDelay);
     retryDelay = Math.min(retryDelay*2, 5000);
