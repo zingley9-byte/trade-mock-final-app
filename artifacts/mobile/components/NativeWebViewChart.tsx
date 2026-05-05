@@ -135,11 +135,8 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 .sub-icon{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
 .sub-icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
 .sub-item.act .sub-icon svg,.sub-item.act .sub-icon{color:#2F6BFF;}
-/* Drawing SVG overlay — hidden by default, shown only when a drawing tool is active */
-#drw-svg{display:none;position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;z-index:5;pointer-events:none;}
-#drw-svg.active{display:block;pointer-events:all;cursor:crosshair;touch-action:none;}
-#drw-svg.drawings{display:block;pointer-events:none;}
-#drw-svg.cursor{display:none;}
+/* Drawing Canvas overlay — pointer-events:none by default so chart gets all touches */
+#drw-canvas{display:block;position:absolute;top:0;left:0;z-index:5;pointer-events:none;}
 /* Float menu */
 #float-menu{position:fixed;background:#1C2333;border:1px solid #283045;border-radius:12px;padding:5px 7px;display:flex;align-items:center;gap:2px;z-index:600;box-shadow:0 8px 28px #00000099;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
 #float-menu.hidden{display:none;}
@@ -302,8 +299,8 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
         <button class="vol-btn" onclick="toggleVol()">&#8963;</button>
       </div>
       <div id="chart"></div>
-      <!-- Drawing SVG overlay -->
-      <svg id="drw-svg"></svg>
+      <!-- Drawing Canvas overlay -->
+      <canvas id="drw-canvas"></canvas>
       <!-- Drawing status bar (debug helper) -->
       <div id="drw-status" style="position:absolute;top:4px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#fff;font-size:10px;padding:2px 8px;border-radius:8px;pointer-events:none;z-index:600;letter-spacing:.5px;"></div>
     </div>
@@ -704,32 +701,38 @@ window.addEventListener('resize', () => { if (!window.__suppressResize) { resize
 
 <script>
 // ╔══════════════════════════════════════════════════════════════╗
-// ║                  DRAWING ENGINE v2                          ║
+// ║             DRAWING ENGINE v3  (HTML5 Canvas 2D)            ║
 // ╚══════════════════════════════════════════════════════════════╝
 
 const DK = 'tm_drw_v2';
 let DRW = [];
 let TOOL = null;
-let SEL = null;
+let SEL  = null;
 let HIDE = false;
-let CLR = '#f0b90b';
-let WID = 1.5;
+let CLR  = '#f0b90b';
+let WID  = 1.5;
 let SUB_OPEN = null;
-let IP = null;
-let CUR_PTS = [];
+let IP   = null;
+let CUR_PTS  = [];
 let FREE_PTS = [];
-let M_DOWN = false;
+let M_DOWN   = false;
 let _W = 0, _H = 0;
-let _idCtr = Date.now();
+let _idCtr   = Date.now();
+let _rafId   = null;
+let _dirty   = true;
+let _previewPt = null;
+let _lastX = 0, _lastY = 0;
+let _dragState   = null;
+let _resizeState = null;
 function genId() { return 'drw_' + (_idCtr++); }
+
+// ── Canvas accessors ─────────────────────────────────────────────
+function getCanvas() { return document.getElementById('drw-canvas'); }
+function getCtx()    { var c = getCanvas(); return c ? c.getContext('2d') : null; }
 
 // ── Tool groups ─────────────────────────────────────────────────
 const TOOL_GROUPS = [
-  { id:'cursor', label:'Cursor', multi:false,
-    icon:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>',
-    items:[] },
   { id:'lines', label:'Lines', multi:true,
-    icon:'<line x1="5" y1="17" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/>',
     items:[
       { id:'trendline', label:'Trend Line', pts:2 },
       { id:'arrow', label:'Arrow', pts:2 },
@@ -739,29 +742,24 @@ const TOOL_GROUPS = [
       { id:'channel', label:'Parallel Channel', pts:3 },
     ] },
   { id:'fib', label:'Fibonacci', multi:true,
-    icon:'<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
     items:[{ id:'fibretracement', label:'Fib Retracement', pts:2 }] },
   { id:'shapes', label:'Shapes', multi:true,
-    icon:'<rect x="3" y="3" width="18" height="18" rx="2"/>',
     items:[
       { id:'rectangle', label:'Rectangle', pts:2 },
       { id:'circle', label:'Circle', pts:2 },
     ] },
   { id:'brush', label:'Brushes', multi:true,
-    icon:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L3 14.67V21h6.33l10.06-10.06a5.5 5.5 0 0 0 0-7.78z"/>',
     items:[
       { id:'brush', label:'Brush', pts:0 },
       { id:'highlighter', label:'Highlighter', pts:0 },
     ] },
   { id:'text', label:'Text', multi:true,
-    icon:'<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>',
     items:[
       { id:'text', label:'Text', pts:1 },
       { id:'note', label:'Note', pts:1 },
       { id:'pricelabel', label:'Price Label', pts:1 },
     ] },
   { id:'measure', label:'Measure', multi:true,
-    icon:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/>',
     items:[
       { id:'longposition', label:'Long Position', pts:3 },
       { id:'shortposition', label:'Short Position', pts:3 },
@@ -769,46 +767,49 @@ const TOOL_GROUPS = [
       { id:'pricerange', label:'Price Range', pts:2 },
     ] },
   'sep',
-  { id:'hide', label:'Hide/Show', multi:false, toggle:true,
-    icon:'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
-    items:[] },
-  { id:'lock', label:'Lock All', multi:false, toggle:true,
-    icon:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
-    items:[] },
-  { id:'delete', label:'Delete Mode', multi:false, toggle:true,
-    icon:'<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
-    items:[] },
+  { id:'hide',   label:'Hide/Show', multi:false, toggle:true, items:[] },
+  { id:'lock',   label:'Lock All',  multi:false, toggle:true, items:[] },
+  { id:'delete', label:'Delete All',multi:false, toggle:true, items:[] },
 ];
 
 function getToolPts(toolId) {
-  for (const g of TOOL_GROUPS) {
+  for (var g of TOOL_GROUPS) {
     if (g === 'sep') continue;
-    for (const it of g.items) { if (it.id === toolId) return it.pts || 2; }
+    for (var it of (g.items||[])) { if (it.id === toolId) return it.pts || 2; }
   }
   return 2;
 }
 
-// ── Storage ─────────────────────────────────────────────────────
-function loadDrw() { try { DRW = JSON.parse(localStorage.getItem(DK)||'[]'); } catch { DRW=[]; } }
-function saveDrw() { try { localStorage.setItem(DK, JSON.stringify(DRW)); } catch {} }
+// ── Storage ──────────────────────────────────────────────────────
+function loadDrw() { try { DRW = JSON.parse(localStorage.getItem(DK)||'[]'); } catch(e) { DRW=[]; } }
+function saveDrw() { try { localStorage.setItem(DK, JSON.stringify(DRW)); } catch(e) {} }
 
-// ── Coordinate helpers ───────────────────────────────────────────
+// ── Coordinate helpers ────────────────────────────────────────────
 function updateSize() {
-  const el = document.getElementById('chart-wrap');
-  if (el) { _W = el.offsetWidth; _H = el.offsetHeight; }
+  var el = document.getElementById('chart-wrap');
+  var canvas = getCanvas();
+  if (!el || !canvas) return;
+  var w = el.offsetWidth || 300, h = el.offsetHeight || 400;
+  if (w === _W && h === _H) return;
+  _W = w; _H = h;
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width  = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
 }
-function clientToSvg(cx, cy) {
-  const el = document.getElementById('chart-wrap');
-  const r = el.getBoundingClientRect();
+function clientToCanvas(cx, cy) {
+  var el = document.getElementById('chart-wrap');
+  var r = el.getBoundingClientRect();
   return { x: cx - r.left, y: cy - r.top };
 }
 function svgToData(x, y) {
   try { return { time: chart.timeScale().coordinateToTime(x), price: candleSeries.coordinateToPrice(y) }; }
-  catch { return { time:null, price:null }; }
+  catch(e) { return { time:null, price:null }; }
 }
 function dataToSvg(price, time) {
   try { return { x: chart.timeScale().timeToCoordinate(time), y: candleSeries.priceToCoordinate(price) }; }
-  catch { return { x:null, y:null }; }
+  catch(e) { return { x:null, y:null }; }
 }
 function fmtP(p) {
   if (!p && p!==0) return '';
@@ -817,749 +818,780 @@ function fmtP(p) {
   return p.toFixed(6);
 }
 
-// ── Sidebar ─────────────────────────────────────────────────────
-// ── Sidebar active-state refresh (HTML is now hardcoded, just update classes) ──
+// ── Canvas pointer-events mode ────────────────────────────────────
+function updateCanvasMode() {
+  var c = getCanvas();
+  if (!c) return;
+  if (TOOL && TOOL !== 'cursor') {
+    c.style.pointerEvents = 'all';
+    c.style.touchAction   = 'none';
+    c.style.cursor        = 'crosshair';
+  } else {
+    c.style.pointerEvents = 'none';
+    c.style.touchAction   = '';
+    c.style.cursor        = '';
+  }
+}
+
+// ── RAF render loop ───────────────────────────────────────────────
+function scheduleRedraw() {
+  _dirty = true;
+  if (!_rafId) _rafId = requestAnimationFrame(doRender);
+}
+function redraw() { scheduleRedraw(); }
+
+function doRender() {
+  _rafId = null;
+  if (!chart || !candleSeries) { if (_dirty) _rafId = requestAnimationFrame(doRender); return; }
+  updateSize();
+  var ctx = getCtx();
+  if (!ctx) return;
+  var dpr = window.devicePixelRatio || 1;
+  ctx.clearRect(0, 0, _W * dpr, _H * dpr);
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  if (!HIDE) { DRW.forEach(function(d) { if (d.visible !== false) drawShape(ctx, d, d.id === SEL); }); }
+  if (IP) drawInProgress(ctx);
+  ctx.restore();
+  _dirty = false;
+}
+
+// ── Canvas drawing primitives ─────────────────────────────────────
+function cStroke(ctx, color, width) {
+  ctx.strokeStyle = color; ctx.lineWidth = width;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+}
+function cHandle(ctx, x, y) {
+  if (x==null||y==null||isNaN(x)||isNaN(y)) return;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2);
+  ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.strokeStyle = '#2962FF'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+}
+function cRRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+// ── Shape dispatcher ──────────────────────────────────────────────
+function drawShape(ctx, d, sel) {
+  var c = d.color || CLR, w = d.width || WID;
+  ctx.save(); ctx.setLineDash([]);
+  switch(d.type) {
+    case 'trendline':      drawLine(ctx,d,sel,c,w,false,false); break;
+    case 'arrow':          drawLine(ctx,d,sel,c,w,true,false);  break;
+    case 'ray':            drawLine(ctx,d,sel,c,w,false,true);  break;
+    case 'hline':          drawHLine(ctx,d,sel,c,w);   break;
+    case 'vline':          drawVLine(ctx,d,sel,c,w);   break;
+    case 'channel':        drawChannel(ctx,d,sel,c,w); break;
+    case 'fibretracement': drawFib(ctx,d,sel,c,w);     break;
+    case 'brush':          drawFreehand(ctx,d,sel,c,w,false); break;
+    case 'highlighter':    drawFreehand(ctx,d,sel,c,w,true);  break;
+    case 'rectangle':      drawRect(ctx,d,sel,c,w);    break;
+    case 'circle':         drawCircle(ctx,d,sel,c,w);  break;
+    case 'text':           drawText(ctx,d,sel,c);       break;
+    case 'note':           drawNote(ctx,d,sel,c);       break;
+    case 'pricelabel':     drawPriceLabel(ctx,d,sel,c); break;
+    case 'longposition':   drawPosition(ctx,d,sel,true);  break;
+    case 'shortposition':  drawPosition(ctx,d,sel,false); break;
+    case 'daterange':      drawDateRange(ctx,d,sel,c,w);  break;
+    case 'pricerange':     drawPriceRange(ctx,d,sel,c,w); break;
+  }
+  ctx.restore();
+}
+
+function drawLine(ctx,d,sel,c,w,arrow,ray) {
+  if (!d.pts||d.pts.length<2) return;
+  var p1=dataToSvg(d.pts[0].price,d.pts[0].time), p2=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (p1.x==null||p2.x==null) return;
+  var x1=p1.x,y1=p1.y,x2=p2.x,y2=p2.y;
+  if (ray) { var dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1; x2=x1+(dx/len)*5000; y2=y1+(dy/len)*5000; }
+  var sc=sel?'#2962FF':c;
+  cStroke(ctx,sc,w); ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  if (arrow) {
+    var adx=x2-p1.x,ady=y2-p1.y,al=Math.sqrt(adx*adx+ady*ady)||1,nx=adx/al,ny=ady/al;
+    ctx.beginPath(); ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-nx*10-ny*5, y2-ny*10+nx*5);
+    ctx.lineTo(x2-nx*10+ny*5, y2-ny*10-nx*5);
+    ctx.closePath(); ctx.fillStyle=sc; ctx.fill();
+  }
+  if (sel) { cHandle(ctx,p1.x,p1.y); cHandle(ctx,p2.x,p2.y); }
+}
+function drawHLine(ctx,d,sel,c,w) {
+  if (!d.pts||d.pts.length<1) return;
+  var y=candleSeries.priceToCoordinate(d.pts[0].price);
+  if (y==null||isNaN(y)) return;
+  var sc=sel?'#2962FF':c;
+  ctx.setLineDash([5,3]); cStroke(ctx,sc,w);
+  ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(_W,y); ctx.stroke(); ctx.setLineDash([]);
+  var bw=84, px=fmtP(d.pts[0].price);
+  ctx.fillStyle='#1e222d'; cRRect(ctx,_W-bw-4,y-11,bw,22,3); ctx.fill();
+  ctx.strokeStyle=sc; ctx.lineWidth=1; ctx.stroke();
+  ctx.fillStyle=sc; ctx.font='10px monospace'; ctx.textAlign='center';
+  ctx.fillText(px, _W-4-bw/2, y+4);
+  if (sel) cHandle(ctx,_W/2,y);
+}
+function drawVLine(ctx,d,sel,c,w) {
+  if (!d.pts||d.pts.length<1) return;
+  var x=chart.timeScale().timeToCoordinate(d.pts[0].time);
+  if (x==null||isNaN(x)) return;
+  var sc=sel?'#2962FF':c;
+  ctx.setLineDash([5,3]); cStroke(ctx,sc,w);
+  ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,_H); ctx.stroke(); ctx.setLineDash([]);
+  if (sel) cHandle(ctx,x,_H/2);
+}
+function drawFreehand(ctx,d,sel,c,w,hilight) {
+  if (!d.pts||d.pts.length<2) return;
+  var pts=d.pts.map(function(pt){return dataToSvg(pt.price,pt.time);}).filter(function(p){return p.x!=null;});
+  if (pts.length<2) return;
+  var sc=sel?'#2962FF':c;
+  ctx.globalAlpha=hilight?0.4:1; cStroke(ctx,sc,hilight?10:w);
+  ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+  for (var i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
+  ctx.stroke(); ctx.globalAlpha=1;
+}
+function drawRect(ctx,d,sel,c,w) {
+  if (!d.pts||d.pts.length<2) return;
+  var p1=dataToSvg(d.pts[0].price,d.pts[0].time), p2=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (p1.x==null) return;
+  var x=Math.min(p1.x,p2.x),y=Math.min(p1.y,p2.y),rw=Math.abs(p2.x-p1.x),rh=Math.abs(p2.y-p1.y);
+  var sc=sel?'#2962FF':c;
+  ctx.fillStyle=sc+'22'; ctx.fillRect(x,y,rw,rh);
+  cStroke(ctx,sc,w); ctx.strokeRect(x,y,rw,rh);
+  if (sel) { cHandle(ctx,p1.x,p1.y); cHandle(ctx,p2.x,p1.y); cHandle(ctx,p1.x,p2.y); cHandle(ctx,p2.x,p2.y); }
+}
+function drawCircle(ctx,d,sel,c,w) {
+  if (!d.pts||d.pts.length<2) return;
+  var ctr=dataToSvg(d.pts[0].price,d.pts[0].time), edg=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (ctr.x==null) return;
+  var r=Math.sqrt((edg.x-ctr.x)*(edg.x-ctr.x)+(edg.y-ctr.y)*(edg.y-ctr.y));
+  var sc=sel?'#2962FF':c;
+  ctx.beginPath(); ctx.arc(ctr.x,ctr.y,r,0,Math.PI*2);
+  ctx.fillStyle=sc+'22'; ctx.fill(); cStroke(ctx,sc,w); ctx.stroke();
+  if (sel) { cHandle(ctx,ctr.x,ctr.y); cHandle(ctx,edg.x,edg.y); }
+}
+function drawFib(ctx,d,sel,c,w) {
+  if (!d.pts||d.pts.length<2) return;
+  var p1=dataToSvg(d.pts[0].price,d.pts[0].time), p2=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (p1.x==null) return;
+  var range=d.pts[1].price-d.pts[0].price;
+  var LEVS=[0,0.236,0.382,0.5,0.618,0.786,1];
+  var LCLR=['#26a69a','#f59e0b','#ef5350','#787b86','#3b82f6','#8b5cf6','#26a69a'];
+  var sc=sel?'#2962FF':null, x0=Math.min(p1.x,p2.x);
+  cStroke(ctx,sc||c,w); ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+  for (var i=0;i<LEVS.length;i++) {
+    var price=d.pts[0].price+range*LEVS[i];
+    var fy=candleSeries.priceToCoordinate(price);
+    if (fy==null||isNaN(fy)) continue;
+    var lc=sc||LCLR[i];
+    ctx.setLineDash([4,2]); ctx.globalAlpha=0.8; cStroke(ctx,lc,1);
+    ctx.beginPath(); ctx.moveTo(x0,fy); ctx.lineTo(_W,fy); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    ctx.fillStyle=lc; ctx.font='9px monospace'; ctx.textAlign='left';
+    ctx.fillText((LEVS[i]*100).toFixed(1)+'%  '+fmtP(price), x0+4, fy-3);
+  }
+  if (sel) { cHandle(ctx,p1.x,p1.y); cHandle(ctx,p2.x,p2.y); }
+}
+function drawChannel(ctx,d,sel,c,w) {
+  if (!d.pts||d.pts.length<3) return;
+  var p1=dataToSvg(d.pts[0].price,d.pts[0].time);
+  var p2=dataToSvg(d.pts[1].price,d.pts[1].time);
+  var p3=dataToSvg(d.pts[2].price,d.pts[2].time);
+  if (p1.x==null) return;
+  var dy=p3.y-p1.y, q1y=p1.y+dy, q2y=p2.y+dy;
+  var sc=sel?'#2962FF':c;
+  ctx.fillStyle=sc+'22';
+  ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p2.x,q2y); ctx.lineTo(p1.x,q1y); ctx.closePath(); ctx.fill();
+  cStroke(ctx,sc,w); ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+  ctx.setLineDash([5,3]); ctx.beginPath(); ctx.moveTo(p1.x,q1y); ctx.lineTo(p2.x,q2y); ctx.stroke(); ctx.setLineDash([]);
+  if (sel) { cHandle(ctx,p1.x,p1.y); cHandle(ctx,p2.x,p2.y); cHandle(ctx,p3.x,p3.y); }
+}
+function drawText(ctx,d,sel,c) {
+  if (!d.pts||d.pts.length<1) return;
+  var p=dataToSvg(d.pts[0].price,d.pts[0].time);
+  if (p.x==null) return;
+  var sc=sel?'#2962FF':c;
+  ctx.fillStyle=sc; ctx.font='bold 14px sans-serif'; ctx.textAlign='left';
+  ctx.fillText(d.text||'Text', p.x, p.y);
+  if (sel) cHandle(ctx,p.x,p.y);
+}
+function drawNote(ctx,d,sel,c) {
+  if (!d.pts||d.pts.length<1) return;
+  var p=dataToSvg(d.pts[0].price,d.pts[0].time);
+  if (p.x==null) return;
+  var sc=sel?'#2962FF':c, txt=d.text||'Note';
+  ctx.font='12px sans-serif';
+  var bw=Math.max(60,ctx.measureText(txt).width+20);
+  ctx.fillStyle='#1e222d'; cRRect(ctx,p.x,p.y-22,bw,26,4); ctx.fill();
+  ctx.strokeStyle=sc; ctx.lineWidth=1; ctx.stroke();
+  ctx.fillStyle=sc; ctx.textAlign='left'; ctx.fillText(txt,p.x+8,p.y-5);
+  if (sel) cHandle(ctx,p.x+bw/2,p.y-9);
+}
+function drawPriceLabel(ctx,d,sel,c) {
+  if (!d.pts||d.pts.length<1) return;
+  var p=dataToSvg(d.pts[0].price,d.pts[0].time);
+  if (p.x==null) return;
+  var sc=sel?'#2962FF':c;
+  ctx.setLineDash([3,2]); cStroke(ctx,sc,1);
+  ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(_W-88,p.y); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle=sc; cRRect(ctx,_W-88,p.y-11,84,22,3); ctx.fill();
+  ctx.fillStyle='#000'; ctx.font='bold 10px monospace'; ctx.textAlign='center';
+  ctx.fillText(fmtP(d.pts[0].price),_W-88+42,p.y+4);
+  if (sel) cHandle(ctx,p.x,p.y);
+}
+function drawPosition(ctx,d,sel,isLong) {
+  if (!d.pts||d.pts.length<2) return;
+  var entry=dataToSvg(d.pts[0].price,d.pts[0].time), tgt=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (entry.x==null) return;
+  var X=entry.x,W2=_W-X,ey=entry.y,ty=tgt.y;
+  var profC='#26a69a',lossC='#ef5350',fillC=ty<ey?profC:lossC;
+  ctx.fillStyle=fillC+'44'; ctx.fillRect(X,Math.min(ey,ty),W2,Math.abs(ty-ey));
+  cStroke(ctx,'#d1d4dc',1.5); ctx.beginPath(); ctx.moveTo(X,ey); ctx.lineTo(_W,ey); ctx.stroke();
+  cStroke(ctx,fillC,1.5); ctx.beginPath(); ctx.moveTo(X,ty); ctx.lineTo(_W,ty); ctx.stroke();
+  ctx.fillStyle='#d1d4dc'; ctx.font='9px monospace'; ctx.textAlign='left';
+  ctx.fillText('Entry '+fmtP(d.pts[0].price),X+6,ey-4);
+  ctx.fillStyle=fillC; ctx.fillText('Target '+fmtP(d.pts[1].price),X+6,ty+12);
+  if (d.pts.length>=3) {
+    var stop=dataToSvg(d.pts[2].price,d.pts[2].time);
+    if (stop.x!=null) {
+      var sy=stop.y;
+      ctx.fillStyle=lossC+'44'; ctx.fillRect(X,Math.min(ey,sy),W2,Math.abs(sy-ey));
+      cStroke(ctx,lossC,1.5); ctx.beginPath(); ctx.moveTo(X,sy); ctx.lineTo(_W,sy); ctx.stroke();
+      ctx.fillStyle=lossC; ctx.fillText('Stop '+fmtP(d.pts[2].price),X+6,sy+12);
+      if (sel) cHandle(ctx,stop.x,stop.y);
+    }
+  }
+  if (sel) { cHandle(ctx,entry.x,entry.y); cHandle(ctx,tgt.x,tgt.y); }
+}
+function drawDateRange(ctx,d,sel,c,w) {
+  if (!d.pts||d.pts.length<2) return;
+  var p1=dataToSvg(d.pts[0].price,d.pts[0].time), p2=dataToSvg(d.pts[1].price,d.pts[1].time);
+  if (p1.x==null) return;
+  var sc=sel?'#2962FF':c, x1=Math.min(p1.x,p2.x), x2=Math.max(p1.x,p2.x);
+  ctx.fillStyle=sc+'22'; ctx.fillRect(x1,0,x2-x1,_H);
+  ctx.setLineDash([4,2]); cStroke(ctx,sc,w);
+  ctx.beginPath(); ctx.moveTo(p1.x,0); ctx.lineTo(p1.x,_H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p2.x,0); ctx.lineTo(p2.x,_H); ctx.stroke(); ctx.setLineDash([]);
+  if (sel) { cHandle(ctx,p1.x,_H/2); cHandle(ctx,p2.x,_H/2); }
+}
+function drawPriceRange(ctx,d,sel,c,w) {
+  if (!d.pts||d.pts.length<2) return;
+  var y1=candleSeries.priceToCoordinate(d.pts[0].price), y2=candleSeries.priceToCoordinate(d.pts[1].price);
+  if (y1==null||y2==null||isNaN(y1)||isNaN(y2)) return;
+  var sc=sel?'#2962FF':c, mn=Math.min(y1,y2), mx=Math.max(y1,y2);
+  ctx.fillStyle=sc+'22'; ctx.fillRect(0,mn,_W,mx-mn);
+  ctx.setLineDash([4,2]); cStroke(ctx,sc,w);
+  ctx.beginPath(); ctx.moveTo(0,y1); ctx.lineTo(_W,y1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,y2); ctx.lineTo(_W,y2); ctx.stroke(); ctx.setLineDash([]);
+  if (sel) { cHandle(ctx,_W/2,y1); cHandle(ctx,_W/2,y2); }
+}
+
+// ── In-progress drawing ───────────────────────────────────────────
+function drawInProgress(ctx) {
+  if (!IP) return;
+  ctx.save();
+  if ((IP==='brush'||IP==='highlighter')&&FREE_PTS.length>=4) {
+    ctx.globalAlpha=IP==='highlighter'?0.4:1;
+    cStroke(ctx,CLR,IP==='highlighter'?10:WID);
+    ctx.beginPath(); ctx.moveTo(FREE_PTS[0],FREE_PTS[1]);
+    for (var i=2;i<FREE_PTS.length;i+=2) ctx.lineTo(FREE_PTS[i],FREE_PTS[i+1]);
+    ctx.stroke(); ctx.restore(); return;
+  }
+  ctx.setLineDash([4,2]); cStroke(ctx,CLR,WID);
+  for (var j=0;j<CUR_PTS.length-1;j++) {
+    var a=dataToSvg(CUR_PTS[j].price,CUR_PTS[j].time), b=dataToSvg(CUR_PTS[j+1].price,CUR_PTS[j+1].time);
+    if (a.x!=null&&b.x!=null) { ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  }
+  if (_previewPt&&CUR_PTS.length>0) {
+    var last=CUR_PTS[CUR_PTS.length-1], lp=dataToSvg(last.price,last.time);
+    if (lp.x!=null) { ctx.globalAlpha=0.6; ctx.beginPath(); ctx.moveTo(lp.x,lp.y); ctx.lineTo(_previewPt.x,_previewPt.y); ctx.stroke(); }
+  }
+  ctx.setLineDash([]); ctx.restore();
+}
+
+// ── Hit detection (10px tolerance) ───────────────────────────────
+var HIT = 10;
+function distSeg(px,py,x1,y1,x2,y2) {
+  var dx=x2-x1,dy=y2-y1,l2=dx*dx+dy*dy;
+  if (l2===0) return Math.sqrt((px-x1)*(px-x1)+(py-y1)*(py-y1));
+  var t=Math.max(0,Math.min(1,((px-x1)*dx+(py-y1)*dy)/l2));
+  return Math.sqrt((px-x1-t*dx)*(px-x1-t*dx)+(py-y1-t*dy)*(py-y1-t*dy));
+}
+function getHandlePositions(d) {
+  if (!d.pts||d.pts.length===0) return [];
+  switch(d.type) {
+    case 'hline': { var hy=candleSeries.priceToCoordinate(d.pts[0].price); return [{x:_W/2,y:hy}]; }
+    case 'vline': { var vx=chart.timeScale().timeToCoordinate(d.pts[0].time); return [{x:vx,y:_H/2}]; }
+    case 'rectangle': {
+      var rp1=dataToSvg(d.pts[0].price,d.pts[0].time), rp2=dataToSvg(d.pts[1].price,d.pts[1].time);
+      return [{x:rp1.x,y:rp1.y},{x:rp2.x,y:rp1.y},{x:rp1.x,y:rp2.y},{x:rp2.x,y:rp2.y}];
+    }
+    case 'pricerange': {
+      var pry1=candleSeries.priceToCoordinate(d.pts[0].price), pry2=candleSeries.priceToCoordinate(d.pts[1].price);
+      return [{x:_W/2,y:pry1},{x:_W/2,y:pry2}];
+    }
+    case 'daterange': {
+      var drp1=dataToSvg(d.pts[0].price,d.pts[0].time), drp2=dataToSvg(d.pts[1].price,d.pts[1].time);
+      return [{x:drp1.x,y:_H/2},{x:drp2.x,y:_H/2}];
+    }
+    default: return d.pts.map(function(pt){return dataToSvg(pt.price,pt.time);});
+  }
+}
+function hitTest(cx, cy) {
+  for (var i=DRW.length-1;i>=0;i--) {
+    var d=DRW[i];
+    if (!d||d.visible===false) continue;
+    if (d.id===SEL&&!d.locked) {
+      var handles=getHandlePositions(d);
+      for (var hi=0;hi<handles.length;hi++) {
+        var h=handles[hi];
+        if (h&&h.x!=null&&!isNaN(h.x)&&Math.sqrt((cx-h.x)*(cx-h.x)+(cy-h.y)*(cy-h.y))<=HIT+3)
+          return {did:d.id, handleIdx:hi};
+      }
+    }
+    if (d.locked) { if (hitBody(d,cx,cy)) return {did:d.id,handleIdx:-1,locked:true}; continue; }
+    if (hitBody(d,cx,cy)) return {did:d.id, handleIdx:-1};
+  }
+  return null;
+}
+function hitBody(d,cx,cy) {
+  var pts=d.pts; if (!pts||pts.length===0) return false;
+  switch(d.type) {
+    case 'trendline': case 'arrow': case 'channel': case 'fibretracement': {
+      if (pts.length<2) return false;
+      var p1=dataToSvg(pts[0].price,pts[0].time), p2=dataToSvg(pts[1].price,pts[1].time);
+      if (p1.x==null) return false;
+      return distSeg(cx,cy,p1.x,p1.y,p2.x,p2.y)<HIT;
+    }
+    case 'ray': {
+      if (pts.length<2) return false;
+      var rp1=dataToSvg(pts[0].price,pts[0].time), rp2=dataToSvg(pts[1].price,pts[1].time);
+      if (rp1.x==null) return false;
+      var rdx=rp2.x-rp1.x,rdy=rp2.y-rp1.y,rl=Math.sqrt(rdx*rdx+rdy*rdy)||1;
+      return distSeg(cx,cy,rp1.x,rp1.y,rp1.x+(rdx/rl)*5000,rp1.y+(rdy/rl)*5000)<HIT;
+    }
+    case 'hline': { var hy=candleSeries.priceToCoordinate(pts[0].price); return hy!=null&&Math.abs(cy-hy)<HIT; }
+    case 'vline': { var vx=chart.timeScale().timeToCoordinate(pts[0].time); return vx!=null&&Math.abs(cx-vx)<HIT; }
+    case 'rectangle': {
+      if (pts.length<2) return false;
+      var bp1=dataToSvg(pts[0].price,pts[0].time), bp2=dataToSvg(pts[1].price,pts[1].time);
+      if (bp1.x==null) return false;
+      return cx>=Math.min(bp1.x,bp2.x)-HIT&&cx<=Math.max(bp1.x,bp2.x)+HIT&&cy>=Math.min(bp1.y,bp2.y)-HIT&&cy<=Math.max(bp1.y,bp2.y)+HIT;
+    }
+    case 'circle': {
+      if (pts.length<2) return false;
+      var ctr=dataToSvg(pts[0].price,pts[0].time), edg=dataToSvg(pts[1].price,pts[1].time);
+      if (ctr.x==null) return false;
+      var r=Math.sqrt((edg.x-ctr.x)*(edg.x-ctr.x)+(edg.y-ctr.y)*(edg.y-ctr.y));
+      return Math.abs(Math.sqrt((cx-ctr.x)*(cx-ctr.x)+(cy-ctr.y)*(cy-ctr.y))-r)<HIT;
+    }
+    case 'brush': case 'highlighter': {
+      if (pts.length<2) return false;
+      var bpts=pts.map(function(pt){return dataToSvg(pt.price,pt.time);}).filter(function(p){return p.x!=null;});
+      for (var bi=0;bi<bpts.length-1;bi++) if (distSeg(cx,cy,bpts[bi].x,bpts[bi].y,bpts[bi+1].x,bpts[bi+1].y)<HIT) return true;
+      return false;
+    }
+    case 'text': case 'note': case 'pricelabel': {
+      var tp=dataToSvg(pts[0].price,pts[0].time);
+      return tp.x!=null&&Math.sqrt((cx-tp.x)*(cx-tp.x)+(cy-tp.y)*(cy-tp.y))<30;
+    }
+    case 'longposition': case 'shortposition': {
+      if (pts.length<2) return false;
+      var ep=dataToSvg(pts[0].price,pts[0].time), tp2=dataToSvg(pts[1].price,pts[1].time);
+      if (ep.x==null) return false;
+      return Math.abs(cy-ep.y)<HIT||Math.abs(cy-tp2.y)<HIT;
+    }
+    case 'pricerange': {
+      if (pts.length<2) return false;
+      var pry1=candleSeries.priceToCoordinate(pts[0].price), pry2=candleSeries.priceToCoordinate(pts[1].price);
+      if (pry1==null||pry2==null) return false;
+      return Math.abs(cy-pry1)<HIT||Math.abs(cy-pry2)<HIT;
+    }
+    case 'daterange': {
+      if (pts.length<2) return false;
+      var drp1=dataToSvg(pts[0].price,pts[0].time), drp2=dataToSvg(pts[1].price,pts[1].time);
+      if (drp1.x==null) return false;
+      return Math.abs(cx-drp1.x)<HIT||Math.abs(cx-drp2.x)<HIT;
+    }
+    default: return false;
+  }
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────
 function buildSidebar() {
-  const IDS = {lines:'sb-lines',fib:'sb-fib',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',measure:'sb-measure',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
-  const toolToGroup = {trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',fibretracement:'fib',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text',longposition:'measure',shortposition:'measure',daterange:'measure',pricerange:'measure'};
-  Object.entries(IDS).forEach(([gid,btnId]) => {
-    const btn = document.getElementById(btnId); if(!btn) return;
-    const isActive = (TOOL===gid) || (toolToGroup[TOOL]===gid) || (gid==='hide'&&HIDE);
-    btn.classList.toggle('act', !!isActive);
+  var IDS={lines:'sb-lines',fib:'sb-fib',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',measure:'sb-measure',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
+  var toolToGroup={trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',fibretracement:'fib',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text',longposition:'measure',shortposition:'measure',daterange:'measure',pricerange:'measure'};
+  Object.entries(IDS).forEach(function(e) {
+    var gid=e[0], btnId=e[1];
+    var btn=document.getElementById(btnId); if(!btn) return;
+    var isActive=(TOOL===gid)||(toolToGroup[TOOL]===gid)||(gid==='hide'&&HIDE);
+    btn.classList.toggle('act',!!isActive);
   });
 }
 
-// ── Called from hardcoded HTML buttons ──
+// ── Sidebar helpers ───────────────────────────────────────────────
 function setToolGroup(gid) {
-  TOOL = null;
-  SEL=null; CUR_PTS=[]; FREE_PTS=[]; IP=null;
-  hideFM(); updateSvgMode(); buildSidebar(); closeSub(); redraw();
+  TOOL=null; SEL=null; CUR_PTS=[]; FREE_PTS=[]; IP=null;
+  hideFM(); updateCanvasMode(); buildSidebar(); closeSub(); scheduleRedraw();
 }
-
-// ── Per-tool SVG icons shown in the submenu ───────────────────────────────
-var SUB_ICONS = {
-  trendline:     '<line x1="5" y1="17" x2="19" y2="7"/><polyline points="13 7 19 7 19 13"/>',
-  arrow:         '<line x1="5" y1="17" x2="19" y2="7"/><polygon points="19,7 14,9 17,12" fill="currentColor" stroke="none"/>',
-  ray:           '<line x1="5" y1="17" x2="21" y2="5"/><circle cx="5" cy="17" r="2" fill="currentColor" stroke="none"/>',
-  hline:         '<line x1="3" y1="12" x2="21" y2="12" stroke-dasharray="4 2"/><line x1="3" y1="8" x2="3" y2="16"/>',
-  vline:         '<line x1="12" y1="3" x2="12" y2="21" stroke-dasharray="4 2"/><line x1="8" y1="3" x2="16" y2="3"/>',
-  channel:       '<line x1="4" y1="16" x2="20" y2="6"/><line x1="4" y1="20" x2="20" y2="10" stroke-dasharray="4 2"/>',
-  fibretracement:'<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="11" x2="20" y2="11"/><line x1="4" y1="16" x2="20" y2="16"/><line x1="8" y1="3" x2="8" y2="19" stroke-dasharray="2 3"/>',
-  rectangle:     '<rect x="3" y="6" width="18" height="13" rx="1.5"/>',
-  circle:        '<circle cx="12" cy="12" r="8"/>',
-  brush:         '<path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
-  highlighter:   '<path d="M9 11l-5 5 1 3 3 1 5-5"/><rect x="12" y="3" width="10" height="8" rx="2" transform="rotate(45 17 7)"/>',
-  text:          '<path d="M4 7V5h16v2"/><path d="M9 20h6"/><line x1="12" y1="5" x2="12" y2="20"/>',
-  note:          '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
-  pricelabel:    '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
-  longposition:  '<polyline points="3 17 12 8 21 17"/><line x1="12" y1="3" x2="12" y2="8"/>',
-  shortposition: '<polyline points="3 7 12 16 21 7"/><line x1="12" y1="16" x2="12" y2="21"/>',
-  daterange:     '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
-  pricerange:    '<line x1="12" y1="3" x2="12" y2="21"/><polyline points="9 6 12 3 15 6"/><polyline points="9 18 12 21 15 18"/>',
-};
 
 function openSubById(gid, btnEl) {
-  const g = TOOL_GROUPS.find(x=>x!=='sep'&&x.id===gid);
+  var g=null;
+  for (var gi=0;gi<TOOL_GROUPS.length;gi++) { if (TOOL_GROUPS[gi]!=='sep'&&TOOL_GROUPS[gi].id===gid){g=TOOL_GROUPS[gi];break;} }
   if (!g) return;
-  // If this group is already active → tap again deselects (return to cursor)
-  const groupActive = TOOL === gid || g.items.some(function(it){ return it.id === TOOL; });
-  if (groupActive) { setToolGroup('cursor'); closeSub(); return; }
-  if (g.items.length === 1) { setTool(g.items[0].id); return; }
-  if (SUB_OPEN === gid) { closeSub(); return; }
-  SUB_OPEN = gid;
-  const sub = document.getElementById('sb-sub');
-  const r = btnEl.getBoundingClientRect();
-  sub.style.top = Math.min(r.top, window.innerHeight-220)+'px';
-  let html = '<div class="sub-title">'+g.label+'</div>';
-  g.items.forEach(it => {
-    const ico = SUB_ICONS[it.id] || '';
-    html += '<button class="sub-item'+(TOOL===it.id?' act':'') + '" data-tid="'+it.id+'">'
-          + '<div class="sub-icon"><svg viewBox="0 0 24 24">'+ico+'</svg></div>'
-          + it.label+'</button>';
+  var groupActive=TOOL===gid||(g.items||[]).some(function(it){return it.id===TOOL;});
+  if (groupActive) { setToolGroup(null); closeSub(); return; }
+  if ((g.items||[]).length===1) { setTool(g.items[0].id); return; }
+  if (SUB_OPEN===gid) { closeSub(); return; }
+  SUB_OPEN=gid;
+  var sub=document.getElementById('sb-sub');
+  if (!sub) return;
+  var r=btnEl.getBoundingClientRect();
+  sub.style.top=Math.min(r.top,window.innerHeight-220)+'px';
+  var html='<div class="sub-title">'+g.label+'</div>';
+  (g.items||[]).forEach(function(it) {
+    html+='<button class="sub-item'+(TOOL===it.id?' act':'')+'" data-tid="'+it.id+'">'+it.label+'</button>';
   });
-  sub.innerHTML = html;
-  // Attach touchend + click to each sub-item for Android WebView reliability
+  sub.innerHTML=html;
   sub.querySelectorAll('.sub-item').forEach(function(btn) {
-    var tid = btn.getAttribute('data-tid');
-    btn.addEventListener('touchend', function(e) { e.preventDefault(); setTool(tid); closeSub(); }, {passive:false});
-    btn.addEventListener('click', function() { setTool(tid); closeSub(); });
+    var tid=btn.getAttribute('data-tid');
+    btn.addEventListener('touchend',function(e){e.preventDefault();setTool(tid);closeSub();},{passive:false});
+    btn.addEventListener('click',function(){setTool(tid);closeSub();});
   });
   sub.classList.remove('hidden');
 }
 
-function toggleHide(btnEl) {
-  HIDE=!HIDE; buildSidebar(); redraw();
-}
-function toggleLockAll(btnEl) {
-  const allLk = DRW.length>0&&DRW.every(d=>d.locked);
-  DRW.forEach(d=>d.locked=!allLk); saveDrw(); buildSidebar();
+function toggleHide() { HIDE=!HIDE; buildSidebar(); scheduleRedraw(); }
+function toggleLockAll() {
+  var allLk=DRW.length>0&&DRW.every(function(d){return d.locked;});
+  DRW.forEach(function(d){d.locked=!allLk;}); saveDrw(); buildSidebar();
 }
 function clearAllDrawings() {
   if (DRW.length===0) return;
-  if (!confirm('Saare drawings delete karo?')) return;
+  if (!confirm('Delete all drawings?')) return;
   DRW=[]; SEL=null; CUR_PTS=[]; FREE_PTS=[]; IP=null;
-  saveDrw(); hideFM(); redraw(); dbg('All cleared');
+  saveDrw(); hideFM(); scheduleRedraw();
 }
+function closeSub() { SUB_OPEN=null; var s=document.getElementById('sb-sub'); if(s) s.classList.add('hidden'); }
 
-function closeSub() { SUB_OPEN=null; const s=document.getElementById('sb-sub'); if(s) s.classList.add('hidden'); }
-
-// ── Attach sidebar button listeners via JS (touchend + click) ─────────────
-// On Android WebView onclick can be unreliable; touchend is always instant.
+// ── Sidebar event listeners ───────────────────────────────────────
 function initSidebarEvents() {
-  function sbBtn(id, fn) {
-    var el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener('touchend', function(e) { e.preventDefault(); fn(el); }, {passive:false});
-    el.addEventListener('click', function() { fn(el); });
+  function sbBtn(id,fn) {
+    var el=document.getElementById(id); if(!el) return;
+    el.addEventListener('touchend',function(e){e.preventDefault();fn(el);},{passive:false});
+    el.addEventListener('click',function(){fn(el);});
   }
-  sbBtn('sb-lines',   function(el)  { openSubById('lines',   el); });
-  sbBtn('sb-fib',     function(el)  { openSubById('fib',     el); });
-  sbBtn('sb-shapes',  function(el)  { openSubById('shapes',  el); });
-  sbBtn('sb-brush',   function(el)  { openSubById('brush',   el); });
-  sbBtn('sb-text',    function(el)  { openSubById('text',    el); });
-  sbBtn('sb-measure', function(el)  { openSubById('measure', el); });
-  sbBtn('sb-hide',    function(el)  { toggleHide(el); });
-  sbBtn('sb-lock',    function(el)  { toggleLockAll(el); });
-  sbBtn('sb-delete',  function()    { clearAllDrawings(); });
+  sbBtn('sb-lines',   function(el){openSubById('lines',el);});
+  sbBtn('sb-fib',     function(el){openSubById('fib',el);});
+  sbBtn('sb-shapes',  function(el){openSubById('shapes',el);});
+  sbBtn('sb-brush',   function(el){openSubById('brush',el);});
+  sbBtn('sb-text',    function(el){openSubById('text',el);});
+  sbBtn('sb-measure', function(el){openSubById('measure',el);});
+  sbBtn('sb-hide',    function(){toggleHide();});
+  sbBtn('sb-lock',    function(){toggleLockAll();});
+  sbBtn('sb-delete',  function(){clearAllDrawings();});
 }
 
 function setTool(id) {
-  TOOL=id; CUR_PTS=[]; FREE_PTS=[]; IP=null; SEL=null; hideFM(); updateSvgMode(); buildSidebar(); redraw();
+  TOOL=id; CUR_PTS=[]; FREE_PTS=[]; IP=null; SEL=null;
+  hideFM(); updateCanvasMode(); buildSidebar(); scheduleRedraw();
 }
-function updateSvgMode() {
-  const svg = document.getElementById('drw-svg');
-  if (!svg) return;
-  if (TOOL && TOOL !== 'cursor') {
-    // Drawing tool active: show overlay and intercept touches
-    svg.className = 'active';
-  } else if (DRW.length > 0) {
-    // No tool but drawings exist: show SVG passively so drawings are visible/selectable
-    svg.className = 'drawings';
-  } else {
-    // Nothing: completely hide SVG so chart gets all touches unobstructed
-    svg.className = 'cursor';
+
+// ── Float menu ────────────────────────────────────────────────────
+function showFM(d, ex, ey) {
+  var fm=document.getElementById('float-menu'); if(!fm) return;
+  fm.classList.remove('hidden');
+  fm.style.left=Math.min(ex||200,window.innerWidth-210)+'px';
+  fm.style.top=Math.max((ey||200)-70,50)+'px';
+  var lk=document.getElementById('fm-lck'); if(lk) lk.textContent=d.locked?'🔓 Unlock':'🔒 Lock';
+  var cl=document.getElementById('fm-clr'); if(cl) cl.value=d.color||'#f0b90b';
+}
+function hideFM() { var fm=document.getElementById('float-menu'); if(fm) fm.classList.add('hidden'); }
+function deleteSel() {
+  if(!SEL) return;
+  DRW=DRW.filter(function(d){return d.id!==SEL;}); SEL=null; hideFM(); saveDrw(); scheduleRedraw();
+}
+function colorSel(v) {
+  if(!SEL) return;
+  var d=DRW.find(function(x){return x.id===SEL;}); if(d){d.color=v;saveDrw();scheduleRedraw();}
+}
+function lockSel() {
+  if(!SEL) return;
+  var d=DRW.find(function(x){return x.id===SEL;});
+  if(d){
+    d.locked=!d.locked; saveDrw();
+    if(d.locked){SEL=null;hideFM();}
+    else{var lk=document.getElementById('fm-lck');if(lk)lk.textContent='🔒 Lock';}
+    scheduleRedraw();
   }
 }
+function deselectAll() { SEL=null; hideFM(); scheduleRedraw(); }
 
-// ── Redraw ───────────────────────────────────────────────────────
-function redraw() {
-  const svg = document.getElementById('drw-svg');
-  if (!svg||!chart||!candleSeries) return;
-  updateSvgMode();
-  updateSize();
-  svg.setAttribute('viewBox','0 0 '+_W+' '+_H);
-  svg.setAttribute('width',_W); svg.setAttribute('height',_H);
-  let html = '';
-  if (!HIDE) { DRW.forEach(d => { if (d.visible!==false) html+=renderDrawing(d, d.id===SEL); }); }
-  if (IP) html += renderIP();
-  svg.innerHTML = html;
-  // Attach events to hit areas.
-  // pointer-events:all on each element lets them receive taps even when the
-  // SVG root is pointer-events:none (cursor / passthrough mode).
-  svg.querySelectorAll('[data-did]').forEach(el => {
-    el.style.pointerEvents = 'all';
-    el.addEventListener('pointerdown', e => { e.stopPropagation(); handleDrawingClick(el.getAttribute('data-did'),e); }, {passive:false});
-  });
-  svg.querySelectorAll('[data-hdl]').forEach(el => {
-    el.style.pointerEvents = 'all';
-    el.addEventListener('pointerdown', e => { e.stopPropagation(); startResize(el.getAttribute('data-did'),parseInt(el.getAttribute('data-hdl')),e); }, {passive:false});
-  });
+// ── 3-point tool set ─────────────────────────────────────────────
+var THREE_PT = new Set(['channel','longposition','shortposition']);
+
+// ── Inside chart-wrap check ───────────────────────────────────────
+function ptInWrap(cx,cy) {
+  var el=document.getElementById('chart-wrap'); if(!el) return false;
+  var r=el.getBoundingClientRect();
+  return cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom;
 }
 
-function renderDrawing(d, sel) {
-  const c=d.color||CLR, w=d.width||WID;
-  switch(d.type) {
-    case 'trendline': return rLine(d,sel,c,w,false,false);
-    case 'arrow':     return rLine(d,sel,c,w,true,false);
-    case 'ray':       return rLine(d,sel,c,w,false,true);
-    case 'hline':     return rHLine(d,sel,c,w);
-    case 'vline':     return rVLine(d,sel,c,w);
-    case 'channel':   return rChannel(d,sel,c,w);
-    case 'fibretracement': return rFib(d,sel,c,w);
-    case 'brush':     return rFreehand(d,sel,c,w,false);
-    case 'highlighter': return rFreehand(d,sel,c,w,true);
-    case 'rectangle': return rRect(d,sel,c,w);
-    case 'circle':    return rCircle(d,sel,c,w);
-    case 'text':      return rText(d,sel,c);
-    case 'note':      return rNote(d,sel,c,w);
-    case 'pricelabel': return rPriceLabel(d,sel,c,w);
-    case 'longposition':  return rPosition(d,sel,true);
-    case 'shortposition': return rPosition(d,sel,false);
-    case 'daterange': return rDateRange(d,sel,c,w);
-    case 'pricerange': return rPriceRange(d,sel,c,w);
-    default: return '';
-  }
-}
+function dbg() {}
 
-function H(x,y,did,idx) {
-  if (x==null||y==null||isNaN(x)||isNaN(y)) return '';
-  return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="5" fill="#fff" stroke="#2962FF" stroke-width="2" data-hdl="'+idx+'" data-did="'+did+'" style="cursor:move;" />';
-}
-function hitL(x1,y1,x2,y2,did) {
-  return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="transparent" stroke-width="14" data-did="'+did+'" style="cursor:move;" />';
-}
-function F(n) { return (n||0).toFixed(1); }
-
-// ── Render: Line / Arrow / Ray ───────────────────────────────────
-function rLine(d,sel,c,w,arrow,ray) {
-  if (!d.pts||d.pts.length<2) return '';
-  const p1=dataToSvg(d.pts[0].price,d.pts[0].time), p2=dataToSvg(d.pts[1].price,d.pts[1].time);
-  if (p1.x==null||p2.x==null) return '';
-  let x1=p1.x,y1=p1.y,x2=p2.x,y2=p2.y;
-  if (ray) { const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1; x2=x1+(dx/len)*5000; y2=y1+(dy/len)*5000; }
-  const sc=sel?'#2962FF':c;
-  let s=hitL(p1.x,p1.y,x2,y2,d.id);
-  s+='<line x1="'+F(x1)+'" y1="'+F(y1)+'" x2="'+F(x2)+'" y2="'+F(y2)+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-linecap="round" />';
-  if (arrow) {
-    const dx=x2-p1.x,dy=y2-p1.y,len=Math.sqrt(dx*dx+dy*dy)||1,nx=dx/len,ny=dy/len;
-    const ax=x2-nx*10-ny*5,ay=y2-ny*10+nx*5,bx=x2-nx*10+ny*5,by=y2-ny*10-nx*5;
-    s+='<polygon points="'+F(x2)+','+F(y2)+' '+F(ax)+','+F(ay)+' '+F(bx)+','+F(by)+'" fill="'+sc+'" />';
-  }
-  if (sel) { s+=H(p1.x,p1.y,d.id,0); s+=H(p2.x,p2.y,d.id,1); }
-  return s;
-}
-
-// ── Render: Horizontal Line ──────────────────────────────────────
-function rHLine(d,sel,c,w) {
-  if (!d.pts||d.pts.length<1) return '';
-  const y=candleSeries.priceToCoordinate(d.pts[0].price);
-  if (y==null||isNaN(y)) return '';
-  const sc=sel?'#2962FF':c;
-  let s='<line x1="0" y1="'+F(y)+'" x2="'+_W+'" y2="'+F(y)+'" stroke="transparent" stroke-width="14" data-did="'+d.id+'" style="cursor:move;" />';
-  s+='<line x1="0" y1="'+F(y)+'" x2="'+_W+'" y2="'+F(y)+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="5,3" />';
-  s+='<rect x="'+(_W-84)+'" y="'+(y-11)+'" width="80" height="22" rx="3" fill="#1e222d" stroke="'+sc+'" stroke-width="1" />';
-  s+='<text x="'+(_W-44)+'" y="'+(y+4)+'" text-anchor="middle" font-size="10" fill="'+sc+'" font-family="monospace">'+fmtP(d.pts[0].price)+'</text>';
-  if (sel) s+=H(_W/2,y,d.id,0);
-  return s;
-}
-
-// ── Render: Vertical Line ────────────────────────────────────────
-function rVLine(d,sel,c,w) {
-  if (!d.pts||d.pts.length<1) return '';
-  const x=chart.timeScale().timeToCoordinate(d.pts[0].time);
-  if (x==null||isNaN(x)) return '';
-  const sc=sel?'#2962FF':c;
-  let s='<line x1="'+F(x)+'" y1="0" x2="'+F(x)+'" y2="'+_H+'" stroke="transparent" stroke-width="14" data-did="'+d.id+'" style="cursor:move;" />';
-  s+='<line x1="'+F(x)+'" y1="0" x2="'+F(x)+'" y2="'+_H+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="5,3" />';
-  if (sel) s+=H(x,_H/2,d.id,0);
-  return s;
-}
-
-// ── Render: Parallel Channel ─────────────────────────────────────
-function rChannel(d,sel,c,w) {
-  if (!d.pts||d.pts.length<3) return '';
-  const p1=dataToSvg(d.pts[0].price,d.pts[0].time),p2=dataToSvg(d.pts[1].price,d.pts[1].time),p3=dataToSvg(d.pts[2].price,d.pts[2].time);
-  if (p1.x==null) return '';
-  const dy=p3.y-p1.y, q1y=p1.y+dy, q2y=p2.y+dy;
-  const sc=sel?'#2962FF':c;
-  let s=hitL(p1.x,p1.y,p2.x,p2.y,d.id);
-  s+='<polygon points="'+F(p1.x)+','+F(p1.y)+' '+F(p2.x)+','+F(p2.y)+' '+F(p2.x)+','+F(q2y)+' '+F(p1.x)+','+F(q1y)+'" fill="'+sc+'22" />';
-  s+='<line x1="'+F(p1.x)+'" y1="'+F(p1.y)+'" x2="'+F(p2.x)+'" y2="'+F(p2.y)+'" stroke="'+sc+'" stroke-width="'+w+'" />';
-  s+='<line x1="'+F(p1.x)+'" y1="'+F(q1y)+'" x2="'+F(p2.x)+'" y2="'+F(q2y)+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="5,3" />';
-  if (sel) { s+=H(p1.x,p1.y,d.id,0); s+=H(p2.x,p2.y,d.id,1); s+=H(p3.x,p3.y,d.id,2); }
-  return s;
-}
-
-// ── Render: Fibonacci Retracement ────────────────────────────────
-function rFib(d,sel,c,w) {
-  if (!d.pts||d.pts.length<2) return '';
-  const p1=dataToSvg(d.pts[0].price,d.pts[0].time),p2=dataToSvg(d.pts[1].price,d.pts[1].time);
-  if (p1.x==null) return '';
-  const range=d.pts[1].price-d.pts[0].price;
-  const LEVS=[0,0.236,0.382,0.5,0.618,0.786,1];
-  const LCLR=['#26a69a','#f59e0b','#ef5350','#787b86','#3b82f6','#8b5cf6','#26a69a'];
-  const sc=sel?'#2962FF':null;
-  const x0=Math.min(p1.x,p2.x);
-  let s=hitL(p1.x,p1.y,p2.x,p2.y,d.id);
-  s+='<line x1="'+F(p1.x)+'" y1="'+F(p1.y)+'" x2="'+F(p2.x)+'" y2="'+F(p2.y)+'" stroke="'+(sc||c)+'" stroke-width="'+w+'" />';
-  LEVS.forEach((lv,i)=>{
-    const price=d.pts[0].price+range*lv;
-    const y=candleSeries.priceToCoordinate(price);
-    if (y==null||isNaN(y)) return;
-    const lc=sc||LCLR[i];
-    s+='<line x1="'+F(x0)+'" y1="'+F(y)+'" x2="'+_W+'" y2="'+F(y)+'" stroke="'+lc+'" stroke-width="1" stroke-dasharray="4,2" opacity="0.8" />';
-    s+='<text x="'+(x0+4)+'" y="'+(y-3)+'" font-size="9" fill="'+lc+'" font-family="monospace">'+(lv*100).toFixed(1)+'%  '+fmtP(price)+'</text>';
-  });
-  if (sel) { s+=H(p1.x,p1.y,d.id,0); s+=H(p2.x,p2.y,d.id,1); }
-  return s;
-}
-
-// ── Render: Brush / Highlighter ──────────────────────────────────
-function rFreehand(d,sel,c,w,hilight) {
-  if (!d.pts||d.pts.length<2) return '';
-  let pts='';
-  d.pts.forEach(pt=>{
-    const px=dataToSvg(pt.price,pt.time);
-    if (px.x!=null&&!isNaN(px.x)) pts+=F(px.x)+','+F(px.y)+' ';
-  });
-  if (!pts) return '';
-  const sc=sel?'#2962FF':c, sw=hilight?10:w, op=hilight?0.4:1;
-  let s='<polyline points="'+pts+'" stroke="transparent" stroke-width="16" fill="none" data-did="'+d.id+'" style="cursor:move;" />';
-  s+='<polyline points="'+pts+'" stroke="'+sc+'" stroke-width="'+sw+'" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="'+op+'" />';
-  return s;
-}
-
-// ── Render: Rectangle ────────────────────────────────────────────
-function rRect(d,sel,c,w) {
-  if (!d.pts||d.pts.length<2) return '';
-  const p1=dataToSvg(d.pts[0].price,d.pts[0].time),p2=dataToSvg(d.pts[1].price,d.pts[1].time);
-  if (p1.x==null) return '';
-  const x=Math.min(p1.x,p2.x),y=Math.min(p1.y,p2.y),rw=Math.abs(p2.x-p1.x),rh=Math.abs(p2.y-p1.y);
-  const sc=sel?'#2962FF':c;
-  let s='<rect x="'+F(x)+'" y="'+F(y)+'" width="'+F(rw)+'" height="'+F(rh)+'" stroke="transparent" stroke-width="8" fill="transparent" data-did="'+d.id+'" style="cursor:move;" />';
-  s+='<rect x="'+F(x)+'" y="'+F(y)+'" width="'+F(rw)+'" height="'+F(rh)+'" stroke="'+sc+'" stroke-width="'+w+'" fill="'+sc+'22" />';
-  if (sel) { s+=H(p1.x,p1.y,d.id,0); s+=H(p2.x,p1.y,d.id,1); s+=H(p1.x,p2.y,d.id,2); s+=H(p2.x,p2.y,d.id,3); }
-  return s;
-}
-
-// ── Render: Circle ───────────────────────────────────────────────
-function rCircle(d,sel,c,w) {
-  if (!d.pts||d.pts.length<2) return '';
-  const ctr=dataToSvg(d.pts[0].price,d.pts[0].time),edg=dataToSvg(d.pts[1].price,d.pts[1].time);
-  if (ctr.x==null) return '';
-  const r=Math.sqrt(Math.pow(edg.x-ctr.x,2)+Math.pow(edg.y-ctr.y,2));
-  const sc=sel?'#2962FF':c;
-  let s='<circle cx="'+F(ctr.x)+'" cy="'+F(ctr.y)+'" r="'+F(r)+'" stroke="transparent" stroke-width="10" fill="transparent" data-did="'+d.id+'" style="cursor:move;" />';
-  s+='<circle cx="'+F(ctr.x)+'" cy="'+F(ctr.y)+'" r="'+F(r)+'" stroke="'+sc+'" stroke-width="'+w+'" fill="'+sc+'22" />';
-  if (sel) { s+=H(ctr.x,ctr.y,d.id,0); s+=H(edg.x,edg.y,d.id,1); }
-  return s;
-}
-
-// ── Render: Text ─────────────────────────────────────────────────
-function rText(d,sel,c) {
-  if (!d.pts||d.pts.length<1) return '';
-  const p=dataToSvg(d.pts[0].price,d.pts[0].time);
-  if (p.x==null) return '';
-  const sc=sel?'#2962FF':c, txt=(d.text||'Text').replace(/</g,'&lt;');
-  let s='<text x="'+F(p.x)+'" y="'+F(p.y)+'" font-size="14" fill="'+sc+'" font-weight="bold" font-family="sans-serif" data-did="'+d.id+'" style="cursor:move;">'+txt+'</text>';
-  if (sel) s+=H(p.x,p.y,d.id,0);
-  return s;
-}
-
-// ── Render: Note ─────────────────────────────────────────────────
-function rNote(d,sel,c,w) {
-  if (!d.pts||d.pts.length<1) return '';
-  const p=dataToSvg(d.pts[0].price,d.pts[0].time);
-  if (p.x==null) return '';
-  const sc=sel?'#2962FF':c, txt=(d.text||'Note').replace(/</g,'&lt;'), bw=Math.max(60,txt.length*7+20);
-  let s='<rect x="'+F(p.x)+'" y="'+F(p.y-22)+'" width="'+bw+'" height="26" rx="4" fill="#1e222d" stroke="'+sc+'" stroke-width="1" data-did="'+d.id+'" style="cursor:move;" />';
-  s+='<text x="'+(p.x+8)+'" y="'+(p.y-5)+'" font-size="12" fill="'+sc+'" font-family="sans-serif">'+txt+'</text>';
-  if (sel) s+=H(p.x+bw/2,p.y-9,d.id,0);
-  return s;
-}
-
-// ── Render: Price Label ──────────────────────────────────────────
-function rPriceLabel(d,sel,c,w) {
-  if (!d.pts||d.pts.length<1) return '';
-  const p=dataToSvg(d.pts[0].price,d.pts[0].time);
-  if (p.x==null) return '';
-  const sc=sel?'#2962FF':c;
-  let s='<line x1="'+F(p.x)+'" y1="'+F(p.y)+'" x2="'+(_W-86)+'" y2="'+F(p.y)+'" stroke="'+sc+'" stroke-width="1" stroke-dasharray="3,2" data-did="'+d.id+'" style="cursor:move;" />';
-  s+='<rect x="'+(_W-86)+'" y="'+(p.y-11)+'" width="82" height="22" rx="3" fill="'+sc+'" />';
-  s+='<text x="'+(_W-45)+'" y="'+(p.y+4)+'" text-anchor="middle" font-size="10" fill="#000" font-weight="bold" font-family="monospace">'+fmtP(d.pts[0].price)+'</text>';
-  if (sel) s+=H(p.x,p.y,d.id,0);
-  return s;
-}
-
-// ── Render: Long / Short Position ────────────────────────────────
-function rPosition(d,sel,isLong) {
-  if (!d.pts||d.pts.length<2) return '';
-  const entry=dataToSvg(d.pts[0].price,d.pts[0].time),tgt=dataToSvg(d.pts[1].price,d.pts[1].time);
-  if (entry.x==null) return '';
-  const X=entry.x,W2=_W-X,ey=entry.y,ty=tgt.y;
-  const profC='#26a69a',lossC='#ef5350',fillC=ty<ey?profC:lossC;
-  let s='<rect x="'+F(X)+'" y="'+F(Math.min(ey,ty))+'" width="'+F(W2)+'" height="'+F(Math.abs(ty-ey))+'" fill="'+fillC+'44" data-did="'+d.id+'" style="cursor:move;" />';
-  s+='<line x1="'+F(X)+'" y1="'+F(ey)+'" x2="'+_W+'" y2="'+F(ey)+'" stroke="#d1d4dc" stroke-width="1.5" />';
-  s+='<line x1="'+F(X)+'" y1="'+F(ty)+'" x2="'+_W+'" y2="'+F(ty)+'" stroke="'+fillC+'" stroke-width="1.5" />';
-  s+='<text x="'+(X+6)+'" y="'+(ey-4)+'" font-size="9" fill="#d1d4dc" font-family="monospace">Entry '+fmtP(d.pts[0].price)+'</text>';
-  s+='<text x="'+(X+6)+'" y="'+(ty+12)+'" font-size="9" fill="'+fillC+'" font-family="monospace">Target '+fmtP(d.pts[1].price)+'</text>';
-  if (d.pts.length>=3) {
-    const stop=dataToSvg(d.pts[2].price,d.pts[2].time);
-    if (stop.x!=null) {
-      const sy=stop.y;
-      s+='<rect x="'+F(X)+'" y="'+F(Math.min(ey,sy))+'" width="'+F(W2)+'" height="'+F(Math.abs(sy-ey))+'" fill="'+lossC+'44" />';
-      s+='<line x1="'+F(X)+'" y1="'+F(sy)+'" x2="'+_W+'" y2="'+F(sy)+'" stroke="'+lossC+'" stroke-width="1.5" />';
-      s+='<text x="'+(X+6)+'" y="'+(sy+12)+'" font-size="9" fill="'+lossC+'" font-family="monospace">Stop '+fmtP(d.pts[2].price)+'</text>';
-      if (sel) s+=H(stop.x,stop.y,d.id,2);
-    }
-  }
-  if (sel) { s+=H(entry.x,entry.y,d.id,0); s+=H(tgt.x,tgt.y,d.id,1); }
-  return s;
-}
-
-// ── Render: Date Range ───────────────────────────────────────────
-function rDateRange(d,sel,c,w) {
-  if (!d.pts||d.pts.length<2) return '';
-  const p1=dataToSvg(d.pts[0].price,d.pts[0].time),p2=dataToSvg(d.pts[1].price,d.pts[1].time);
-  if (p1.x==null) return '';
-  const sc=sel?'#2962FF':c,x1=Math.min(p1.x,p2.x),x2=Math.max(p1.x,p2.x);
-  let s='<rect x="'+F(x1)+'" y="0" width="'+F(x2-x1)+'" height="'+_H+'" fill="'+sc+'22" data-did="'+d.id+'" style="cursor:move;" />';
-  s+='<line x1="'+F(p1.x)+'" y1="0" x2="'+F(p1.x)+'" y2="'+_H+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="4,2" />';
-  s+='<line x1="'+F(p2.x)+'" y1="0" x2="'+F(p2.x)+'" y2="'+_H+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="4,2" />';
-  if (sel) { s+=H(p1.x,_H/2,d.id,0); s+=H(p2.x,_H/2,d.id,1); }
-  return s;
-}
-
-// ── Render: Price Range ──────────────────────────────────────────
-function rPriceRange(d,sel,c,w) {
-  if (!d.pts||d.pts.length<2) return '';
-  const y1=candleSeries.priceToCoordinate(d.pts[0].price),y2=candleSeries.priceToCoordinate(d.pts[1].price);
-  if (y1==null||y2==null||isNaN(y1)||isNaN(y2)) return '';
-  const sc=sel?'#2962FF':c,mn=Math.min(y1,y2),mx=Math.max(y1,y2);
-  let s='<rect x="0" y="'+F(mn)+'" width="'+_W+'" height="'+F(mx-mn)+'" fill="'+sc+'22" data-did="'+d.id+'" style="cursor:move;" />';
-  s+='<line x1="0" y1="'+F(y1)+'" x2="'+_W+'" y2="'+F(y1)+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="4,2" />';
-  s+='<line x1="0" y1="'+F(y2)+'" x2="'+_W+'" y2="'+F(y2)+'" stroke="'+sc+'" stroke-width="'+w+'" stroke-dasharray="4,2" />';
-  if (sel) { s+=H(_W/2,y1,d.id,0); s+=H(_W/2,y2,d.id,1); }
-  return s;
-}
-
-// ── Render in-progress ───────────────────────────────────────────
-function renderIP() {
-  if (!IP) return '';
-  if ((IP==='brush'||IP==='highlighter')&&FREE_PTS.length>=4) {
-    let pts='';
-    for (let i=0;i<FREE_PTS.length;i+=2) pts+=F(FREE_PTS[i])+','+F(FREE_PTS[i+1])+' ';
-    const sw=IP==='highlighter'?10:WID, op=IP==='highlighter'?0.4:1;
-    return '<polyline points="'+pts+'" stroke="'+CLR+'" stroke-width="'+sw+'" fill="none" stroke-linecap="round" opacity="'+op+'" />';
-  }
-  if (CUR_PTS.length===0) return '';
-  let s='';
-  for (let i=0;i<CUR_PTS.length-1;i++) {
-    const a=dataToSvg(CUR_PTS[i].price,CUR_PTS[i].time),b=dataToSvg(CUR_PTS[i+1].price,CUR_PTS[i+1].time);
-    if (a.x!=null&&b.x!=null) s+='<line x1="'+F(a.x)+'" y1="'+F(a.y)+'" x2="'+F(b.x)+'" y2="'+F(b.y)+'" stroke="'+CLR+'" stroke-width="'+WID+'" stroke-dasharray="4,2" />';
-  }
-  if (_previewPt) {
-    const last=CUR_PTS[CUR_PTS.length-1];
-    const lp=dataToSvg(last.price,last.time);
-    if (lp.x!=null) s+='<line x1="'+F(lp.x)+'" y1="'+F(lp.y)+'" x2="'+F(_previewPt.x)+'" y2="'+F(_previewPt.y)+'" stroke="'+CLR+'" stroke-width="'+WID+'" stroke-dasharray="4,2" opacity="0.6" />';
-  }
-  return s;
-}
-
-let _previewPt = null;
-let _lastX = 0, _lastY = 0;
-
-// ── Pointer events ───────────────────────────────────────────────
-// 3-point tools that need a third click after the initial drag
-const THREE_PT = new Set(['channel','longposition','shortposition']);
-
-// ── Returns true if a point is inside #chart-wrap ────────────────
-function ptInWrap(cx, cy) {
-  var el = document.getElementById('chart-wrap');
-  if (!el) return false;
-  var r = el.getBoundingClientRect();
-  return cx>=r.left && cx<=r.right && cy>=r.top && cy<=r.bottom;
-}
-
-// ── Walk DOM upward looking for data-did, stopping at boundary ───
-function findDid(el) {
-  var cur = el;
-  for (var i=0; i<20 && cur && cur.tagName; i++) {
-    var did = cur.getAttribute && cur.getAttribute('data-did');
-    if (did) return did;
-    cur = cur.parentElement;
-  }
-  return null;
-}
-
-// Debug helper disabled in production
-function dbg(msg) { /* no-op */ }
-
+// ── Canvas pointer events ─────────────────────────────────────────
 function initDrawingEvents() {
-  // ── document-level touch (most reliable on Android WebView) ──────────────
-  document.addEventListener('touchstart', function(e) {
-    var touch = e.changedTouches && e.changedTouches[0];
-    if (!touch) return;
-    var cx = touch.clientX, cy = touch.clientY;
+  // Document-level touch — works on Android WebView
+  document.addEventListener('touchstart',function(e) {
+    var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
+    var cx=t.clientX,cy=t.clientY;
+    if(!ptInWrap(cx,cy)) return;
 
-    // Only handle touches that land inside #chart-wrap
-    if (!ptInWrap(cx, cy)) return;
-
-    // Let LWC handle panning when no drawing tool active
-    if (!TOOL || TOOL==='cursor') {
-      dbg('cursor');
+    // Cursor mode: hit-test existing drawings for selection
+    if (!TOOL||TOOL==='cursor') {
+      var pos=clientToCanvas(cx,cy);
+      var hit=hitTest(pos.x,pos.y);
+      if (hit&&!hit.locked) {
+        e.preventDefault();
+        var d=DRW.find(function(x){return x.id===hit.did;});
+        if(d){SEL=d.id;showFM(d,cx,cy);scheduleRedraw();}
+      } else if (hit&&hit.locked) {
+        // locked — ignore
+      } else {
+        SEL=null;hideFM();scheduleRedraw();
+      }
       return;
     }
 
-    // Ignore touches on sidebar overlay elements
-    var el = document.elementFromPoint(cx, cy);
-    if (el && el.closest && (el.closest('#sidebar')||el.closest('#sb-sub')||el.closest('#float-menu'))) return;
+    var el=document.elementFromPoint(cx,cy);
+    if(el&&el.closest&&(el.closest('#sidebar')||el.closest('#sb-sub')||el.closest('#float-menu'))) return;
 
-    dbg('T:'+TOOL+' DOWN');
     e.preventDefault();
-    onSvgDown({target:el, clientX:cx, clientY:cy, pointerId:-1, preventDefault:function(){}});
-  }, {passive:false});
+    onDown({clientX:cx,clientY:cy});
+  },{passive:false});
 
-  document.addEventListener('touchmove', function(e) {
-    if (!M_DOWN) return;
-    var touch = e.changedTouches && e.changedTouches[0];
-    if (!touch) return;
+  document.addEventListener('touchmove',function(e) {
+    if(!M_DOWN&&!(IP&&THREE_PT.has(IP)&&CUR_PTS.length===2)) return;
+    var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
     e.preventDefault();
-    _lastX=touch.clientX; _lastY=touch.clientY;
-    dbg('T:'+TOOL+' MOVE');
-    onSvgMove({clientX:touch.clientX, clientY:touch.clientY, preventDefault:function(){}});
-  }, {passive:false});
+    _lastX=t.clientX;_lastY=t.clientY;
+    onMove({clientX:t.clientX,clientY:t.clientY});
+  },{passive:false});
 
-  document.addEventListener('touchend', function(e) {
-    if (!M_DOWN) return;
-    var touch = e.changedTouches && e.changedTouches[0];
-    var cx = touch ? touch.clientX : _lastX;
-    var cy = touch ? touch.clientY : _lastY;
+  document.addEventListener('touchend',function(e) {
+    if(!M_DOWN) return;
+    var t=e.changedTouches&&e.changedTouches[0];
+    var cx=t?t.clientX:_lastX,cy=t?t.clientY:_lastY;
     e.preventDefault();
-    dbg('T:'+TOOL+' UP');
-    onSvgUp({clientX:cx, clientY:cy});
-  }, {passive:false});
+    onUp({clientX:cx,clientY:cy});
+  },{passive:false});
 
-  document.addEventListener('touchcancel', function() {
-    if (M_DOWN) { M_DOWN=false; IP=null; CUR_PTS=[]; _previewPt=null; redraw(); }
+  document.addEventListener('touchcancel',function(){
+    if(M_DOWN){M_DOWN=false;IP=null;CUR_PTS=[];_previewPt=null;scheduleRedraw();}
   });
 
-  // ── Pointer events — web/desktop only (skips touch pointerType) ───────────
-  var svg = document.getElementById('drw-svg');
-  if (svg) {
-    svg.addEventListener('pointerdown', function(e) {
-      if (e.pointerType==='touch') return; onSvgDown(e);
-    }, {passive:false});
-    svg.addEventListener('pointermove', function(e) {
-      if (e.pointerType==='touch') return; onSvgMove(e);
-    }, {passive:false});
-    svg.addEventListener('pointerup', function(e) {
-      if (e.pointerType==='touch') return; onSvgUp(e);
-    });
+  // Canvas pointer events — desktop/web
+  var canvas=getCanvas();
+  if(canvas){
+    canvas.addEventListener('pointerdown',function(e){if(e.pointerType==='touch')return;onDown(e);},{passive:false});
+    canvas.addEventListener('pointermove',function(e){if(e.pointerType==='touch')return;onMove(e);},{passive:false});
+    canvas.addEventListener('pointerup',  function(e){if(e.pointerType==='touch')return;onUp(e);});
   }
+
+  // Drag-move & resize on canvas in cursor mode (pointer events)
+  document.addEventListener('pointermove',function(e) {
+    if(e.pointerType==='touch') return;
+    if(_dragState) {
+      var cur=clientToCanvas(e.clientX,e.clientY);
+      var curData=svgToData(cur.x,cur.y);
+      if(!curData.time&&curData.time!==0) return;
+      var dP=curData.price-(_dragState.startData.price||0);
+      var dT=(curData.time||0)-(_dragState.startData.time||0);
+      _dragState.d.pts=_dragState.origPts.map(function(pt){return{price:(pt.price||0)+dP,time:(pt.time||0)+dT};});
+      scheduleRedraw();
+    }
+    if(_resizeState) {
+      var rp=clientToCanvas(e.clientX,e.clientY);
+      var rpt=svgToData(rp.x,rp.y);
+      if(!rpt.time&&rpt.time!==0) return;
+      var rd=_resizeState.d,ri=_resizeState.idx;
+      if(rd.type==='rectangle'){
+        if(ri===0){rd.pts[0]={price:rpt.price,time:rpt.time};}
+        else if(ri===1){rd.pts[0].time=rpt.time;if(!rd.pts[1])rd.pts[1]={};rd.pts[1].price=rd.pts[0].price;}
+        else if(ri===2){rd.pts[0].time=rpt.time;if(!rd.pts[1])rd.pts[1]={};rd.pts[1].price=rpt.price;}
+        else{if(!rd.pts[1])rd.pts[1]={};rd.pts[1].price=rpt.price;rd.pts[1].time=rpt.time;}
+      } else if(rd.pts[ri]!==undefined){
+        rd.pts[ri]={price:rpt.price,time:rpt.time};
+      }
+      scheduleRedraw();
+    }
+  });
+  document.addEventListener('pointerup',function(e) {
+    if(e.pointerType==='touch') return;
+    if(_dragState){saveDrw();_dragState=null;}
+    if(_resizeState){saveDrw();_resizeState=null;}
+  });
+
+  // Cursor-mode tap on canvas for selection
+  document.addEventListener('pointerdown',function(e) {
+    if(e.pointerType==='touch') return;
+    if(!ptInWrap(e.clientX,e.clientY)) return;
+    if(TOOL&&TOOL!=='cursor') return;
+    var pos=clientToCanvas(e.clientX,e.clientY);
+    var hit=hitTest(pos.x,pos.y);
+    if(hit&&!hit.locked) {
+      if(hit.handleIdx>=0) {
+        var rd=DRW.find(function(x){return x.id===hit.did;}); if(!rd) return;
+        e.preventDefault(); SEL=rd.id;
+        _resizeState={d:rd,idx:hit.handleIdx};
+        scheduleRedraw();
+      } else {
+        var md=DRW.find(function(x){return x.id===hit.did;}); if(!md) return;
+        e.preventDefault(); SEL=md.id;
+        showFM(md,e.clientX,e.clientY);
+        var sxy=clientToCanvas(e.clientX,e.clientY);
+        _dragState={d:md,origPts:JSON.parse(JSON.stringify(md.pts)),startData:svgToData(sxy.x,sxy.y)};
+        scheduleRedraw();
+      }
+    } else {
+      SEL=null;hideFM();scheduleRedraw();
+    }
+  },{passive:false});
 }
 
-function onSvgDown(e) {
-  if (e.target && e.target.closest && (e.target.closest('#float-menu')||e.target.closest('#sidebar')||e.target.closest('#sb-sub'))) return;
+function onDown(e) {
   closeSub();
-  const {x,y}=clientToSvg(e.clientX,e.clientY);
+  var pos=clientToCanvas(e.clientX,e.clientY);
+  var x=pos.x,y=pos.y;
 
-  if (!TOOL||TOOL==='cursor') { SEL=null; hideFM(); redraw(); return; }
+  if(!TOOL||TOOL==='cursor') return;
 
-  e.preventDefault();
-
-  // Freehand — start tracking
-  if (TOOL==='brush'||TOOL==='highlighter') {
-    IP=TOOL; FREE_PTS=[x,y]; M_DOWN=true;
-    try { e.target.setPointerCapture(e.pointerId); } catch(_){}
-    return;
+  // Freehand
+  if(TOOL==='brush'||TOOL==='highlighter'){
+    IP=TOOL;FREE_PTS=[x,y];M_DOWN=true;return;
   }
 
-  const pt=svgToData(x,y);
-  if (pt.price==null) return; // chart not ready
+  var pt=svgToData(x,y);
+  if(pt.price==null) return;
 
-  // ── 3-point tool: waiting for 3rd click ──
-  if (IP && THREE_PT.has(IP) && CUR_PTS.length===2) {
-    CUR_PTS.push(pt); finishDrawing(); return;
-  }
-
-  // ── Single-click tools ──
-  if (TOOL==='hline') {
-    const id=genId(); DRW.push({id,type:'hline',pts:[{price:pt.price,time:pt.time||0}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
-  }
-  if (TOOL==='vline') {
-    if (!pt.time) return;
-    const id=genId(); DRW.push({id,type:'vline',pts:[{price:pt.price,time:pt.time}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
-  }
-  if (TOOL==='pricelabel') {
-    const id=genId(); DRW.push({id,type:'pricelabel',pts:[{price:pt.price,time:pt.time||0}],color:CLR,width:WID,visible:true,locked:false}); saveDrw(); redraw(); return;
-  }
-  if (TOOL==='text'||TOOL==='note') {
-    const txt=prompt('Enter '+(TOOL==='text'?'text':'note')+':',TOOL==='text'?'Text':'Note');
-    if (txt==null) return;
-    const id=genId(); DRW.push({id,type:TOOL,pts:[{price:pt.price,time:pt.time||0}],color:CLR,width:WID,text:txt,visible:true,locked:false}); saveDrw(); redraw(); return;
+  // 3-pt: third click
+  if(IP&&THREE_PT.has(IP)&&CUR_PTS.length===2){
+    CUR_PTS.push(pt);finishDrawing();return;
   }
 
-  // ── Drag-to-draw: start drag with 2 identical points ──
-  IP=TOOL; CUR_PTS=[pt,pt]; M_DOWN=true;
-  _previewPt={x,y};
-  try { e.target.setPointerCapture(e.pointerId); } catch(_){}
-  redraw();
+  // Single-tap tools
+  if(TOOL==='hline'){
+    var hid=genId();DRW.push({id:hid,type:'hline',pts:[{price:pt.price,time:pt.time||0}],color:CLR,width:WID,visible:true,locked:false});saveDrw();scheduleRedraw();return;
+  }
+  if(TOOL==='vline'){
+    if(!pt.time)return;
+    var vid=genId();DRW.push({id:vid,type:'vline',pts:[{price:pt.price,time:pt.time}],color:CLR,width:WID,visible:true,locked:false});saveDrw();scheduleRedraw();return;
+  }
+  if(TOOL==='pricelabel'){
+    var plid=genId();DRW.push({id:plid,type:'pricelabel',pts:[{price:pt.price,time:pt.time||0}],color:CLR,width:WID,visible:true,locked:false});saveDrw();scheduleRedraw();return;
+  }
+  if(TOOL==='text'||TOOL==='note'){
+    var txt=prompt('Enter '+(TOOL==='text'?'text':'note')+':',TOOL==='text'?'Text':'Note');
+    if(txt==null)return;
+    var tid=genId();DRW.push({id:tid,type:TOOL,pts:[{price:pt.price,time:pt.time||0}],color:CLR,width:WID,text:txt,visible:true,locked:false});saveDrw();scheduleRedraw();return;
+  }
+
+  // Drag-to-draw
+  IP=TOOL;CUR_PTS=[pt,pt];M_DOWN=true;_previewPt={x:x,y:y};
+  scheduleRedraw();
 }
 
-function onSvgMove(e) {
-  e.preventDefault();
-  _lastX=e.clientX; _lastY=e.clientY;
-  const {x,y}=clientToSvg(e.clientX,e.clientY);
+function onMove(e) {
+  _lastX=e.clientX;_lastY=e.clientY;
+  var pos=clientToCanvas(e.clientX,e.clientY);
+  var x=pos.x,y=pos.y;
 
-  if (IP==='brush'||IP==='highlighter') {
-    if (!M_DOWN) return;
-    FREE_PTS.push(x,y); redraw(); return;
+  if(IP==='brush'||IP==='highlighter'){
+    if(!M_DOWN) return;
+    FREE_PTS.push(x,y);scheduleRedraw();return;
   }
 
-  // Always update preview (even without M_DOWN, for 3-pt tools awaiting 3rd click)
-  _previewPt={x,y};
+  _previewPt={x:x,y:y};
 
-  if (M_DOWN && IP && CUR_PTS.length>=2) {
-    // Update second point live (drag model)
-    const pt=svgToData(x,y);
-    if (pt.price!=null) { CUR_PTS[1]=pt; }
-    redraw();
-  } else if (!M_DOWN && IP && THREE_PT.has(IP) && CUR_PTS.length===2) {
-    // 3-pt tool: hover preview of third point
-    redraw();
+  if(M_DOWN&&IP&&CUR_PTS.length>=2){
+    var pt=svgToData(x,y);
+    if(pt.price!=null) CUR_PTS[1]=pt;
+    scheduleRedraw();
+  } else if(!M_DOWN&&IP&&THREE_PT.has(IP)&&CUR_PTS.length===2){
+    scheduleRedraw();
   }
 }
 
-function onSvgUp(e) {
-  if (!M_DOWN) return;
+function onUp(e) {
+  if(!M_DOWN) return;
   M_DOWN=false;
-  const {x,y}=clientToSvg(e.clientX,e.clientY);
+  var pos=clientToCanvas(e.clientX,e.clientY);
+  var x=pos.x,y=pos.y;
 
   // Freehand finish
-  if (IP==='brush'||IP==='highlighter') {
+  if(IP==='brush'||IP==='highlighter'){
     FREE_PTS.push(x,y);
-    if (FREE_PTS.length>=4) {
-      const pts=[];
-      for (let i=0;i<FREE_PTS.length;i+=2) { const pt=svgToData(FREE_PTS[i],FREE_PTS[i+1]); if(pt.price!=null) pts.push(pt); }
-      if (pts.length>=2) { const id=genId(); DRW.push({id,type:IP,pts,color:CLR,width:WID,visible:true,locked:false}); saveDrw(); }
+    if(FREE_PTS.length>=4){
+      var fps=[];
+      for(var fi=0;fi<FREE_PTS.length;fi+=2){var fpt=svgToData(FREE_PTS[fi],FREE_PTS[fi+1]);if(fpt.price!=null)fps.push(fpt);}
+      if(fps.length>=2){var fid=genId();DRW.push({id:fid,type:IP,pts:fps,color:CLR,width:WID,visible:true,locked:false});saveDrw();}
     }
-    IP=null; FREE_PTS=[]; CUR_PTS=[]; _previewPt=null; redraw(); return;
+    IP=null;FREE_PTS=[];CUR_PTS=[];_previewPt=null;scheduleRedraw();return;
   }
 
   // Drag-to-draw finish
-  if (IP && CUR_PTS.length>=2) {
-    const pt=svgToData(x,y);
-    if (pt.price!=null) CUR_PTS[1]=pt;
+  if(IP&&CUR_PTS.length>=2){
+    var upt=svgToData(x,y);
+    if(upt.price!=null) CUR_PTS[1]=upt;
 
-    if (THREE_PT.has(IP)) {
-      // Don't finish yet — wait for 3rd click
-      // Show the 2-pt drawing in-progress; M_DOWN is now false
-      _previewPt=null;
-      redraw();
+    if(THREE_PT.has(IP)){
+      _previewPt=null;scheduleRedraw();
     } else {
-      // Only save if user actually dragged (not a zero-length tap)
-      const p1=dataToSvg(CUR_PTS[0].price,CUR_PTS[0].time);
-      const p2=dataToSvg(CUR_PTS[1].price,CUR_PTS[1].time);
-      const moved = p1.x!=null&&p2.x!=null && (Math.abs(p2.x-p1.x)>4||Math.abs(p2.y-p1.y)>4);
-      if (moved) { finishDrawing(); } else { IP=null; CUR_PTS=[]; _previewPt=null; redraw(); }
+      var up1=dataToSvg(CUR_PTS[0].price,CUR_PTS[0].time);
+      var up2=dataToSvg(CUR_PTS[1].price,CUR_PTS[1].time);
+      var moved=up1.x!=null&&up2.x!=null&&(Math.abs(up2.x-up1.x)>4||Math.abs(up2.y-up1.y)>4);
+      if(moved){finishDrawing();}else{IP=null;CUR_PTS=[];_previewPt=null;scheduleRedraw();}
     }
   }
 }
 
 function finishDrawing() {
-  if (!IP||CUR_PTS.length===0) return;
-  const id=genId();
-  DRW.push({id,type:IP,pts:[...CUR_PTS],color:CLR,width:WID,visible:true,locked:false});
-  // Auto-return to cursor so user can pan/zoom chart after drawing
-  TOOL=null; IP=null; CUR_PTS=[]; _previewPt=null;
-  saveDrw(); buildSidebar(); updateSvgMode(); redraw();
-}
-
-// ── Handle click on drawing element ─────────────────────────────
-function handleDrawingClick(did,e) {
-  if (!TOOL||TOOL==='cursor') {
-    const d=DRW.find(x=>x.id===did);
-    if (!d||d.locked) return;
-    SEL=did; showFM(d,e); redraw();
-  }
-}
-
-// ── Drag to move selected drawing ────────────────────────────────
-function startMove(did,e) {
-  const d=DRW.find(x=>x.id===did);
-  if (!d||d.locked) return;
-  SEL=did; redraw();
-  const startXY=clientToSvg(e.clientX,e.clientY);
-  const origPts=JSON.parse(JSON.stringify(d.pts));
-  const startData=svgToData(startXY.x,startXY.y);
-  const onMove=ev=>{
-    const cur=clientToSvg(ev.clientX,ev.clientY);
-    const curData=svgToData(cur.x,cur.y);
-    if (!curData.time&&curData.time!==0) return;
-    const dPrice=curData.price-(startData.price||0);
-    const dTime=(curData.time||0)-(startData.time||0);
-    d.pts=origPts.map(pt=>({price:(pt.price||0)+dPrice,time:(pt.time||0)+dTime}));
-    redraw();
-  };
-  const onUp=()=>{ saveDrw(); document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp); };
-  document.addEventListener('pointermove',onMove); document.addEventListener('pointerup',onUp);
-}
-
-// ── Resize handle ─────────────────────────────────────────────────
-function startResize(did,idx,e) {
-  const d=DRW.find(x=>x.id===did);
-  if (!d||d.locked) return;
-  SEL=did; redraw();
-  const onMove=ev=>{
-    const {x,y}=clientToSvg(ev.clientX,ev.clientY);
-    const pt=svgToData(x,y);
-    if (!pt.time&&pt.time!==0) return;
-    if (d.type==='rectangle') {
-      if (idx===0) { d.pts[0]={price:pt.price,time:pt.time}; }
-      else if (idx===1) { d.pts[1]=d.pts[1]||{}; d.pts[0].time=pt.time; d.pts[1].price=d.pts[0].price; d.pts[1].time=pt.time; }
-      else if (idx===2) { d.pts[0].time=pt.time; d.pts[1]=d.pts[1]||{}; d.pts[1].price=pt.price; }
-      else { if(!d.pts[1]) d.pts[1]={}; d.pts[1].price=pt.price; d.pts[1].time=pt.time; }
-    } else if (d.pts[idx]!==undefined) {
-      d.pts[idx]={price:pt.price,time:pt.time};
-    }
-    redraw();
-  };
-  const onUp=()=>{ saveDrw(); document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp); };
-  document.addEventListener('pointermove',onMove,{passive:false});
-  document.addEventListener('pointerup',onUp);
-}
-
-// ── Select / Deselect ─────────────────────────────────────────────
-function deselectAll() { SEL=null; hideFM(); redraw(); }
-
-// ── Float menu actions ─────────────────────────────────────────────
-function showFM(d,e) {
-  const fm=document.getElementById('float-menu');
-  if (!fm) return;
-  fm.classList.remove('hidden');
-  const fx=Math.min(e?e.clientX:200,window.innerWidth-210);
-  const fy=Math.max(e?(e.clientY-70):120,50);
-  fm.style.left=fx+'px'; fm.style.top=fy+'px';
-  const lk=document.getElementById('fm-lck');
-  if (lk) lk.textContent=d.locked?'🔓 Unlock':'🔒 Lock';
-  const cl=document.getElementById('fm-clr');
-  if (cl) cl.value=d.color||'#f0b90b';
-}
-function hideFM() { const fm=document.getElementById('float-menu'); if(fm) fm.classList.add('hidden'); }
-function deleteSel() {
-  if (!SEL) return;
-  DRW=DRW.filter(d=>d.id!==SEL); SEL=null; hideFM(); saveDrw(); redraw();
-}
-function colorSel(v) {
-  if (!SEL) return;
-  const d=DRW.find(x=>x.id===SEL); if(d){d.color=v;saveDrw();redraw();}
-}
-function lockSel() {
-  if (!SEL) return;
-  const d=DRW.find(x=>x.id===SEL);
-  if (d) {
-    d.locked=!d.locked; saveDrw();
-    if (d.locked){SEL=null;hideFM();}
-    else { const lk=document.getElementById('fm-lck'); if(lk) lk.textContent='🔒 Lock'; }
-    redraw();
-  }
+  if(!IP||CUR_PTS.length===0) return;
+  var id=genId();
+  DRW.push({id:id,type:IP,pts:CUR_PTS.slice(),color:CLR,width:WID,visible:true,locked:false});
+  TOOL=null;IP=null;CUR_PTS=[];_previewPt=null;
+  saveDrw();buildSidebar();updateCanvasMode();scheduleRedraw();
 }
 
 // ── Subscribe to chart viewport changes ───────────────────────────
 function subscribeChartRedraw() {
-  if (!chart) return;
-  try { chart.timeScale().subscribeVisibleLogicalRangeChange(()=>redraw()); } catch {}
-  try { chart.priceScale('right').subscribeVisiblePriceRangeChange(()=>redraw()); } catch {}
+  if(!chart) return;
+  try{chart.timeScale().subscribeVisibleLogicalRangeChange(function(){scheduleRedraw();});}catch(e){}
+  try{chart.priceScale('right').subscribeVisiblePriceRangeChange(function(){scheduleRedraw();});}catch(e){}
 }
 
-// ── Init ───────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────
 function initDrwEngine() {
   loadDrw();
   buildSidebar();
-  updateSvgMode();
+  updateCanvasMode();
   subscribeChartRedraw();
-  setTimeout(redraw,300);
+  setTimeout(scheduleRedraw,300);
 }
 
-// Attach all events IMMEDIATELY (sidebar HTML is already in DOM)
+// Attach sidebar events immediately (HTML already in DOM)
 (function immediateInit() {
   try {
     loadDrw();
-    buildSidebar();      // refresh .act classes on hardcoded buttons
-    updateSvgMode();
-    initSidebarEvents(); // touchend+click on every sidebar button
-    initDrawingEvents(); // touchstart/move/end + pointer fallback on SVG
+    buildSidebar();
+    updateCanvasMode();
+    initSidebarEvents();
+    initDrawingEvents();
   } catch(e) {}
 })();
 </script>
