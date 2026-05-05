@@ -727,6 +727,19 @@ let _previewPt = null;
 let _lastX = 0, _lastY = 0;
 let _dragState   = null;
 let _resizeState = null;
+
+// ── Interaction mode & chart lock ─────────────────────────────────
+// Modes: 'selecting' | 'draggingHandle' | 'draggingShape' | 'panningChart' | 'drawing'
+var DRAW_MODE = 'selecting';
+var _SCROLL_OPTS = { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true };
+var _SCALE_OPTS  = { axisPressedMouseMove: { time: true, price: true }, mouseWheel: true, pinch: true };
+function lockChart() {
+  try { chart.applyOptions({ handleScroll: false, handleScale: false }); } catch(e){}
+}
+function unlockChart() {
+  try { chart.applyOptions({ handleScroll: _SCROLL_OPTS, handleScale: _SCALE_OPTS }); } catch(e){}
+}
+
 function genId() { return 'drw_' + (_idCtr++); }
 
 // ── Canvas accessors ─────────────────────────────────────────────
@@ -1204,8 +1217,8 @@ function drawInProgress(ctx) {
   ctx.setLineDash([]); ctx.restore();
 }
 
-// ── Hit detection (10px tolerance) ───────────────────────────────
-var HIT = 10;
+// ── Hit detection (24px tolerance for mobile handles) ─────────────
+var HIT = 24;
 function distSeg(px,py,x1,y1,x2,y2) {
   var dx=x2-x1,dy=y2-y1,l2=dx*dx+dy*dy;
   if (l2===0) return Math.sqrt((px-x1)*(px-x1)+(py-y1)*(py-y1));
@@ -1474,13 +1487,19 @@ function initDrawingEvents() {
         if(!d) return;
         SEL=d.id;
         if(hit.handleIdx>=0) {
-          // resize handle
+          // resize handle — lock chart so it doesn't pan
+          e.stopPropagation();
           _resizeState={d:d,idx:hit.handleIdx};
+          DRAW_MODE='draggingHandle';
+          lockChart();
           hideFM();
         } else {
-          // body drag — start drag and show float menu
+          // body drag — lock chart so it doesn't pan
+          e.stopPropagation();
           var sxy=clientToCanvas(cx,cy);
           _dragState={d:d,origPts:JSON.parse(JSON.stringify(d.pts)),startData:svgToData(sxy.x,sxy.y)};
+          DRAW_MODE='draggingShape';
+          lockChart();
           showFM(d,cx,cy);
         }
         scheduleRedraw();
@@ -1545,19 +1564,22 @@ function initDrawingEvents() {
     var cx=t?t.clientX:_lastX,cy=t?t.clientY:_lastY;
 
     if(_dragState) {
-      e.preventDefault();
+      e.preventDefault(); e.stopPropagation();
       saveDrw();
-      // Re-show float menu at final position so buttons remain accessible
       var dd=_dragState.d;
       _dragState=null;
+      DRAW_MODE='selecting';
+      unlockChart();
       showFM(dd,cx,cy);
       scheduleRedraw();
       return;
     }
     if(_resizeState) {
-      e.preventDefault();
+      e.preventDefault(); e.stopPropagation();
       saveDrw();
       _resizeState=null;
+      DRAW_MODE='selecting';
+      unlockChart();
       scheduleRedraw();
       return;
     }
@@ -1568,8 +1590,8 @@ function initDrawingEvents() {
   },{passive:false});
 
   document.addEventListener('touchcancel',function(){
-    if(_dragState){saveDrw();_dragState=null;}
-    if(_resizeState){saveDrw();_resizeState=null;}
+    if(_dragState){saveDrw();_dragState=null;DRAW_MODE='selecting';unlockChart();}
+    if(_resizeState){saveDrw();_resizeState=null;DRAW_MODE='selecting';unlockChart();}
     if(M_DOWN){M_DOWN=false;IP=null;CUR_PTS=[];_previewPt=null;scheduleRedraw();}
   });
 
@@ -1611,8 +1633,8 @@ function initDrawingEvents() {
   });
   document.addEventListener('pointerup',function(e) {
     if(e.pointerType==='touch') return;
-    if(_dragState){saveDrw();_dragState=null;}
-    if(_resizeState){saveDrw();_resizeState=null;}
+    if(_dragState){saveDrw();_dragState=null;DRAW_MODE='selecting';unlockChart();}
+    if(_resizeState){saveDrw();_resizeState=null;DRAW_MODE='selecting';unlockChart();}
   });
 
   // Cursor-mode tap on canvas for selection
@@ -1625,15 +1647,17 @@ function initDrawingEvents() {
     if(hit&&!hit.locked) {
       if(hit.handleIdx>=0) {
         var rd=DRW.find(function(x){return x.id===hit.did;}); if(!rd) return;
-        e.preventDefault(); SEL=rd.id;
+        e.preventDefault(); e.stopPropagation(); SEL=rd.id;
         _resizeState={d:rd,idx:hit.handleIdx};
+        DRAW_MODE='draggingHandle'; lockChart();
         scheduleRedraw();
       } else {
         var md=DRW.find(function(x){return x.id===hit.did;}); if(!md) return;
-        e.preventDefault(); SEL=md.id;
+        e.preventDefault(); e.stopPropagation(); SEL=md.id;
         showFM(md,e.clientX,e.clientY);
         var sxy=clientToCanvas(e.clientX,e.clientY);
         _dragState={d:md,origPts:JSON.parse(JSON.stringify(md.pts)),startData:svgToData(sxy.x,sxy.y)};
+        DRAW_MODE='draggingShape'; lockChart();
         scheduleRedraw();
       }
     } else {
