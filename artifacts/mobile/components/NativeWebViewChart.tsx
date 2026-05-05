@@ -370,11 +370,14 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
       <label class="fp-sw"><input type="checkbox" id="fp-prices" checked><span class="fp-sw-track"></span></label>
     </div>
     <div class="fp-row">
+      <span class="fp-label">Golden Zone</span>
+      <label class="fp-sw"><input type="checkbox" id="fp-golden" checked><span class="fp-sw-track"></span></label>
+    </div>
+    <div class="fp-row">
       <span class="fp-label">Thickness</span>
       <div class="fp-tog">
         <button id="fp-w1" class="act" onclick="fibSetWidth(1)">1</button>
         <button id="fp-w2" onclick="fibSetWidth(2)">2</button>
-        <button id="fp-w3" onclick="fibSetWidth(3)">3</button>
       </div>
     </div>
     <div class="fp-row">
@@ -388,9 +391,17 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
     <div class="fp-row" style="flex-direction:column;align-items:flex-start;gap:5px;">
       <div style="display:flex;justify-content:space-between;width:100%;">
         <span class="fp-label">Opacity</span>
-        <span class="fp-label" id="fp-opacity-val">70%</span>
+        <span class="fp-label" id="fp-opacity-val">45%</span>
       </div>
-      <input type="range" class="fp-slider" id="fp-opacity" min="30" max="100" value="70">
+      <input type="range" class="fp-slider" id="fp-opacity" min="20" max="80" value="45">
+    </div>
+    <div class="fp-row">
+      <span class="fp-label">Label Position</span>
+      <div class="fp-tog">
+        <button id="fp-lp-left" class="act" onclick="fibSetLabelPos('left')">L</button>
+        <button id="fp-lp-center" onclick="fibSetLabelPos('center')">C</button>
+        <button id="fp-lp-right" onclick="fibSetLabelPos('right')">R</button>
+      </div>
     </div>
     <div class="fp-row">
       <span class="fp-label">Extend Right</span>
@@ -401,7 +412,7 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
       <label class="fp-sw"><input type="checkbox" id="fp-reverse"><span class="fp-sw-track"></span></label>
     </div>
     <div class="fp-row" style="border-bottom:none;">
-      <button class="fm-btn fp-reset-btn" id="fp-reset" onclick="fibResetColors()">Reset Colors</button>
+      <button class="fm-btn fp-reset-btn" id="fp-reset" onclick="fibResetStyle()">Reset Style</button>
       <button class="fm-btn" id="fp-lck" title="Lock">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </button>
@@ -1214,61 +1225,89 @@ function drawCircle(ctx,d,sel,c,w) {
   if (sel) { cHandle(ctx,ctr.x,ctr.y); cHandle(ctx,edg.x,edg.y); }
 }
 var FIB_DEFAULT_LEVELS = [
-  {level:0,    color:'#22C55E'},
-  {level:0.236,color:'#F59E0B'},
-  {level:0.382,color:'#EF4444'},
-  {level:0.5,  color:'#9CA3AF'},
-  {level:0.618,color:'#3B82F6'},
-  {level:0.786,color:'#8B5CF6'},
-  {level:1,    color:'#14B8A6'},
+  {level:0,    color:'rgba(34,197,94,0.75)'},
+  {level:0.236,color:'rgba(245,158,11,0.75)'},
+  {level:0.382,color:'rgba(251,146,60,0.75)'},
+  {level:0.5,  color:'rgba(156,163,175,0.70)'},
+  {level:0.618,color:'rgba(250,204,21,0.85)'},
+  {level:0.65, color:'rgba(234,179,8,0.85)'},
+  {level:0.786,color:'rgba(139,92,246,0.75)'},
+  {level:1,    color:'rgba(20,184,166,0.75)'},
 ];
 function drawFib(ctx,d,sel,c,w) {
   if (!d.pts||d.pts.length<2) return;
   var p1=dataToSvg(d.pts[0].price,d.pts[0].time), p2=dataToSvg(d.pts[1].price,d.pts[1].time);
   if (p1.x==null) return;
-  // Always use per-level colors — never override with selection blue
-  var levels = d.levels || FIB_DEFAULT_LEVELS;
-  var reverse = d.fibReverse || false;
-  var opacity = d.fibOpacity!=null ? d.fibOpacity : 0.7;
-  var lw = d.fibLineWidth || 1;
-  var ls = d.fibLineStyle || 'dashed';
-  var showLabels = d.fibShowLabels !== false;
-  var showPrices = d.fibShowPrices !== false;
-  var extend = d.fibExtend || false;
-  var range = (d.pts[1].price - d.pts[0].price) * (reverse ? -1 : 1);
-  var x0 = Math.min(p1.x,p2.x);
-  var x1 = extend ? _W : Math.max(p1.x,p2.x);
-  // Connector line between anchor points (neutral, not blue)
-  ctx.setLineDash([]); ctx.globalAlpha=0.4; cStroke(ctx,'#64748b',1);
+  var levels=d.levels||FIB_DEFAULT_LEVELS;
+  var reverse=d.fibReverse||false;
+  var opacity=d.fibOpacity!=null?d.fibOpacity:0.45;
+  var lw=d.fibLineWidth||1;
+  var ls=d.fibLineStyle||'dashed';
+  var showLabels=d.fibShowLabels!==false;
+  var showPrices=d.fibShowPrices!==false;
+  var showGolden=d.fibShowGolden!==false;
+  var extend=d.fibExtend||false;
+  var labelPos=d.fibLabelPos||'left';
+  var range=(d.pts[1].price-d.pts[0].price)*(reverse?-1:1);
+  var x0=Math.min(p1.x,p2.x);
+  var xEnd=extend?_W:Math.max(p1.x,p2.x);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0,0,_W,_H); ctx.clip();
+  // Anchor connector
+  ctx.setLineDash([3,3]); ctx.globalAlpha=0.25; cStroke(ctx,'#64748b',1);
   ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
-  ctx.globalAlpha=1;
-  var dashPat = ls==='solid'?[]:(ls==='dotted'?[2,3]:[6,4]);
-  for (var i=0;i<levels.length;i++) {
-    var lv = levels[i];
-    var price = d.pts[0].price + range*lv.level;
-    var fy = candleSeries.priceToCoordinate(price);
-    if (fy==null||isNaN(fy)) continue;
-    // Line — always use level color, never selection color
+  ctx.setLineDash([]); ctx.globalAlpha=1;
+  // Golden zone fill between 61.8% and 65%
+  if(showGolden){
+    var gp618=d.pts[0].price+range*0.618, gp65=d.pts[0].price+range*0.65;
+    var gy618=candleSeries.priceToCoordinate(gp618), gy65=candleSeries.priceToCoordinate(gp65);
+    if(gy618!=null&&gy65!=null){
+      ctx.fillStyle='rgba(250,204,21,0.16)';
+      ctx.fillRect(x0,Math.min(gy618,gy65),xEnd-x0,Math.abs(gy65-gy618));
+      if(showLabels&&Math.abs(gy65-gy618)>=10){
+        var gzMidY=(gy618+gy65)/2;
+        var gzTxt='Golden Zone';
+        ctx.font='500 10px system-ui,sans-serif'; ctx.textBaseline='middle';
+        ctx.textAlign=labelPos==='right'?'right':(labelPos==='center'?'center':'left');
+        var gzX=labelPos==='right'?xEnd-4:(labelPos==='center'?(x0+xEnd)/2:x0+4);
+        var gzTw=ctx.measureText(gzTxt).width;
+        var gzBgX=labelPos==='right'?gzX-gzTw-5:(labelPos==='center'?gzX-gzTw/2-3:gzX-2);
+        ctx.globalAlpha=0.65; ctx.fillStyle='rgba(15,23,42,0.65)';
+        cRRect(ctx,gzBgX,gzMidY-7,gzTw+10,14,3); ctx.fill();
+        ctx.globalAlpha=1; ctx.fillStyle='#FACC15';
+        ctx.fillText(gzTxt,gzX,gzMidY);
+      }
+    }
+  }
+  // Level lines + labels
+  var dashPat=ls==='solid'?[]:(ls==='dotted'?[2,3]:[4,4]);
+  ctx.textBaseline='middle';
+  for(var i=0;i<levels.length;i++){
+    var lv=levels[i];
+    var price=d.pts[0].price+range*lv.level;
+    var fy=candleSeries.priceToCoordinate(price);
+    if(fy==null||isNaN(fy)) continue;
     ctx.globalAlpha=opacity; ctx.setLineDash(dashPat); cStroke(ctx,lv.color,lw);
-    ctx.beginPath(); ctx.moveTo(x0,fy); ctx.lineTo(x1,fy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0,fy); ctx.lineTo(xEnd,fy); ctx.stroke();
     ctx.setLineDash([]); ctx.globalAlpha=1;
-    // Label
-    if (showLabels) {
+    if(showLabels){
       var pct=(lv.level*100).toFixed(1)+'%';
       var priceStr=showPrices?'  '+fmtP(price):'';
       var txt=pct+priceStr;
-      ctx.font='11px system-ui,sans-serif'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+      ctx.font='500 10px system-ui,sans-serif';
+      ctx.textAlign=labelPos==='right'?'right':(labelPos==='center'?'center':'left');
+      var lbX=labelPos==='right'?xEnd-4:(labelPos==='center'?(x0+xEnd)/2:x0+4);
       var tw=ctx.measureText(txt).width;
-      var lbx=x0+4, lby=fy-5;
-      // Label background
-      ctx.globalAlpha=0.75; ctx.fillStyle='#0f172a';
-      cRRect(ctx,lbx-2,lby-12,tw+12,17,4); ctx.fill();
+      var bgX=labelPos==='right'?lbX-tw-5:(labelPos==='center'?lbX-tw/2-3:lbX-2);
+      ctx.globalAlpha=0.65; ctx.fillStyle='rgba(15,23,42,0.65)';
+      cRRect(ctx,bgX,fy-7,tw+9,14,4); ctx.fill();
       ctx.globalAlpha=1; ctx.fillStyle=lv.color;
-      ctx.fillText(txt,lbx+4,lby);
+      ctx.fillText(txt,lbX,fy);
     }
   }
-  // Handles — these and ONLY these use blue for selection
-  if (sel) { cHandle(ctx,p1.x,p1.y); cHandle(ctx,p2.x,p2.y); }
+  ctx.restore();
+  // Blue handles for selection only
+  if(sel){ cHandle(ctx,p1.x,p1.y); cHandle(ctx,p2.x,p2.y); }
 }
 function drawChannel(ctx,d,sel,c,w) {
   if (!d.pts||d.pts.length<3) return;
@@ -1724,28 +1763,27 @@ var _fibTarget = null;
 function showFibPanel(d, ex, ey) {
   _fibTarget = d;
   var fp=document.getElementById('fib-panel'); if(!fp) return;
-  // Sync toggles
   var chkL=document.getElementById('fp-labels'),chkP=document.getElementById('fp-prices');
+  var chkG=document.getElementById('fp-golden');
   var chkE=document.getElementById('fp-extend'),chkR=document.getElementById('fp-reverse');
   var slOp=document.getElementById('fp-opacity'),opV=document.getElementById('fp-opacity-val');
   if(chkL) chkL.checked=d.fibShowLabels!==false;
   if(chkP) chkP.checked=d.fibShowPrices!==false;
+  if(chkG) chkG.checked=d.fibShowGolden!==false;
   if(chkE) chkE.checked=!!d.fibExtend;
   if(chkR) chkR.checked=!!d.fibReverse;
-  var op=Math.round((d.fibOpacity!=null?d.fibOpacity:0.7)*100);
+  var op=Math.round((d.fibOpacity!=null?d.fibOpacity:0.45)*100);
   if(slOp) slOp.value=op; if(opV) opV.textContent=op+'%';
-  // Thickness buttons
   var fw=d.fibLineWidth||1;
-  ['fp-w1','fp-w2','fp-w3'].forEach(function(id,i){var b=document.getElementById(id);if(b)b.classList.toggle('act',fw===i+1);});
-  // Style buttons
+  ['fp-w1','fp-w2'].forEach(function(id,i){var b=document.getElementById(id);if(b)b.classList.toggle('act',fw===i+1);});
   var fs=d.fibLineStyle||'dashed';
   ['solid','dashed','dotted'].forEach(function(st){var b=document.getElementById('fp-s-'+st);if(b)b.classList.toggle('act',st===fs);});
-  // Lock icon
+  var flp=d.fibLabelPos||'left';
+  ['left','center','right'].forEach(function(p){var b=document.getElementById('fp-lp-'+p);if(b)b.classList.toggle('act',p===flp);});
   var lkBtn=document.getElementById('fp-lck');
   if(lkBtn) lkBtn.style.color=d.locked?'#f59e0b':'#C9D1D9';
-  // Position
   fp.classList.remove('hidden');
-  var pw=224,ph=fp.offsetHeight||300;
+  var pw=224,ph=fp.offsetHeight||340;
   var top=Math.max(50,Math.min((ey||200)-ph-8,window.innerHeight-ph-20));
   var left=Math.min(Math.max(8,(ex||200)-pw/2),window.innerWidth-pw-8);
   fp.style.top=top+'px'; fp.style.left=left+'px';
@@ -1762,10 +1800,18 @@ function fibSetStyle(s){
   ['solid','dashed','dotted'].forEach(function(st){var b=document.getElementById('fp-s-'+st);if(b)b.classList.toggle('act',st===s);});
   fibSave();
 }
-function fibResetColors(){
+function fibSetLabelPos(p){
+  if(!_fibTarget)return; _fibTarget.fibLabelPos=p;
+  ['left','center','right'].forEach(function(s){var b=document.getElementById('fp-lp-'+s);if(b)b.classList.toggle('act',s===p);});
+  fibSave();
+}
+function fibResetStyle(){
   if(!_fibTarget)return;
   _fibTarget.levels=FIB_DEFAULT_LEVELS.map(function(l){return{level:l.level,color:l.color};});
-  fibSave();
+  _fibTarget.fibOpacity=0.45; _fibTarget.fibLineWidth=1; _fibTarget.fibLineStyle='dashed';
+  _fibTarget.fibShowLabels=true; _fibTarget.fibShowPrices=true; _fibTarget.fibShowGolden=true;
+  _fibTarget.fibLabelPos='left'; _fibTarget.fibExtend=false; _fibTarget.fibReverse=false;
+  fibSave(); showFibPanel(_fibTarget,0,0);
 }
 // ── Position panel ────────────────────────────────────────────────
 var _posTarget = null;
@@ -1848,6 +1894,8 @@ function initFibEvents(){
   if(chkL)chkL.addEventListener('change',function(){if(_fibTarget){_fibTarget.fibShowLabels=this.checked;fibSave();}});
   var chkP=document.getElementById('fp-prices');
   if(chkP)chkP.addEventListener('change',function(){if(_fibTarget){_fibTarget.fibShowPrices=this.checked;fibSave();}});
+  var chkG=document.getElementById('fp-golden');
+  if(chkG)chkG.addEventListener('change',function(){if(_fibTarget){_fibTarget.fibShowGolden=this.checked;fibSave();}});
   var chkE=document.getElementById('fp-extend');
   if(chkE)chkE.addEventListener('change',function(){if(_fibTarget){_fibTarget.fibExtend=this.checked;fibSave();}});
   var chkR=document.getElementById('fp-reverse');
@@ -2245,9 +2293,9 @@ function finishDrawing() {
   var drw={id:id,type:IP,pts:CUR_PTS.slice(),color:CLR,width:WID,visible:true,locked:false};
   if(IP==='fibretracement'){
     drw.levels=FIB_DEFAULT_LEVELS.map(function(l){return{level:l.level,color:l.color};});
-    drw.fibShowLabels=true; drw.fibShowPrices=true;
-    drw.fibLineWidth=1; drw.fibLineStyle='dashed'; drw.fibOpacity=0.7;
-    drw.fibExtend=false; drw.fibReverse=false;
+    drw.fibShowLabels=true; drw.fibShowPrices=true; drw.fibShowGolden=true;
+    drw.fibLineWidth=1; drw.fibLineStyle='dashed'; drw.fibOpacity=0.45;
+    drw.fibExtend=false; drw.fibReverse=false; drw.fibLabelPos='left';
   }
   DRW.push(drw);
   TOOL=null;IP=null;CUR_PTS=[];_previewPt=null;DRAW_MODE='selecting';unlockChart();
