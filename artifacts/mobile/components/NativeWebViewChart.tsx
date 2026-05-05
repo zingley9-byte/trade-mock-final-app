@@ -13,6 +13,7 @@ import LoadingCandleAnimation from "./LoadingCandleAnimation";
 import { WebView } from "react-native-webview";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { LWC_SCRIPT } from "../lib/lwcScript";
+import { useTradingContext } from "@/context/TradingContext";
 
 interface Props {
   symbol?: string;
@@ -789,6 +790,7 @@ function connectTradeWS(sym, id) {
   const url = 'wss://stream.binance.com:9443/ws/' + sym.toLowerCase() + '@aggTrade';
   tickerWs = new WebSocket(url);
 
+  var _lastPricePost = 0;
   tickerWs.onmessage = e => {
     // Only update if we have a live candle reference from the kline stream
     if (loadId !== id || !liveCandle || !candleSeries) return;
@@ -803,6 +805,12 @@ function connectTradeWS(sym, id) {
         if (CHART_TYPE === 'line') candleSeries.update({time:liveCandle.time,value:price});
         else candleSeries.update({ ...liveCandle });
       } catch(_) {}
+      // Sync live price to React Native header (throttled to 500ms)
+      var now = Date.now();
+      if (now - _lastPricePost >= 500) {
+        _lastPricePost = now;
+        postRN({ type: 'livePrice', price: price });
+      }
     } catch(_) {}
   };
 
@@ -2556,15 +2564,18 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     setIsFullscreen(false);
   }, []);
 
+  const { updateLivePrice } = useTradingContext();
   const onMessage = useCallback((e: any) => {
     try {
       const data = JSON.parse(e.nativeEvent.data);
       if (data.type === "toggleFS") {
         if (data.value) setIsFullscreen(true); // fullscreen button tapped
         else closeFullscreen();                 // close from within fullscreen
+      } else if (data.type === "livePrice" && typeof data.price === "number" && data.price > 0) {
+        updateLivePrice(data.price);
       }
     } catch (_) {}
-  }, [closeFullscreen]);
+  }, [closeFullscreen, updateLivePrice]);
 
   return (
     <>

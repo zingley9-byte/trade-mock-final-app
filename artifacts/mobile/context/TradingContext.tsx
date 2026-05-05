@@ -209,6 +209,7 @@ interface TradingContextType {
   }) => { success: boolean; message: string };
   closePosition: (positionId: string) => void;
   modifyPosition: (positionId: string, stopLoss?: number, takeProfit?: number) => void;
+  updateLivePrice: (price: number) => void;
   getRunningPnL: () => number;
   getTotalPortfolioValue: () => number;
   resetAccount: () => { allowed: boolean; message: string };
@@ -882,6 +883,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         openPosition,
         closePosition,
         modifyPosition,
+        updateLivePrice: setCurrentPrice,
         getRunningPnL,
         getTotalPortfolioValue,
         resetAccount,
