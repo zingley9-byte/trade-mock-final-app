@@ -117,38 +117,38 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 #backdrop.show{display:block;}
 
 /* ── Drawing sidebar ── */
-#sidebar{position:absolute;top:0;left:env(safe-area-inset-left,0px);width:44px;bottom:0;background:#1e222d;border-right:1px solid #2a2e39;display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px;z-index:20;overflow-y:auto;overflow-x:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+#sidebar{position:absolute;top:0;left:env(safe-area-inset-left,0px);width:50px;bottom:0;background:#111827;border-right:1px solid #1f2937;display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:2px;z-index:20;overflow-y:auto;overflow-x:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
 #sidebar::-webkit-scrollbar{display:none;}
-.sb-btn{width:34px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:none;border-radius:5px;cursor:pointer;color:#787b86;position:relative;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
-.sb-btn.act{background:#2962FF22;color:#2962FF;}
-.sb-btn:active{background:#ffffff12;}
-.sb-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;}
-.sb-tri{position:absolute;right:3px;bottom:4px;width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-top:3px solid #4a4e5a;}
-.sb-btn.act .sb-tri{border-top-color:#2962FF;}
-.sb-sep{width:28px;height:1px;background:#2a2e39;flex-shrink:0;margin:3px 0;}
+.sb-btn{width:38px;height:38px;display:flex;align-items:center;justify-content:center;background:none;border:none;border-radius:8px;cursor:pointer;color:#8A91A3;position:relative;flex-shrink:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:background .12s,color .12s;}
+.sb-btn.act{background:rgba(47,107,255,0.18);color:#2F6BFF;}
+.sb-btn:active{background:rgba(255,255,255,0.08);}
+.sb-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
+.sb-tri{position:absolute;right:4px;bottom:4px;width:0;height:0;border-left:3.5px solid transparent;border-right:0;border-top:3.5px solid #6B7280;}
+.sb-btn.act .sb-tri{border-top-color:#2F6BFF;}
+.sb-sep{width:30px;height:1px;background:#1f2937;flex-shrink:0;margin:4px 0;}
 /* Submenu */
-#sb-sub{position:fixed;left:calc(46px + env(safe-area-inset-left,0px));background:#1e222d;border:1px solid #2a2e39;border-radius:7px;min-width:180px;padding:4px 0;z-index:500;box-shadow:0 4px 24px #00000090;}
+#sb-sub{position:fixed;left:calc(52px + env(safe-area-inset-left,0px));background:#1C2333;border:1px solid #283045;border-radius:10px;min-width:204px;padding:6px 0;z-index:500;box-shadow:0 8px 32px #00000099;}
 #sb-sub.hidden{display:none;}
-.sub-title{padding:4px 12px;font-size:9px;font-weight:700;color:#787b86;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid #2a2e39;margin-bottom:2px;}
-.sub-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#d1d4dc;cursor:pointer;border:none;background:none;width:100%;text-align:left;-webkit-tap-highlight-color:transparent;}
-.sub-item:active,.sub-item.act{background:#2962FF18;color:#2962FF;}
-.sub-dot{width:6px;height:6px;border-radius:50%;border:1px solid #3a3e4a;flex-shrink:0;}
-.sub-item.act .sub-dot{background:#2962FF;border-color:#2962FF;}
+.sub-title{padding:7px 14px 6px;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid #283045;margin-bottom:4px;}
+.sub-item{display:flex;align-items:center;gap:10px;padding:0 14px;height:44px;font-size:13px;color:#C9D1D9;cursor:pointer;border:none;background:none;width:100%;text-align:left;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.sub-item:active,.sub-item.act{background:rgba(47,107,255,0.15);color:#2F6BFF;}
+.sub-icon{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.sub-icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
+.sub-item.act .sub-icon svg,.sub-item.act .sub-icon{color:#2F6BFF;}
 /* Drawing SVG overlay */
 #drw-svg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;z-index:5;pointer-events:none;touch-action:none;}
 #drw-svg.active{pointer-events:all;cursor:crosshair;touch-action:none;}
 #drw-svg.cursor{pointer-events:all;cursor:default;touch-action:none;}
-/* Sidebar touch improvements */
-.sb-btn{touch-action:manipulation;}
-.sub-item{touch-action:manipulation;}
 /* Float menu */
-#float-menu{position:fixed;background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:5px 6px;display:flex;align-items:center;gap:4px;z-index:600;box-shadow:0 4px 20px #00000090;min-width:180px;}
+#float-menu{position:fixed;background:#1C2333;border:1px solid #283045;border-radius:12px;padding:5px 7px;display:flex;align-items:center;gap:2px;z-index:600;box-shadow:0 8px 28px #00000099;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
 #float-menu.hidden{display:none;}
-.fm-btn{background:none;border:none;border-radius:4px;color:#d1d4dc;cursor:pointer;padding:5px 8px;font-size:11px;display:flex;align-items:center;gap:4px;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
-.fm-btn:active{background:#ffffff15;}
-.fm-del{color:#ef5350;}
-.fm-sep{width:1px;height:18px;background:#2a2e39;flex-shrink:0;}
-#fm-clr{width:22px;height:22px;border:2px solid #3a3e4a;border-radius:4px;cursor:pointer;padding:0;background:#f0b90b;flex-shrink:0;}
+.fm-btn{background:none;border:none;border-radius:6px;color:#C9D1D9;cursor:pointer;padding:6px 8px;font-size:11px;display:flex;align-items:center;gap:4px;white-space:nowrap;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.fm-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
+.fm-btn:active{background:rgba(255,255,255,0.1);}
+.fm-del{color:#EF5350;}
+.fm-del svg{stroke:#EF5350;}
+.fm-sep{width:1px;height:22px;background:#283045;flex-shrink:0;margin:0 2px;}
+#fm-clr{width:24px;height:24px;border:2px solid #3a4560;border-radius:6px;cursor:pointer;padding:0;background:#f0b90b;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -214,54 +214,55 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
   <!-- BODY -->
   <div id="body">
 
-    <!-- Drawing sidebar — hardcoded so it always shows regardless of JS state -->
+    <!-- Drawing sidebar -->
     <div id="sidebar">
-      <!-- Cursor -->
+      <!-- Cursor / Crosshair -->
       <button class="sb-btn" id="sb-cursor" title="Cursor" onclick="setToolGroup('cursor')">
-        <svg viewBox="0 0 24 24"><path d="M5 3l14 9-7 1-4 7z"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z" stroke-linejoin="round"/></svg>
       </button>
-      <!-- Lines -->
+      <div class="sb-sep"></div>
+      <!-- Trend Line & Lines submenu -->
       <button class="sb-btn" id="sb-lines" title="Lines" onclick="openSubById('lines',this)">
-        <svg viewBox="0 0 24 24"><line x1="5" y1="17" x2="19" y2="5"/><polyline points="12 5 19 5 19 12"/></svg>
+        <svg viewBox="0 0 24 24"><line x1="5" y1="18" x2="19" y2="6"/><polyline points="13 6 19 6 19 12"/></svg>
         <div class="sb-tri"></div>
       </button>
       <!-- Fibonacci -->
       <button class="sb-btn" id="sb-fib" title="Fibonacci" onclick="openSubById('fib',this)">
-        <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><line x1="8" y1="4" x2="8" y2="20" stroke-dasharray="2 3"/></svg>
         <div class="sb-tri"></div>
       </button>
       <!-- Shapes -->
       <button class="sb-btn" id="sb-shapes" title="Shapes" onclick="openSubById('shapes',this)">
-        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="1.5"/></svg>
         <div class="sb-tri"></div>
       </button>
-      <!-- Brush -->
-      <button class="sb-btn" id="sb-brush" title="Brushes" onclick="openSubById('brush',this)">
-        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L3 14.67V21h6.33l10.06-10.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      <!-- Brush / Draw -->
+      <button class="sb-btn" id="sb-brush" title="Draw" onclick="openSubById('brush',this)">
+        <svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
         <div class="sb-tri"></div>
       </button>
       <!-- Text -->
       <button class="sb-btn" id="sb-text" title="Text" onclick="openSubById('text',this)">
-        <svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M9 20h6"/><line x1="12" y1="5" x2="12" y2="20"/></svg>
         <div class="sb-tri"></div>
       </button>
-      <!-- Measure -->
+      <!-- Measure / Positions -->
       <button class="sb-btn" id="sb-measure" title="Measure" onclick="openSubById('measure',this)">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
         <div class="sb-tri"></div>
       </button>
       <div class="sb-sep"></div>
-      <!-- Hide/Show -->
-      <button class="sb-btn" id="sb-hide" title="Hide/Show" onclick="toggleHide(this)">
-        <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <!-- Hide / Show all -->
+      <button class="sb-btn" id="sb-hide" title="Hide/Show drawings" onclick="toggleHide(this)">
+        <svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
-      <!-- Lock -->
-      <button class="sb-btn" id="sb-lock" title="Lock All" onclick="toggleLockAll(this)">
+      <!-- Lock all -->
+      <button class="sb-btn" id="sb-lock" title="Lock all drawings" onclick="toggleLockAll(this)">
         <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </button>
-      <!-- Clear All Drawings -->
-      <button class="sb-btn" id="sb-delete" title="Clear All Drawings" onclick="clearAllDrawings()">
-        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      <!-- Clear all -->
+      <button class="sb-btn" id="sb-delete" title="Clear all drawings" onclick="clearAllDrawings()">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
       </button>
     </div>
 
@@ -282,12 +283,19 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 
   <!-- Float menu for selected drawing -->
   <div id="float-menu" class="hidden">
-    <button class="fm-btn fm-del" onclick="deleteSel()">🗑 Delete</button>
+    <input type="color" id="fm-clr" value="#f0b90b" title="Color" oninput="colorSel(this.value)">
     <div class="fm-sep"></div>
-    <input type="color" id="fm-clr" value="#f0b90b" oninput="colorSel(this.value)">
+    <button class="fm-btn" id="fm-lck" title="Lock" onclick="lockSel()">
+      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </button>
     <div class="fm-sep"></div>
-    <button class="fm-btn" id="fm-lck" onclick="lockSel()">🔒 Lock</button>
-    <button class="fm-btn" onclick="deselectAll()" style="margin-left:2px;color:#787b86;">✕</button>
+    <button class="fm-btn fm-del" title="Delete" onclick="deleteSel()">
+      <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+    </button>
+    <div class="fm-sep"></div>
+    <button class="fm-btn" title="Deselect" onclick="deselectAll()" style="color:#6B7280;">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
   </div>
 
   <!-- Tool submenu -->
@@ -800,6 +808,28 @@ function setToolGroup(gid) {
   hideFM(); updateSvgMode(); buildSidebar(); closeSub(); redraw();
 }
 
+// ── Per-tool SVG icons shown in the submenu ───────────────────────────────
+var SUB_ICONS = {
+  trendline:     '<line x1="5" y1="17" x2="19" y2="7"/><polyline points="13 7 19 7 19 13"/>',
+  arrow:         '<line x1="5" y1="17" x2="19" y2="7"/><polygon points="19,7 14,9 17,12" fill="currentColor" stroke="none"/>',
+  ray:           '<line x1="5" y1="17" x2="21" y2="5"/><circle cx="5" cy="17" r="2" fill="currentColor" stroke="none"/>',
+  hline:         '<line x1="3" y1="12" x2="21" y2="12" stroke-dasharray="4 2"/><line x1="3" y1="8" x2="3" y2="16"/>',
+  vline:         '<line x1="12" y1="3" x2="12" y2="21" stroke-dasharray="4 2"/><line x1="8" y1="3" x2="16" y2="3"/>',
+  channel:       '<line x1="4" y1="16" x2="20" y2="6"/><line x1="4" y1="20" x2="20" y2="10" stroke-dasharray="4 2"/>',
+  fibretracement:'<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="11" x2="20" y2="11"/><line x1="4" y1="16" x2="20" y2="16"/><line x1="8" y1="3" x2="8" y2="19" stroke-dasharray="2 3"/>',
+  rectangle:     '<rect x="3" y="6" width="18" height="13" rx="1.5"/>',
+  circle:        '<circle cx="12" cy="12" r="8"/>',
+  brush:         '<path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+  highlighter:   '<path d="M9 11l-5 5 1 3 3 1 5-5"/><rect x="12" y="3" width="10" height="8" rx="2" transform="rotate(45 17 7)"/>',
+  text:          '<path d="M4 7V5h16v2"/><path d="M9 20h6"/><line x1="12" y1="5" x2="12" y2="20"/>',
+  note:          '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  pricelabel:    '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  longposition:  '<polyline points="3 17 12 8 21 17"/><line x1="12" y1="3" x2="12" y2="8"/>',
+  shortposition: '<polyline points="3 7 12 16 21 7"/><line x1="12" y1="16" x2="12" y2="21"/>',
+  daterange:     '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  pricerange:    '<line x1="12" y1="3" x2="12" y2="21"/><polyline points="9 6 12 3 15 6"/><polyline points="9 18 12 21 15 18"/>',
+};
+
 function openSubById(gid, btnEl) {
   const g = TOOL_GROUPS.find(x=>x!=='sep'&&x.id===gid);
   if (!g) return;
@@ -808,10 +838,13 @@ function openSubById(gid, btnEl) {
   SUB_OPEN = gid;
   const sub = document.getElementById('sb-sub');
   const r = btnEl.getBoundingClientRect();
-  sub.style.top = Math.min(r.top, window.innerHeight-200)+'px';
+  sub.style.top = Math.min(r.top, window.innerHeight-220)+'px';
   let html = '<div class="sub-title">'+g.label+'</div>';
   g.items.forEach(it => {
-    html += '<button class="sub-item'+(TOOL===it.id?' act':'') + '" data-tid="'+it.id+'"><div class="sub-dot"></div>'+it.label+'</button>';
+    const ico = SUB_ICONS[it.id] || '';
+    html += '<button class="sub-item'+(TOOL===it.id?' act':'') + '" data-tid="'+it.id+'">'
+          + '<div class="sub-icon"><svg viewBox="0 0 24 24">'+ico+'</svg></div>'
+          + it.label+'</button>';
   });
   sub.innerHTML = html;
   // Attach touchend + click to each sub-item for Android WebView reliability
