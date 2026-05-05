@@ -1963,7 +1963,7 @@ function initDrawingEvents() {
           _resizeState={d:d,idx:hit.handleIdx};
           DRAW_MODE='draggingHandle';
           lockChart();
-          hideFM();
+          showFM(d,cx,cy);
         } else {
           // body drag — lock chart so it doesn't pan
           e.stopPropagation();
@@ -2092,9 +2092,11 @@ function initDrawingEvents() {
     if(_resizeState) {
       e.preventDefault(); e.stopPropagation();
       saveDrw();
+      var _rsd=_resizeState.d;
       _resizeState=null;
       DRAW_MODE='selecting';
       unlockChart();
+      showFM(_rsd,cx,cy);
       scheduleRedraw();
       return;
     }
