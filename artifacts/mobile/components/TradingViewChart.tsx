@@ -97,9 +97,12 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const tfRef          = useRef("5m");
   const symRef         = useRef(symbol);
   const loadIdRef      = useRef(0);
-  const retryDelayRef  = useRef(3000);
-  const retryTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef     = useRef(true);
+  const retryDelayRef   = useRef(1000);
+  const retryTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stalenessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastMsgAtRef    = useRef(0);
+  const mountedRef      = useRef(true);
 
   const [timeframe,    setTfState]    = useState("5m");
   const [showTfMenu,   setShowTf]     = useState(false);
@@ -284,28 +287,66 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       if (mountedRef.current) setDataLoaded(true);
     }
 
-    // WebSocket live — with auto-retry and exponential backoff
+    // WebSocket live — stable stream.binance.com endpoint, staleness guard, REST fallback
     const loadId = ++loadIdRef.current;
-    retryDelayRef.current = 3000;
+    retryDelayRef.current = 1000;
+
+    function stopPoll() {
+      if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+    }
+
+    function startPoll() {
+      stopPoll();
+      if (!mountedRef.current || loadIdRef.current !== loadId) return;
+      pollTimerRef.current = setInterval(async () => {
+        if (!mountedRef.current || loadIdRef.current !== loadId) { stopPoll(); return; }
+        try {
+          const r = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${binSym}&interval=${binInterval}&limit=2`);
+          if (!r.ok) return;
+          const data = await r.json();
+          if (!Array.isArray(data) || !candleRef.current) return;
+          const last = data[data.length - 1];
+          const c = { time: Math.floor(last[0]/1000) as any, open:+last[1], high:+last[2], low:+last[3], close:+last[4], volume:+last[5] };
+          candleRef.current.update(c);
+          if (volRef.current) volRef.current.update({ time: c.time, value: c.volume, color: c.close >= c.open ? C.bull+"60" : C.bear+"60" });
+        } catch {}
+      }, 3000);
+    }
+
+    function armStaleness() {
+      if (stalenessTimerRef.current) clearTimeout(stalenessTimerRef.current);
+      stalenessTimerRef.current = setTimeout(() => {
+        if (!mountedRef.current || loadIdRef.current !== loadId) return;
+        // No message for 12 s — force reconnect
+        wsRef.current?.close();
+      }, 12000);
+    }
 
     function connectWS() {
       if (!mountedRef.current || loadIdRef.current !== loadId) return;
       if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+      if (stalenessTimerRef.current) { clearTimeout(stalenessTimerRef.current); stalenessTimerRef.current = null; }
       wsRef.current?.close();
       wsRef.current = null;
 
       setWsStatus("connecting");
-      const ws = new WebSocket(`wss://data-stream.binance.vision/ws/${binSym.toLowerCase()}@kline_${binInterval}`);
+      // Use the production stream endpoint (more reliable than data-stream.binance.vision)
+      const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${binSym.toLowerCase()}@kline_${binInterval}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
         if (!mountedRef.current || loadIdRef.current !== loadId) return;
         setWsStatus("live");
-        retryDelayRef.current = 3000;
+        retryDelayRef.current = 1000;
+        lastMsgAtRef.current = Date.now();
+        stopPoll();
+        armStaleness();
       };
 
       ws.onmessage = (evt) => {
         if (!mountedRef.current || loadIdRef.current !== loadId) return;
+        lastMsgAtRef.current = Date.now();
+        armStaleness();
         try {
           const k = JSON.parse(evt.data).k;
           if (!candleRef.current) return;
@@ -320,14 +361,15 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       ws.onerror = () => {
         if (!mountedRef.current || loadIdRef.current !== loadId) return;
         setWsStatus("error");
-        // onclose always follows onerror; retry happens there
       };
 
       ws.onclose = () => {
         if (!mountedRef.current || loadIdRef.current !== loadId) return;
+        if (stalenessTimerRef.current) { clearTimeout(stalenessTimerRef.current); stalenessTimerRef.current = null; }
         setWsStatus("reconnecting");
+        startPoll();   // keep chart fresh via REST while reconnecting
         const delay = retryDelayRef.current;
-        retryDelayRef.current = Math.min(delay * 2, 30000);
+        retryDelayRef.current = Math.min(delay * 2, 15000);
         retryTimerRef.current = setTimeout(connectWS, delay);
       };
     }
@@ -342,10 +384,12 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     initChart(symbol, timeframe);
     return () => {
       setDataLoaded(false);
-      if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+      if (retryTimerRef.current)   { clearTimeout(retryTimerRef.current);   retryTimerRef.current   = null; }
+      if (stalenessTimerRef.current){ clearTimeout(stalenessTimerRef.current); stalenessTimerRef.current = null; }
+      if (pollTimerRef.current)    { clearInterval(pollTimerRef.current);    pollTimerRef.current    = null; }
       wsRef.current?.close();
       wsRef.current = null;
-      loadIdRef.current++; // invalidate in-flight connectWS callbacks
+      loadIdRef.current++;
       try { chartRef.current?.remove(); } catch {}
       chartRef.current = null;
     };

@@ -196,11 +196,13 @@ export default function MobileCandleChart({
   const candlesRef  = useRef<Candle[]>([]);
   const visRef      = useRef(DEF_VIS);
   const offsetRef   = useRef(0);
-  const wsRef       = useRef<WebSocket|null>(null);
-  const retryTimer  = useRef<ReturnType<typeof setTimeout>|null>(null);
-  const retryDelay  = useRef(3000);
-  const loadIdRef   = useRef(0);
-  const mountedRef  = useRef(true);
+  const wsRef          = useRef<WebSocket|null>(null);
+  const retryTimer     = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const stalenessTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const pollTimer      = useRef<ReturnType<typeof setInterval>|null>(null);
+  const retryDelay     = useRef(1000);
+  const loadIdRef      = useRef(0);
+  const mountedRef     = useRef(true);
   const pricePadRef = useRef(0.08);
 
   // Synced every render for stable PanResponder callbacks
@@ -230,13 +232,52 @@ export default function MobileCandleChart({
   const connectWS = useCallback((loadId:number, binSym:string, binInterval:string)=>{
     if (!mountedRef.current||loadIdRef.current!==loadId) return;
     if (retryTimer.current){ clearTimeout(retryTimer.current); retryTimer.current=null; }
+    if (stalenessTimer.current){ clearTimeout(stalenessTimer.current); stalenessTimer.current=null; }
     wsRef.current?.close(); wsRef.current=null;
+
+    function stopPoll(){ if(pollTimer.current){ clearInterval(pollTimer.current); pollTimer.current=null; } }
+    function startPoll(){
+      stopPoll();
+      if(!mountedRef.current||loadIdRef.current!==loadId) return;
+      pollTimer.current=setInterval(async()=>{
+        if(!mountedRef.current||loadIdRef.current!==loadId){ stopPoll(); return; }
+        try {
+          const r=await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${binSym}&interval=${binInterval}&limit=2`);
+          if(!r.ok) return;
+          const data=await r.json();
+          if(!Array.isArray(data)||!data.length) return;
+          const last=data[data.length-1];
+          const nc:Candle={time:Math.floor(last[0]/1000),open:+last[1],high:+last[2],low:+last[3],close:+last[4],volume:+last[5]};
+          const arr=candlesRef.current;
+          if(arr.length&&arr[arr.length-1].time===nc.time) arr[arr.length-1]=nc;
+          else{ arr.push(nc); if(arr.length>1000) arr.shift(); }
+          if(offsetRef.current===0) redraw();
+          onPrice?.(nc.close);
+        } catch {}
+      },3000);
+    }
+    function armStaleness(){
+      if(stalenessTimer.current) clearTimeout(stalenessTimer.current);
+      stalenessTimer.current=setTimeout(()=>{
+        if(!mountedRef.current||loadIdRef.current!==loadId) return;
+        wsRef.current?.close(); // force onclose → reconnect
+      },12000);
+    }
+
     setWsStatus("connecting");
-    const ws = new WebSocket(`wss://data-stream.binance.vision/ws/${binSym.toLowerCase()}@kline_${binInterval}`);
+    // Use the stable production stream endpoint
+    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${binSym.toLowerCase()}@kline_${binInterval}`);
     wsRef.current=ws;
-    ws.onopen  = ()=>{ if(mountedRef.current&&loadIdRef.current===loadId){ setWsStatus("live"); retryDelay.current=3000; } };
+    ws.onopen  = ()=>{
+      if(!mountedRef.current||loadIdRef.current!==loadId) return;
+      setWsStatus("live");
+      retryDelay.current=1000;
+      stopPoll();
+      armStaleness();
+    };
     ws.onmessage = (evt)=>{
       if (!mountedRef.current||loadIdRef.current!==loadId) return;
+      armStaleness();
       try {
         const k = JSON.parse(evt.data).k;
         const nc:Candle = {time:Math.floor(k.t/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c,volume:+k.v};
@@ -250,8 +291,10 @@ export default function MobileCandleChart({
     ws.onerror = ()=>{ if(mountedRef.current&&loadIdRef.current===loadId) setWsStatus("error"); };
     ws.onclose = ()=>{
       if (!mountedRef.current||loadIdRef.current!==loadId) return;
+      if(stalenessTimer.current){ clearTimeout(stalenessTimer.current); stalenessTimer.current=null; }
       setWsStatus("reconnecting");
-      const d=retryDelay.current; retryDelay.current=Math.min(d*2,30000);
+      startPoll(); // keep chart fresh via REST while reconnecting
+      const d=retryDelay.current; retryDelay.current=Math.min(d*2,15000);
       retryTimer.current=setTimeout(()=>connectWS(loadId,binSym,binInterval),d);
     };
   },[onPrice,redraw]);
@@ -285,7 +328,9 @@ export default function MobileCandleChart({
   useEffect(()=>{
     load(symbol,tf);
     return ()=>{
-      if (retryTimer.current) clearTimeout(retryTimer.current);
+      if (retryTimer.current)    { clearTimeout(retryTimer.current);    retryTimer.current=null; }
+      if (stalenessTimer.current){ clearTimeout(stalenessTimer.current); stalenessTimer.current=null; }
+      if (pollTimer.current)     { clearInterval(pollTimer.current);     pollTimer.current=null; }
       wsRef.current?.close(); wsRef.current=null; loadIdRef.current++;
     };
   },[symbol,tf,load]);
