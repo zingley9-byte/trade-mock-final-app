@@ -1501,8 +1501,9 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     return () => handler.remove();
   }, [isFullscreen]);
 
-  const onLoad    = useCallback(() => { setLoading(false); setFsLoading(false); }, []);
-  const onError   = useCallback(() => { setLoading(false); setFsLoading(false); setError(true); }, []);
+  const onNormalLoad = useCallback(() => setLoading(false), []);
+  const onFsLoad     = useCallback(() => setFsLoading(false), []);
+  const onError      = useCallback(() => { setLoading(false); setFsLoading(false); setError(true); }, []);
   const retry     = useCallback(() => {
     setError(false); setLoading(true);
     setIsFullscreen(false);
@@ -1541,32 +1542,36 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     <>
       {/* ── Normal view ── */}
       <View style={[styles.root, { height }]}>
+        {/* Loading overlay — only on first load, never when returning from fullscreen */}
         {loading && !isFullscreen && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator color="#26a69a" size="small" />
             <Text style={styles.loadingTxt}>Loading chart…</Text>
           </View>
         )}
-        {!isFullscreen && (
-          error ? (
-            <View style={styles.errBox}>
-              <Text style={styles.errIcon}>⚠</Text>
-              <Text style={styles.errTitle}>Chart failed to load</Text>
-              <Text style={styles.errSub}>Check internet connection</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={retry}>
-                <Text style={styles.retryTxt}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
+        {error ? (
+          <View style={styles.errBox}>
+            <Text style={styles.errIcon}>⚠</Text>
+            <Text style={styles.errTitle}>Chart failed to load</Text>
+            <Text style={styles.errSub}>Check internet connection</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={retry}>
+              <Text style={styles.retryTxt}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          /* Always keep WebView mounted so it stays connected in background during fullscreen.
+             Hidden with opacity:0 + pointer-events off while fullscreen modal is open.
+             On exit, chart is instantly visible — no reload, no loading screen. */
+          <View style={isFullscreen ? styles.hiddenWebView : styles.visibleWebView}>
             <ChartWebView
               html={html}
               binKey={`${bin}-normal`}
               h={height}
-              onLoad={onLoad}
+              onLoad={onNormalLoad}
               onError={onError}
               onMsg={onMessage}
             />
-          )
+          </View>
         )}
       </View>
 
@@ -1587,7 +1592,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
             html={htmlFS}
             binKey={`${bin}-fs`}
             h={screenH}
-            onLoad={onLoad}
+            onLoad={onFsLoad}
             onError={onError}
             onMsg={onMessage}
           />
@@ -1610,6 +1615,9 @@ const styles = StyleSheet.create({
   root:           { backgroundColor: "#131722", overflow: "hidden" },
   fsRoot:         { backgroundColor: "#131722", flex: 1 },
   webview:        { flex: 1, backgroundColor: "#131722" },
+  // Normal WebView stays mounted during fullscreen — just hidden, never unmounted
+  visibleWebView: { flex: 1 },
+  hiddenWebView:  { ...StyleSheet.absoluteFillObject, opacity: 0, pointerEvents: "none" } as any,
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#131722",
