@@ -190,7 +190,7 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 
   <!-- TOP TOOLBAR -->
   <div id="topbar">
-    <button class="tb-btn" title="Grid" onclick="toggleGrid(this)">
+    <button id="tb-tools" class="tb-btn" title="Toggle Tools" onclick="toggleTools(this)">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
         <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
         <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
@@ -697,6 +697,26 @@ function toggleChartType() {
     if (_rawCandles.length) candleSeries.setData(_rawCandles);
   }
   scheduleRedraw();
+}
+
+var _toolsVisible = true;
+function toggleTools(btn) {
+  _toolsVisible = !_toolsVisible;
+  var sb = document.getElementById('sidebar');
+  var cw = document.getElementById('chart-wrap');
+  if (sb) sb.style.display = _toolsVisible ? '' : 'none';
+  if (cw) cw.style.left = _toolsVisible
+    ? 'calc(50px + env(safe-area-inset-left,0px))'
+    : 'env(safe-area-inset-left,0px)';
+  // close submenu if open
+  closeSub();
+  // deselect current tool when hiding
+  if (!_toolsVisible && TOOL && TOOL !== 'cursor') {
+    TOOL = 'cursor'; IP = null; CUR_PTS = []; _previewPt = null;
+    DRAW_MODE = 'selecting'; updateCanvasMode();
+  }
+  if (btn) btn.classList.toggle('act', !_toolsVisible);
+  setTimeout(resizeChart, 30);
 }
 
 function toggleGrid(btn) {
