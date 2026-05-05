@@ -2,10 +2,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { TM_AUTH_KEY, TM_ONBOARDED_KEY } from "@/constants/authKeys";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, Image, Platform, StyleSheet, Text, View } from "react-native";
 import LandingPage from "@/components/LandingPage";
 import MobileLandingPage from "@/components/MobileLandingPage";
+import { getFirebaseAuth } from "@/lib/firebase";
 
 const { width, height } = Dimensions.get("window");
 
@@ -91,11 +92,76 @@ function NativeSplash() {
   );
 }
 
+// ── Web: check Firebase session before showing landing page ─────────────────
+// On browser refresh the user should stay in the app if already logged in.
+function WebIndexScreen({ desktop }: { desktop: boolean }) {
+  // "checking" = verifying session | "landing" = show landing page
+  const [view, setView] = useState<"checking" | "landing">("checking");
+
+  useEffect(() => {
+    let cancelled = false;
+    let unsub: (() => void) | null = null;
+
+    async function check() {
+      try {
+        // 1. Fast path: AsyncStorage key present → go to tabs immediately
+        const saved = await AsyncStorage.getItem(TM_AUTH_KEY);
+        if (saved && !cancelled) {
+          router.replace("/(tabs)");
+          return;
+        }
+
+        // 2. Check Firebase current user (may already be restored)
+        const fbAuth = getFirebaseAuth();
+        if (fbAuth.currentUser && !cancelled) {
+          const u = fbAuth.currentUser;
+          await AsyncStorage.setItem(TM_AUTH_KEY, JSON.stringify({
+            uid: u.uid, email: u.email ?? "", name: u.displayName ?? u.email?.split("@")[0] ?? "User",
+          })).catch(() => {});
+          if (!cancelled) router.replace("/(tabs)");
+          return;
+        }
+
+        // 3. Subscribe briefly — Firebase may not have restored session yet
+        unsub = fbAuth.onAuthStateChanged((user) => {
+          if (cancelled) return;
+          if (user) {
+            AsyncStorage.setItem(TM_AUTH_KEY, JSON.stringify({
+              uid: user.uid, email: user.email ?? "", name: user.displayName ?? user.email?.split("@")[0] ?? "User",
+            })).catch(() => {});
+            router.replace("/(tabs)");
+          }
+        });
+
+        // 4. After 1.5 s with no session → show landing page
+        setTimeout(() => {
+          if (!cancelled) setView("landing");
+        }, 1500);
+      } catch {
+        if (!cancelled) setView("landing");
+      }
+    }
+
+    check();
+    return () => {
+      cancelled = true;
+      if (unsub) unsub();
+    };
+  }, []);
+
+  if (view === "checking") {
+    // Minimal dark screen while we check — avoids flash of landing page
+    return <View style={{ flex: 1, backgroundColor: "#0B0E11" }} />;
+  }
+
+  return desktop ? <LandingPage /> : <MobileLandingPage />;
+}
+
 // ── Root export ────────────────────────────────────────────────────────────
-// Desktop web → full landing page | mobile web → mobile landing | native → splash/auth
+// Desktop web → check auth → landing page | mobile web → check auth → mobile landing | native → splash/auth
 export default function IndexScreen() {
-  if (isDesktopWeb) return <LandingPage />;
-  if (isMobileWeb)  return <MobileLandingPage />;
+  if (isDesktopWeb) return <WebIndexScreen desktop />;
+  if (isMobileWeb)  return <WebIndexScreen desktop={false} />;
   return <NativeSplash />;
 }
 
