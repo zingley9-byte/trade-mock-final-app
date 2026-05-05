@@ -1592,7 +1592,7 @@ function initDrawingEvents() {
   document.addEventListener('touchcancel',function(){
     if(_dragState){saveDrw();_dragState=null;DRAW_MODE='selecting';unlockChart();}
     if(_resizeState){saveDrw();_resizeState=null;DRAW_MODE='selecting';unlockChart();}
-    if(M_DOWN){M_DOWN=false;IP=null;CUR_PTS=[];_previewPt=null;scheduleRedraw();}
+    if(M_DOWN){M_DOWN=false;IP=null;CUR_PTS=[];FREE_PTS=[];_previewPt=null;DRAW_MODE='selecting';unlockChart();scheduleRedraw();}
   });
 
   // Canvas pointer events — desktop/web
@@ -1675,7 +1675,7 @@ function onDown(e) {
 
   // Freehand
   if(TOOL==='brush'||TOOL==='highlighter'){
-    IP=TOOL;FREE_PTS=[x,y];M_DOWN=true;return;
+    IP=TOOL;FREE_PTS=[x,y];M_DOWN=true;DRAW_MODE='drawing';lockChart();return;
   }
 
   var pt=svgToData(x,y);
@@ -1706,6 +1706,7 @@ function onDown(e) {
 
   // Drag-to-draw
   IP=TOOL;CUR_PTS=[pt,pt];M_DOWN=true;_previewPt={x:x,y:y};
+  DRAW_MODE='drawing';lockChart();
   scheduleRedraw();
 }
 
@@ -1745,7 +1746,7 @@ function onUp(e) {
       for(var fi=0;fi<FREE_PTS.length;fi+=2){var fpt=svgToData(FREE_PTS[fi],FREE_PTS[fi+1]);if(fpt.price!=null)fps.push(fpt);}
       if(fps.length>=2){var fid=genId();DRW.push({id:fid,type:IP,pts:fps,color:CLR,width:WID,visible:true,locked:false});saveDrw();}
     }
-    IP=null;FREE_PTS=[];CUR_PTS=[];_previewPt=null;scheduleRedraw();return;
+    IP=null;FREE_PTS=[];CUR_PTS=[];_previewPt=null;DRAW_MODE='selecting';unlockChart();scheduleRedraw();return;
   }
 
   // Drag-to-draw finish
@@ -1754,15 +1755,16 @@ function onUp(e) {
     if(upt.price!=null && upt.time!=null) CUR_PTS[1]=upt;
 
     // If second point still has no valid time, cancel (nothing to save)
-    if(CUR_PTS[1].time==null){IP=null;CUR_PTS=[];_previewPt=null;scheduleRedraw();return;}
+    if(CUR_PTS[1].time==null){IP=null;CUR_PTS=[];_previewPt=null;DRAW_MODE='selecting';unlockChart();scheduleRedraw();return;}
 
     if(THREE_PT.has(IP)){
+      // 3-pt: finger up after pt2 — keep locked until 3rd tap (finishDrawing unlocks)
       _previewPt=null;updateHint();scheduleRedraw();
     } else {
       var up1=dataToSvg(CUR_PTS[0].price,CUR_PTS[0].time);
       var up2=dataToSvg(CUR_PTS[1].price,CUR_PTS[1].time);
       var moved=up1.x!=null&&up2.x!=null&&(Math.abs(up2.x-up1.x)>4||Math.abs(up2.y-up1.y)>4);
-      if(moved){finishDrawing();}else{IP=null;CUR_PTS=[];_previewPt=null;scheduleRedraw();}
+      if(moved){finishDrawing();}else{IP=null;CUR_PTS=[];_previewPt=null;DRAW_MODE='selecting';unlockChart();scheduleRedraw();}
     }
   }
 }
@@ -1771,7 +1773,7 @@ function finishDrawing() {
   if(!IP||CUR_PTS.length===0) return;
   var id=genId();
   DRW.push({id:id,type:IP,pts:CUR_PTS.slice(),color:CLR,width:WID,visible:true,locked:false});
-  TOOL=null;IP=null;CUR_PTS=[];_previewPt=null;
+  TOOL=null;IP=null;CUR_PTS=[];_previewPt=null;DRAW_MODE='selecting';unlockChart();
   saveDrw();buildSidebar();updateCanvasMode();scheduleRedraw();
 }
 
