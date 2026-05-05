@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import LoadingCandleAnimation from "./LoadingCandleAnimation";
 import { WebView } from "react-native-webview";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { LWC_SCRIPT } from "../lib/lwcScript";
 
 interface Props {
@@ -1560,15 +1561,21 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     setIsFullscreen(false);
   }, []);
 
-  // Open fullscreen Modal — no orientation lock so the portrait WebView's
-  // viewport never changes and resize glitches are impossible.
-  // The Modal supports both orientations; users rotate the device themselves.
-  const openFullscreenLandscape = useCallback(() => {
+  // Open fullscreen + lock to landscape.
+  // Portrait WebView is UNMOUNTED while fullscreen is active (see render below),
+  // so it never receives orientation-change resize events → no glitch on return.
+  const openFullscreenLandscape = useCallback(async () => {
     setIsFullscreen(true);
+    try { await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE); } catch (_) {}
   }, []);
 
-  const closeFullscreen = useCallback(() => {
+  const closeFullscreen = useCallback(async () => {
     Keyboard.dismiss();
+    // Unlock orientation first (device rotates back to portrait).
+    try { await ScreenOrientation.unlockAsync(); } catch (_) {}
+    // Reset loading so candle animation shows while portrait WebView remounts.
+    setLoading(true);
+    // Then show portrait view — WebView mounts fresh at correct portrait dimensions.
     setIsFullscreen(false);
   }, []);
 
@@ -1598,20 +1605,24 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
             </TouchableOpacity>
           </View>
         ) : (
-          /* Always keep WebView mounted — hidden (opacity 0) while fullscreen is open,
-             visible instantly when returning. No reload, no loading screen.
-             exitingFS overlay hides any landscape→portrait resize glitch. */
-          <View style={isFullscreen ? styles.hiddenWebView : styles.visibleWebView}>
-            <ChartWebView
-              ref={normalWVRef}
-              html={html}
-              binKey={`${bin}-normal`}
-              h={height}
-              onLoad={onNormalLoad}
-              onError={onError}
-              onMsg={onMessage}
-            />
-          </View>
+          /* Portrait WebView — UNMOUNTED while fullscreen is active.
+             This is the only 100%-reliable way to prevent orientation-change
+             resize events from corrupting the chart canvas.
+             When fullscreen closes, it mounts fresh at correct portrait size;
+             the existing loading/candle animation covers the brief reload. */
+          !isFullscreen && (
+            <View style={styles.visibleWebView}>
+              <ChartWebView
+                ref={normalWVRef}
+                html={html}
+                binKey={`${bin}-normal`}
+                h={height}
+                onLoad={onNormalLoad}
+                onError={onError}
+                onMsg={onMessage}
+              />
+            </View>
+          )
         )}
       </View>
 
@@ -1654,11 +1665,7 @@ const styles = StyleSheet.create({
   root:           { backgroundColor: "#131722", overflow: "hidden" },
   fsRoot:         { backgroundColor: "#131722", flex: 1 },
   webview:        { flex: 1, backgroundColor: "#131722" },
-  // Normal WebView: always mounted. Layout stays IDENTICAL (flex:1) in both
-  // states — only opacity changes. Switching position:absolute ↔ flex:1 caused
-  // a brief layout recalculation that squished the chart canvas on return.
   visibleWebView: { flex: 1 },
-  hiddenWebView:  { flex: 1, opacity: 0, pointerEvents: "none" } as any,
   errBox:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 24 },
   errIcon:    { fontSize: 28, color: "#f59e0b" },
   errTitle:   { color: "#d1d4dc", fontSize: 14, fontWeight: "700" },
