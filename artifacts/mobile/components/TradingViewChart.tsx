@@ -136,11 +136,19 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     try { localStorage.setItem(DRW_KEY, JSON.stringify(webDrawings)); } catch{}
   },[webDrawings]);
 
-  // Track browser fullscreen state
+  // Track browser fullscreen state (native API) + inject sidebar scroll CSS
   useEffect(() => {
-    const onFSChange = () => setIsWebFS(!!document.fullscreenElement);
+    const onFSChange = () => { if (!document.fullscreenElement) setIsWebFS(false); };
     document.addEventListener("fullscreenchange", onFSChange);
-    return () => document.removeEventListener("fullscreenchange", onFSChange);
+    // Hide scrollbar in the web drawing sidebar
+    const style = document.createElement("style");
+    style.id = "tm-sidebar-scroll";
+    style.textContent = ".tm-web-sidebar::-webkit-scrollbar{display:none;}";
+    document.head.appendChild(style);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFSChange);
+      document.getElementById("tm-sidebar-scroll")?.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -405,10 +413,20 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     setOpenSubGroup(null);
   }
   function handleFullscreen() {
+    if (isWebFS) {
+      // Exit: try native first, then fall back to CSS fullscreen toggle
+      if (document.fullscreenElement) document.exitFullscreen?.();
+      else setIsWebFS(false);
+      return;
+    }
+    // Enter: try native fullscreen; if blocked (e.g. iframe), use CSS fullscreen
     const el = wrapperRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) el.requestFullscreen?.().catch(()=>{});
-    else document.exitFullscreen?.();
+    if (document.fullscreenEnabled) {
+      el.requestFullscreen?.().then(() => setIsWebFS(true)).catch(() => setIsWebFS(true));
+    } else {
+      setIsWebFS(true);
+    }
   }
 
   // ── SVG Pointer handlers — DRAG model ─────────────────────────────────────
@@ -797,7 +815,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const ohlcvColor = ohlcv ? (isPos ? C.bull : C.bear) : C.bull;
 
   return (
-    <div ref={wrapperRef} style={{ display:"flex", flexDirection:"column", width:"100%", height: isWebFS ? "100dvh" : "100%", background:C.bg, fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", position:"relative", overflow:"hidden" }}>
+    <div ref={wrapperRef} style={{ display:"flex", flexDirection:"column", width: isWebFS ? "100vw" : "100%", height: isWebFS ? "100dvh" : "100%", background:C.bg, fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", position: isWebFS ? "fixed" : "relative", top: isWebFS ? 0 : undefined, left: isWebFS ? 0 : undefined, zIndex: isWebFS ? 9999 : undefined, overflow:"hidden" }}>
 
       {/* ── Loading overlays ── */}
       {!dataLoaded && (
@@ -857,7 +875,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
 
         {/* ── Drawing Sidebar ── */}
-        <div style={{ width:44, background:C.panel, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", alignItems:"center", padding:"4px 0", gap:1, flexShrink:0, zIndex:20, overflow:"visible", position:"relative" }}>
+        <div className="tm-web-sidebar" style={{ width:44, background:C.panel, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", alignItems:"center", padding:"4px 0", gap:1, flexShrink:0, zIndex:20, overflowY:"auto", overflowX:"visible", scrollbarWidth:"none", msOverflowStyle:"none", position:"relative" } as React.CSSProperties}>
           {/* Cursor */}
           <button title="Cursor" onClick={()=>handleToolClick("cursor")}
             style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(!activeTool||activeTool==="cursor")?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(!activeTool||activeTool==="cursor")?"#2962FF":"#787b86",fontSize:14 }}>
