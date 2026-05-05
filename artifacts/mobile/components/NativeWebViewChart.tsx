@@ -835,14 +835,19 @@ function buildSidebar() {
   const toolToGroup = {trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',fibretracement:'fib',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text',longposition:'measure',shortposition:'measure',daterange:'measure',pricerange:'measure'};
   Object.entries(IDS).forEach(([gid,btnId]) => {
     const btn = document.getElementById(btnId); if(!btn) return;
-    const isActive = (TOOL===gid) || (toolToGroup[TOOL]===gid) || (gid==='hide'&&HIDE) || (gid==='cursor'&&(!TOOL||TOOL==='cursor'));
+    const isActive = (TOOL===gid) || (toolToGroup[TOOL]===gid) || (gid==='hide'&&HIDE) || (gid==='cursor'&&TOOL==='cursor');
     btn.classList.toggle('act', !!isActive);
   });
 }
 
 // ── Called from hardcoded HTML buttons ──
 function setToolGroup(gid) {
-  TOOL = gid==='cursor' ? 'cursor' : null;
+  if (gid==='cursor') {
+    // Tap again while cursor active → deselect (TOOL=null, no button lit)
+    TOOL = (TOOL==='cursor') ? null : 'cursor';
+  } else {
+    TOOL = null;
+  }
   SEL=null; CUR_PTS=[]; FREE_PTS=[]; IP=null;
   hideFM(); updateSvgMode(); buildSidebar(); closeSub(); redraw();
 }
