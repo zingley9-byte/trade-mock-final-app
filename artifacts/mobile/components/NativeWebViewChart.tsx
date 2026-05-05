@@ -1560,10 +1560,17 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
   const closeFullscreen = useCallback(async () => {
     Keyboard.dismiss(); // prevent Android from restoring focus to last TextInput
-    setIsFullscreen(false);
-    try {
-      await ScreenOrientation.unlockAsync();
-    } catch (_) {}
+    if (Platform.OS === "ios") {
+      // iOS: unlock orientation FIRST so the device is already in portrait
+      // before the Modal disappears — prevents portrait layout rendering
+      // while the screen is still physically in landscape (visual flash/bug)
+      try { await ScreenOrientation.unlockAsync(); } catch (_) {}
+      setIsFullscreen(false);
+    } else {
+      // Android: close Modal first (snappier feel), then release lock
+      setIsFullscreen(false);
+      try { await ScreenOrientation.unlockAsync(); } catch (_) {}
+    }
   }, []);
 
   const onMessage = useCallback((e: any) => {
