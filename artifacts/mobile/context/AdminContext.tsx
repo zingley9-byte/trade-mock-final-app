@@ -145,12 +145,17 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       () => {}
     );
 
+    // Announcements stored in admin_config collection as ann_{id} docs
     announcementsUnsubRef.current?.();
     announcementsUnsubRef.current = onSnapshot(
-      query(collection(db, "announcements"), orderBy("createdAt", "desc")),
+      collection(db, "admin_config"),
       (snap) => {
         const list: Announcement[] = [];
-        snap.forEach((d) => list.push(d.data() as Announcement));
+        snap.forEach((d) => {
+          const data = d.data();
+          if (data._type === "announcement") list.push(data as Announcement);
+        });
+        list.sort((a, b) => b.createdAt - a.createdAt);
         setAnnouncements(list);
       },
       () => {}
@@ -264,17 +269,17 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const db = getFirebaseDb();
     const id = Date.now().toString();
     const item: Announcement = { ...a, id, createdAt: Date.now() };
-    await setDoc(doc(db, "announcements", id), item);
+    await setDoc(doc(db, "admin_config", "ann_" + id), { ...item, _type: "announcement" });
   }
 
   async function updateAnnouncement(id: string, updates: Partial<Announcement>) {
     const db = getFirebaseDb();
-    await updateDoc(doc(db, "announcements", id), updates as Record<string, unknown>);
+    await updateDoc(doc(db, "admin_config", "ann_" + id), updates as Record<string, unknown>);
   }
 
   async function deleteAnnouncement(id: string) {
     const db = getFirebaseDb();
-    await deleteDoc(doc(db, "announcements", id));
+    await deleteDoc(doc(db, "admin_config", "ann_" + id));
   }
 
   async function updateAppConfig(updates: Partial<AppConfig>) {
