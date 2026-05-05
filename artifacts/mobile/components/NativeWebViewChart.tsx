@@ -191,12 +191,6 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
         <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/>
       </svg>
     </button>
-    <button class="tb-btn" id="fs-btn" title="Fullscreen" onclick="toggleFS()">
-      ${initialFS
-        ? `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>`
-        : `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>`
-      }
-    </button>
     <button class="tb-btn" id="tb-reset" title="Reset Chart">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -399,18 +393,6 @@ function postRN(payload) {
   }, 50);
 }
 
-// ── Fullscreen (React Native bridge) ────────────────────────────────────────
-function toggleFS() {
-  isFS = !isFS;
-  var btn = document.getElementById('fs-btn');
-  if (isFS) {
-    btn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>';
-  } else {
-    btn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
-  }
-  postRN({ type: 'toggleFS', value: isFS });
-  setTimeout(resizeChart, 80);
-}
 
 // ── Chart init ───────────────────────────────────────────────────────────────
 function initChart() {
@@ -836,11 +818,12 @@ function initSidebarEvents() {
   sbBtn('sb-hide',    function(el)  { toggleHide(el); });
   sbBtn('sb-lock',    function(el)  { toggleLockAll(el); });
   sbBtn('sb-delete',  function()    { clearAllDrawings(); });
-  // Topbar rotate button — sends message to React Native to open fullscreen landscape
+  // Topbar reset button — fits all chart data into view
   var resetBtn = document.getElementById('tb-reset');
   if (resetBtn) {
-    resetBtn.addEventListener('touchend', function(e) { e.preventDefault(); postRN({type:'rotateFS'}); }, {passive:false});
-    resetBtn.addEventListener('click', function() { postRN({type:'rotateFS'}); });
+    function doReset(e) { if(e) e.preventDefault(); if(chart) { try { chart.timeScale().fitContent(); } catch(_){} } }
+    resetBtn.addEventListener('touchend', function(e) { doReset(e); }, {passive:false});
+    resetBtn.addEventListener('click', doReset);
   }
 }
 
@@ -1529,67 +1512,58 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
   const html   = useMemo(() => buildHtml(bin, false), [bin]);
   const htmlFS = useMemo(() => buildHtml(bin, true),  [bin]);
 
-  // When height prop changes (e.g. parent layout re-measures), inject a resize
-  // event instead of remounting the WebView (key no longer includes height).
-  const prevHeightRef = useRef(height);
+  // ── Auto-rotate: open fullscreen when device goes landscape, close when portrait ──
+  // On mount: unlock orientation so the chart screen can rotate.
+  // On unmount: lock back to portrait so other screens stay portrait.
   useEffect(() => {
-    if (prevHeightRef.current === height) return;
-    prevHeightRef.current = height;
-    normalWVRef.current?.injectJavaScript(
-      "try{window.dispatchEvent(new Event('resize'));if(typeof resizeChart==='function')resizeChart();}catch(e){} true;"
-    );
-  }, [height]);
+    ScreenOrientation.unlockAsync().catch(() => {});
+    return () => { ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {}); };
+  }, []);
+
+  const isLandscape = screenW > screenH;
+  const prevLandscapeRef = useRef(isLandscape);
+  useEffect(() => {
+    if (prevLandscapeRef.current === isLandscape) return;
+    prevLandscapeRef.current = isLandscape;
+    if (isLandscape) {
+      // Device rotated to landscape → show fullscreen chart
+      setIsFullscreen(true);
+    } else {
+      // Device rotated back to portrait → close fullscreen, remount portrait WV fresh
+      setLoading(true);
+      setIsFullscreen(false);
+    }
+  }, [isLandscape]);
 
   // Android: intercept hardware back button when fullscreen is open
-  // prevents the back event from leaking to the Charts screen and opening the coin picker
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const handler = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (isFullscreen) {
-        closeFullscreen();
-        return true; // consumed — do NOT propagate
-      }
-      return false; // let Expo Router handle it normally
+      if (isFullscreen) { closeFullscreen(); return true; }
+      return false;
     });
     return () => handler.remove();
   }, [isFullscreen]);
 
   const onNormalLoad = useCallback(() => setLoading(false), []);
   const onError      = useCallback(() => { setLoading(false); setError(true); }, []);
-  const retry     = useCallback(() => {
-    setError(false); setLoading(true);
-    setIsFullscreen(false);
-  }, []);
+  const retry        = useCallback(() => { setError(false); setLoading(true); setIsFullscreen(false); }, []);
 
-  // Open fullscreen + lock to landscape.
-  // Portrait WebView is UNMOUNTED while fullscreen is active (see render below),
-  // so it never receives orientation-change resize events → no glitch on return.
-  const openFullscreenLandscape = useCallback(async () => {
-    setIsFullscreen(true);
-    try { await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE); } catch (_) {}
-  }, []);
-
-  const closeFullscreen = useCallback(async () => {
+  const closeFullscreen = useCallback(() => {
+    // Closing fullscreen: portrait WebView will remount fresh.
     Keyboard.dismiss();
-    // Unlock orientation first (device rotates back to portrait).
-    try { await ScreenOrientation.unlockAsync(); } catch (_) {}
-    // Reset loading so candle animation shows while portrait WebView remounts.
     setLoading(true);
-    // Then show portrait view — WebView mounts fresh at correct portrait dimensions.
     setIsFullscreen(false);
   }, []);
 
   const onMessage = useCallback((e: any) => {
     try {
       const data = JSON.parse(e.nativeEvent.data);
-      if (data.type === "toggleFS") {
-        if (data.value) { setIsFullscreen(true); }
-        else { closeFullscreen(); }
-      } else if (data.type === "rotateFS") {
-        openFullscreenLandscape();
-      }
+      // rotateFS / toggleFS messages are no longer sent from HTML
+      // (buttons removed), but kept for safety.
+      if (data.type === "toggleFS" && !data.value) { closeFullscreen(); }
     } catch (_) {}
-  }, [openFullscreenLandscape, closeFullscreen]);
+  }, [closeFullscreen]);
 
   return (
     <>
