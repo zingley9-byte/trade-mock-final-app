@@ -53,7 +53,7 @@ export default function LoadingCandleAnimation({
   const anims = useRef(CANDLES.map(() => new Animated.Value(0))).current;
   const [dots, setDots] = useState("");
 
-  const sc = size === "sm" ? 0.52 : size === "lg" ? 1.1 : 0.78;
+  const sc = size === "sm" ? 0.38 : size === "lg" ? 0.82 : 0.58;
   const W  = Math.round(10 * sc);
   const G  = Math.round(5  * sc);
 
