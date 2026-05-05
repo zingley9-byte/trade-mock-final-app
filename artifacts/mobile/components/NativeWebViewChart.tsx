@@ -190,9 +190,10 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 
   <!-- TOP TOOLBAR -->
   <div id="topbar">
-    <button class="tb-btn" title="Add indicator">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+    <button class="tb-btn" title="Grid" onclick="toggleGrid(this)">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
       </svg>
     </button>
     <div class="tb-sep"></div>
@@ -203,20 +204,13 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
       </svg>
     </button>
     <div class="tb-sep"></div>
-    <button class="tb-btn" title="Candles">
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+    <button id="tb-chart-type" class="tb-btn" title="Toggle chart type" onclick="toggleChartType()">
+      <svg id="tb-ct-svg" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
         <line x1="5" y1="3" x2="5" y2="5"/><rect x="3.5" y="5" width="3" height="6" rx=".5"/>
         <line x1="5" y1="11" x2="5" y2="14"/><line x1="12" y1="2" x2="12" y2="5"/>
         <rect x="10.5" y="5" width="3" height="9" rx=".5"/><line x1="12" y1="14" x2="12" y2="17"/>
         <line x1="19" y1="5" x2="19" y2="8"/><rect x="17.5" y="8" width="3" height="5" rx=".5"/>
         <line x1="19" y1="13" x2="19" y2="16"/>
-      </svg>
-    </button>
-    <button class="tb-btn" title="Indicators" style="font-size:11px;font-weight:700;">fx</button>
-    <button class="tb-btn" title="Grid">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
       </svg>
     </button>
     <div style="flex:1"></div>
@@ -510,6 +504,9 @@ const TF_MAP   = {
 let currentTf  = '5m';
 let chart, candleSeries, volSeries;
 let ws, tickerWs, retryTimer, retryDelay = 500;
+let CHART_TYPE = 'candle';
+let _rawCandles = [];
+let _gridVisible = true;
 let loadId = 0;
 let lastMsgAt = 0;
 let stalenessTimer = null;
@@ -668,6 +665,48 @@ function resizeChart() {
   chart.resize(el.offsetWidth, el.offsetHeight);
 }
 
+function toggleChartType() {
+  if (!chart) return;
+  CHART_TYPE = CHART_TYPE === 'candle' ? 'line' : 'candle';
+  var btn = document.getElementById('tb-ct-svg');
+  if (CHART_TYPE === 'line') {
+    if (btn) btn.innerHTML = '<polyline points="3 17 8 11 13 14 21 5" stroke-width="2"/>';
+    try { chart.removeSeries(candleSeries); } catch(_) {}
+    candleSeries = chart.addSeries(LightweightCharts.LineSeries, {
+      color: '#2962FF', lineWidth: 2,
+      lastValueVisible: true, priceLineVisible: true,
+      crosshairMarkerVisible: true, crosshairMarkerRadius: 4,
+    });
+    if (_rawCandles.length) {
+      candleSeries.setData(_rawCandles.map(function(c){return{time:c.time,value:c.close};}));
+    }
+  } else {
+    if (btn) btn.innerHTML =
+      '<line x1="5" y1="3" x2="5" y2="5"/><rect x="3.5" y="5" width="3" height="6" rx=".5"/>'+
+      '<line x1="5" y1="11" x2="5" y2="14"/><line x1="12" y1="2" x2="12" y2="5"/>'+
+      '<rect x="10.5" y="5" width="3" height="9" rx=".5"/><line x1="12" y1="14" x2="12" y2="17"/>'+
+      '<line x1="19" y1="5" x2="19" y2="8"/><rect x="17.5" y="8" width="3" height="5" rx=".5"/>'+
+      '<line x1="19" y1="13" x2="19" y2="16"/>';
+    try { chart.removeSeries(candleSeries); } catch(_) {}
+    candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+      upColor: '#26a69a', downColor: '#ef5350',
+      borderUpColor: '#26a69a', borderDownColor: '#ef5350',
+      wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+      lastValueVisible: true, priceLineVisible: true,
+    });
+    if (_rawCandles.length) candleSeries.setData(_rawCandles);
+  }
+  scheduleRedraw();
+}
+
+function toggleGrid(btn) {
+  if (!chart) return;
+  _gridVisible = !_gridVisible;
+  var c = _gridVisible ? '#1e222d' : 'transparent';
+  chart.applyOptions({ grid: { vertLines: { color: c }, horzLines: { color: c } } });
+  if (btn) btn.classList.toggle('act', !_gridVisible);
+}
+
 // ── Data loading ─────────────────────────────────────────────────────────────
 async function loadData(sym, tf) {
   const id = ++loadId;
@@ -689,7 +728,12 @@ async function loadData(sym, tf) {
       color: parseFloat(k[4]) >= parseFloat(k[1]) ? '#26a69a55' : '#ef535055',
     }));
     if (loadId !== id) return;
-    candleSeries.setData(candles);
+    _rawCandles = candles;
+    if (CHART_TYPE === 'line') {
+      candleSeries.setData(candles.map(function(c){return{time:c.time,value:c.close};}));
+    } else {
+      candleSeries.setData(candles);
+    }
     volSeries.setData(vols);
     chart.timeScale().fitContent();
     connectWS(sym, tf, id);
@@ -735,7 +779,10 @@ function connectTradeWS(sym, id) {
       if (price > liveCandle.high) liveCandle.high = price;
       if (price < liveCandle.low)  liveCandle.low  = price;
       liveCandle.close = price;
-      try { candleSeries.update({ ...liveCandle }); } catch(_) {}
+      try {
+        if (CHART_TYPE === 'line') candleSeries.update({time:liveCandle.time,value:price});
+        else candleSeries.update({ ...liveCandle });
+      } catch(_) {}
     } catch(_) {}
   };
 
@@ -786,8 +833,14 @@ function connectWS(sym, tf, id) {
       };
       // Keep liveCandle in sync so aggTrade can update it between kline ticks
       liveCandle = { ...candle };
-      try { candleSeries.update(candle); } catch(_) {}
-      try { volSeries.update(vol);       } catch(_) {}
+      if (_rawCandles.length && _rawCandles[_rawCandles.length-1].time===candle.time) {
+        _rawCandles[_rawCandles.length-1]=candle;
+      }
+      try {
+        if (CHART_TYPE === 'line') candleSeries.update({time:candle.time,value:candle.close});
+        else candleSeries.update(candle);
+      } catch(_) {}
+      try { volSeries.update(vol); } catch(_) {}
     } catch(_) {}
   };
 
