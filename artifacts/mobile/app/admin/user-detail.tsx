@@ -204,6 +204,21 @@ export default function UserDetail() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={s.actionRow}
+            onPress={() => router.push({ pathname: "/admin/user-trades", params: { uid: user.uid, name: user.name } })}
+            activeOpacity={0.7}
+          >
+            <View style={[s.actionIcon, { backgroundColor: "#3b82f622" }]}>
+              <SvgIcon name="swap-horizontal-outline" size={18} color="#3b82f6" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.actionLabel, { color: "#3b82f6" }]}>Trade History</Text>
+              <Text style={s.actionSub}>{user.tradeCount} trades · view dates & details</Text>
+            </View>
+            <SvgIcon name="chevron-forward-outline" size={16} color={MUTED} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[s.actionRow, { borderBottomWidth: 0 }]}
             onPress={handleBlock}
             activeOpacity={0.7}

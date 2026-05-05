@@ -12,6 +12,7 @@ export default function AdminLayout() {
       <Stack.Screen name="earnings" />
       <Stack.Screen name="google-ads" />
       <Stack.Screen name="trades" />
+      <Stack.Screen name="user-trades" />
     </Stack>
   );
 }

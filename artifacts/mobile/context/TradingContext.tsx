@@ -8,6 +8,8 @@ import React, {
   useState,
 } from "react";
 import { Appearance } from "react-native";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
 
 export type MarketType = "crypto";
 
@@ -671,48 +673,67 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   const closePosition = useCallback(
     (positionId: string) => {
-      setPositions((prev) => {
-        const pos = prev.find((p) => p.id === positionId);
-        if (!pos) return prev;
+      const pos = positions.find((p) => p.id === positionId);
+      if (!pos) return;
 
-        // Use the position's own symbol price, not just the selected symbol price
-        const exitPrice = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id) || pos.entryPrice;
-        const pnlRaw = calcPnL(pos, exitPrice);
-        const pnl = pnlRaw * usdToInr;
-        // Clamp: can't lose more than margin
-        const clampedPnl = Math.max(-pos.margin, pnl);
-        const exitValue = pos.margin + clampedPnl;
-        const pnlPct = (clampedPnl / pos.margin) * 100;
+      const exitPrice = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id) || pos.entryPrice;
+      const pnlRaw   = calcPnL(pos, exitPrice);
+      const pnl      = pnlRaw * usdToInr;
+      const clampedPnl = Math.max(-pos.margin, pnl);
+      const exitValue  = pos.margin + clampedPnl;
+      const pnlPct     = (clampedPnl / pos.margin) * 100;
 
-        const histEntry: TradeHistory = {
-          id: positionId,
-          symbol: pos.symbol,
-          side: pos.side,
-          entryPrice: pos.entryPrice,
-          exitPrice: exitPrice,
-          quantity: pos.quantity,
-          leverage: pos.leverage,
-          pnl: clampedPnl,
-          pnlPct,
-          openedAt: pos.openedAt,
-          closedAt: Date.now(),
-          margin: pos.margin,
-        };
+      const histEntry: TradeHistory = {
+        id: positionId,
+        symbol: pos.symbol,
+        side: pos.side,
+        entryPrice: pos.entryPrice,
+        exitPrice,
+        quantity: pos.quantity,
+        leverage: pos.leverage,
+        pnl: clampedPnl,
+        pnlPct,
+        openedAt: pos.openedAt,
+        closedAt: Date.now(),
+        margin: pos.margin,
+      };
 
-        const updated = prev.filter((p) => p.id !== positionId);
-        const newHistory = [histEntry, ...tradeHistory];
+      // Persist trade to Firestore so admin can view history
+      try {
+        const uid = getFirebaseAuth().currentUser?.uid;
+        if (uid) {
+          const db = getFirebaseDb();
+          setDoc(doc(db, "users", uid, "trades", histEntry.id), {
+            id: histEntry.id,
+            symbolId:    histEntry.symbol.id,
+            symbolLabel: histEntry.symbol.label,
+            symbolName:  histEntry.symbol.name,
+            side:        histEntry.side,
+            entryPrice:  histEntry.entryPrice,
+            exitPrice:   histEntry.exitPrice,
+            quantity:    histEntry.quantity,
+            leverage:    histEntry.leverage,
+            pnl:         histEntry.pnl,
+            pnlPct:      histEntry.pnlPct,
+            openedAt:    histEntry.openedAt,
+            closedAt:    histEntry.closedAt,
+            margin:      histEntry.margin,
+          }).catch(() => {});
+        }
+      } catch {}
 
-        setTradeHistory(newHistory);
-        setBalance((b) => {
-          const newB = b + exitValue;
-          saveState(newB, updated, newHistory, theme, leverage);
-          return newB;
-        });
+      const updatedPositions = positions.filter((p) => p.id !== positionId);
+      const newHistory = [histEntry, ...tradeHistory];
 
-        return updated;
+      setPositions(updatedPositions);
+      setTradeHistory(newHistory);
+      setBalance((b) => {
+        const newB = b + exitValue;
+        saveState(newB, updatedPositions, newHistory, theme, leverage);
+        return newB;
       });
     },
-    [currentPrice, symbolPrices, selectedSymbol, tradeHistory, theme, leverage, usdToInr]
+    [positions, currentPrice, symbolPrices, selectedSymbol, tradeHistory, theme, leverage, usdToInr]
   );
 
   const modifyPosition = useCallback(

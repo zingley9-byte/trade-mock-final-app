@@ -3,12 +3,29 @@ import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, doc, setDoc, updateDoc, deleteDoc,
-  onSnapshot, query, orderBy, getDoc, increment,
+  onSnapshot, query, orderBy, getDoc, increment, getDocs,
 } from "firebase/firestore";
 
 export const ADMIN_EMAIL = "Zingley9@gmail.com";
 
 export type UserRole = "admin" | "user";
+
+export interface AdminTradeRecord {
+  id: string;
+  symbolId: string;
+  symbolLabel: string;
+  symbolName: string;
+  side: "buy" | "sell";
+  entryPrice: number;
+  exitPrice: number;
+  quantity: number;
+  leverage: number;
+  pnl: number;
+  pnlPct: number;
+  openedAt: number;
+  closedAt: number;
+  margin: number;
+}
 
 export interface AdminUser {
   uid: string;
@@ -83,6 +100,7 @@ interface AdminContextType {
   ) => Promise<void>;
   checkAndApplyAdminReset: (uid: string, applyReset: () => void) => Promise<void>;
   checkAndApplyAdminFundAdd: (uid: string, applyFundAdd: (amount: number) => void) => Promise<void>;
+  getUserTrades: (uid: string) => Promise<AdminTradeRecord[]>;
 }
 
 const AdminContext = createContext<AdminContextType | null>(null);
@@ -214,6 +232,20 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }
 
+  async function getUserTrades(uid: string): Promise<AdminTradeRecord[]> {
+    try {
+      const db = getFirebaseDb();
+      const snap = await getDocs(
+        query(collection(db, "users", uid, "trades"), orderBy("closedAt", "desc"))
+      );
+      const list: AdminTradeRecord[] = [];
+      snap.forEach((d) => list.push(d.data() as AdminTradeRecord));
+      return list;
+    } catch {
+      return [];
+    }
+  }
+
   async function checkAndApplyAdminFundAdd(uid: string, applyFundAdd: (amount: number) => void) {
     try {
       const db = getFirebaseDb();
@@ -286,7 +318,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       isAdmin, role, adminEmail, users, announcements, appConfig, blockedUids, loading,
       refreshUsers, blockUser, unblockUser, addFakeBalance, resetUserFund,
       addAnnouncement, updateAnnouncement, deleteAnnouncement, updateAppConfig,
-      registerUserActivity, checkAndApplyAdminReset, checkAndApplyAdminFundAdd,
+      registerUserActivity, checkAndApplyAdminReset, checkAndApplyAdminFundAdd, getUserTrades,
     }}>
       {children}
     </AdminContext.Provider>
