@@ -137,6 +137,17 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 .sub-item.act .sub-icon svg,.sub-item.act .sub-icon{color:#2F6BFF;}
 /* Drawing Canvas overlay — pointer-events:none by default so chart gets all touches */
 #drw-canvas{display:block;position:absolute;top:0;left:0;z-index:5;pointer-events:none;}
+/* Tool active instruction pill */
+#drw-hint{
+  position:fixed;bottom:calc(40px + env(safe-area-inset-bottom,0px));left:50%;
+  transform:translateX(-50%);
+  background:rgba(41,98,255,0.13);border:1px solid rgba(41,98,255,0.45);
+  color:#93bbff;font-size:11px;font-weight:600;padding:5px 16px;border-radius:20px;
+  pointer-events:none;z-index:700;letter-spacing:.3px;white-space:nowrap;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  transition:opacity .15s;
+}
+#drw-hint.hidden{display:none;}
 /* Float menu */
 #float-menu{position:fixed;background:#1C2333;border:1px solid #283045;border-radius:12px;padding:5px 7px;display:flex;align-items:center;gap:2px;z-index:600;box-shadow:0 8px 28px #00000099;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
 #float-menu.hidden{display:none;}
@@ -328,6 +339,9 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 
   <!-- Backdrop for menus -->
   <div id="backdrop" onclick="closeAllMenus()"></div>
+
+  <!-- Tool instruction pill -->
+  <div id="drw-hint" class="hidden"></div>
 
   <!-- BOTTOM BAR -->
   <div id="botbar">
@@ -845,6 +859,7 @@ function updateCanvasMode() {
     c.style.touchAction   = '';
     c.style.cursor        = '';
   }
+  updateHint();
 }
 
 // ── RAF render loop ───────────────────────────────────────────────
@@ -866,8 +881,71 @@ function doRender() {
   ctx.scale(dpr, dpr);
   if (!HIDE) { DRW.forEach(function(d) { if (d.visible !== false) drawShape(ctx, d, d.id === SEL); }); }
   if (IP) drawInProgress(ctx);
+  drawCrosshair(ctx);
   ctx.restore();
   _dirty = false;
+}
+
+// ── Crosshair overlay (shown while any tool is active) ────────────
+function drawCrosshair(ctx) {
+  if (!_previewPt || !TOOL || TOOL==='cursor') return;
+  var x=_previewPt.x, y=_previewPt.y;
+  ctx.save();
+  // Dashed guide lines
+  ctx.strokeStyle='#2962FF'; ctx.lineWidth=1; ctx.globalAlpha=0.65;
+  ctx.setLineDash([5,4]);
+  ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,_H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(_W,y); ctx.stroke();
+  ctx.setLineDash([]);
+  // Center anchor dot
+  ctx.globalAlpha=1;
+  ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2);
+  ctx.fillStyle='#2962FF'; ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
+  // Price label on right edge
+  try {
+    var price=candleSeries.coordinateToPrice(y);
+    if (price!=null) {
+      var pTxt=fmtP(price);
+      ctx.font='bold 10px system-ui,sans-serif';
+      var tw=ctx.measureText(pTxt).width, lw=tw+10, lh=17;
+      var lx=_W-lw-1, ly=y-lh/2;
+      ctx.fillStyle='#2962FF'; ctx.globalAlpha=0.95;
+      cRRect(ctx,lx,ly,lw,lh,3); ctx.fill();
+      ctx.fillStyle='#fff'; ctx.globalAlpha=1;
+      ctx.textBaseline='middle'; ctx.fillText(pTxt,lx+5,y);
+    }
+  } catch(e){}
+  ctx.restore();
+}
+
+// ── Instruction pill ──────────────────────────────────────────────
+function updateHint() {
+  var el=document.getElementById('drw-hint'); if(!el) return;
+  var txt='';
+  if (TOOL && TOOL!=='cursor') {
+    if (TOOL==='brush'||TOOL==='highlighter') {
+      txt='Draw freely on chart';
+    } else if (TOOL==='hline') {
+      txt='Tap to place horizontal line';
+    } else if (TOOL==='vline') {
+      txt='Tap to place vertical line';
+    } else if (TOOL==='pricelabel') {
+      txt='Tap to place price label';
+    } else if (TOOL==='text'||TOOL==='note') {
+      txt='Tap to place text';
+    } else if (THREE_PT.has(TOOL)) {
+      if (!IP || CUR_PTS.length===0) txt='Tap to set first point';
+      else if (CUR_PTS.length===1)   txt='Tap to set second point';
+      else                           txt='Tap to finish';
+    } else {
+      // 2-pt drag tools
+      if (!IP) txt='Drag to draw';
+      else     txt='Release to finish';
+    }
+  }
+  if (txt) { el.textContent=txt; el.classList.remove('hidden'); }
+  else      { el.classList.add('hidden'); }
 }
 
 // ── Canvas drawing primitives ─────────────────────────────────────
@@ -1333,8 +1411,8 @@ function initFMEvents() {
 }
 
 function setTool(id) {
-  TOOL=id; CUR_PTS=[]; FREE_PTS=[]; IP=null; SEL=null;
-  hideFM(); updateCanvasMode(); buildSidebar(); scheduleRedraw();
+  TOOL=id; CUR_PTS=[]; FREE_PTS=[]; IP=null; SEL=null; _previewPt=null;
+  hideFM(); updateCanvasMode(); updateHint(); buildSidebar(); scheduleRedraw();
 }
 
 // ── Float menu ────────────────────────────────────────────────────
@@ -1598,6 +1676,7 @@ function onDown(e) {
   if(IP&&THREE_PT.has(IP)&&CUR_PTS.length===2){
     CUR_PTS.push(pt);finishDrawing();return;
   }
+  updateHint();
 
   // Single-tap tools
   if(TOOL==='hline'){
@@ -1633,12 +1712,13 @@ function onMove(e) {
 
   _previewPt={x:x,y:y};
 
+  if(TOOL&&TOOL!=='cursor') scheduleRedraw();
+
   if(M_DOWN&&IP&&CUR_PTS.length>=2){
     var pt=svgToData(x,y);
     if(pt.price!=null && pt.time!=null) CUR_PTS[1]=pt;
-    scheduleRedraw();
   } else if(!M_DOWN&&IP&&THREE_PT.has(IP)&&CUR_PTS.length===2){
-    scheduleRedraw();
+    // already scheduled above
   }
 }
 
@@ -1668,7 +1748,7 @@ function onUp(e) {
     if(CUR_PTS[1].time==null){IP=null;CUR_PTS=[];_previewPt=null;scheduleRedraw();return;}
 
     if(THREE_PT.has(IP)){
-      _previewPt=null;scheduleRedraw();
+      _previewPt=null;updateHint();scheduleRedraw();
     } else {
       var up1=dataToSvg(CUR_PTS[0].price,CUR_PTS[0].time);
       var up2=dataToSvg(CUR_PTS[1].price,CUR_PTS[1].time);
