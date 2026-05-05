@@ -35,7 +35,6 @@ export default function PortfolioScreen() {
     closePosition,
     modifyPosition,
     resetAccount,
-    resetsRemaining,
     currencyMode,
     usdToInr,
   } = useTradingContext();
@@ -111,25 +110,16 @@ export default function PortfolioScreen() {
   }
 
   function handleReset() {
-    if (resetsRemaining === 0) {
-      Alert.alert(
-        "Reset Limit Reached",
-        "You have used all 2 resets for this 30-day period."
-      );
-      return;
-    }
-    const afterReset = resetsRemaining - 1;
     Alert.alert(
-      "Reset Warning",
-      `You only get 2 resets every 30 days.\n\nAfter this reset, you will have ${afterReset} reset${afterReset !== 1 ? "s" : ""} remaining.\n\nBalance will be restored to ${isUSD ? "$1,000,000" : "₹10,00,000"} and all trade history will be cleared.`,
+      "Reset Fund",
+      "Balance will be restored to ₹10,00,000 and all positions & trade history will be cleared.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Reset",
           style: "destructive",
           onPress: () => {
-            const result = resetAccount();
-            if (!result.allowed) Alert.alert("Limit Reached", result.message);
+            resetAccount();
           },
         },
       ]
@@ -158,11 +148,11 @@ export default function PortfolioScreen() {
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Portfolio</Text>
           <TouchableOpacity
             onPress={handleReset}
-            style={[styles.resetBtn, { borderColor: colors.border, opacity: resetsRemaining === 0 ? 0.4 : 1 }]}
+            style={[styles.resetBtn, { borderColor: colors.border }]}
           >
             <SvgIcon name="refresh-outline" size={14} color={colors.mutedForeground} />
             <Text style={[styles.resetText, { color: colors.mutedForeground }]}>
-              Reset ({resetsRemaining}/2)
+              Reset Fund
             </Text>
           </TouchableOpacity>
         </View>

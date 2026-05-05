@@ -223,7 +223,7 @@ function ChartBgModal({
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { theme, setTheme, resetAccount, resetsRemaining } = useTradingContext();
+  const { theme, setTheme, resetAccount } = useTradingContext();
   const { isAdmin } = useAdmin();
   const isDark = theme === "dark";
 
@@ -352,29 +352,17 @@ export default function SettingsScreen() {
   }
 
   function handleResetFund() {
-    if (resetsRemaining === 0) {
-      Alert.alert(
-        "Reset Limit Reached",
-        "You have used all 2 resets for this 30-day period. Please wait until your next reset window."
-      );
-      return;
-    }
-    const after = resetsRemaining - 1;
     Alert.alert(
       "Reset Fund",
-      `Your balance will be restored to ₹10,00,000 and all open positions & trade history will be cleared.\n\nResets remaining after this: ${after}/2 (30-day limit)`,
+      "Your balance will be restored to ₹10,00,000 and all open positions & trade history will be cleared.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Reset Fund",
           style: "destructive",
           onPress: () => {
-            const result = resetAccount();
-            if (!result.allowed) {
-              Alert.alert("Limit Reached", result.message);
-            } else {
-              Alert.alert("Fund Reset", "Your balance has been restored to ₹10,00,000.");
-            }
+            resetAccount();
+            Alert.alert("Fund Reset", "Your balance has been restored to ₹10,00,000.");
           },
         },
       ]
@@ -519,18 +507,16 @@ export default function SettingsScreen() {
           colors={colors} showChevron onPress={handleBackup} isFirst />
         <RowItem
           icon="refresh-outline" iconBg="#ef4444" label="Reset Fund"
-          sub={resetsRemaining > 0
-            ? `Restore balance to ₹10,00,000 · ${resetsRemaining}/2 resets left`
-            : "Reset limit reached · Try again in 30 days"}
+          sub="Restore balance to ₹10,00,000 · Clears all trades"
           colors={colors} showChevron
           onPress={handleResetFund}
           right={
             <View style={[styles.resetBadge, {
-              backgroundColor: resetsRemaining > 0 ? colors.bearBg : colors.muted,
+              backgroundColor: colors.bearBg,
             }]}>
               <Text style={[styles.resetBadgeText, {
-                color: resetsRemaining > 0 ? colors.bear : colors.mutedForeground,
-              }]}>{resetsRemaining}/2</Text>
+                color: colors.bear,
+              }]}>Reset</Text>
             </View>
           }
           isLast

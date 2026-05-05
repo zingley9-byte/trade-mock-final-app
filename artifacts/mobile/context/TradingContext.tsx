@@ -210,7 +210,6 @@ interface TradingContextType {
   getRunningPnL: () => number;
   getTotalPortfolioValue: () => number;
   resetAccount: () => { allowed: boolean; message: string };
-  resetsRemaining: number;
 }
 
 const TradingContext = createContext<TradingContextType | null>(null);
@@ -721,21 +720,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     return balance + marginUsed + getRunningPnL();
   }, [balance, positions, getRunningPnL]);
 
-  const RESET_LIMIT = 2;
-  const RESET_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
   const resetAccount = useCallback((): { allowed: boolean; message: string } => {
-    const now = Date.now();
-    const recent = resetTimestamps.filter((t) => now - t < RESET_WINDOW_MS);
-    if (recent.length >= RESET_LIMIT) {
-      const oldest = Math.min(...recent);
-      const daysLeft = Math.ceil((RESET_WINDOW_MS - (now - oldest)) / (24 * 60 * 60 * 1000));
-      return {
-        allowed: false,
-        message: `Reset limit reached (${RESET_LIMIT}/30 days). Try again in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}.`,
-      };
-    }
-    const newTimestamps = [...recent, now];
+    const newTimestamps = [...resetTimestamps, Date.now()];
     setResetTimestamps(newTimestamps);
     setBalance(INITIAL_BALANCE);
     setPositions([]);
@@ -841,7 +827,6 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         getRunningPnL,
         getTotalPortfolioValue,
         resetAccount,
-        resetsRemaining: Math.max(0, 2 - resetTimestamps.filter((t) => Date.now() - t < 30 * 24 * 60 * 60 * 1000).length),
       }}
     >
       {children}

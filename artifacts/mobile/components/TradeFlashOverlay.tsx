@@ -42,7 +42,7 @@ export default function TradeFlashOverlay() {
   const opacity    = useRef(new Animated.Value(0)).current;
   const prevFlash  = useRef<typeof tradeFlash>(null);
   const [visible, setVisible] = useState(false);
-  const autoTimer  = useRef<ReturnType<typeof setTimeout>>();
+  const autoTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (tradeFlash && tradeFlash !== prevFlash.current) {
