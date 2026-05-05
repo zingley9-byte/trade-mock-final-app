@@ -22,7 +22,7 @@ import TradingViewChart from "@/components/TradingViewChart";
 import { SYMBOLS, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 
-type SubTab = "traded" | "orderbook" | "trades";
+type SubTab = "traded";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -511,7 +511,7 @@ export default function ChartsScreen() {
     symbolPrices, symbolChanges,
   } = useTradingContext();
 
-  const [subTab,          setSubTab]          = useState<SubTab>("traded");
+  const subTab: SubTab = "traded";
   const [chartHeight,     setChartHeight]     = useState(300);
   const [quickVisible,    setQuickVisible]    = useState(false);
   const [quickSide,       setQuickSide]       = useState<"buy" | "sell">("buy");
@@ -579,11 +579,6 @@ export default function ChartsScreen() {
     if (sym) setSelectedSymbol(sym);
   }
 
-  const subTabs: { key: SubTab; label: string }[] = [
-    { key: "traded",    label: "Traded Price" },
-    { key: "orderbook", label: "Order Book"   },
-    { key: "trades",    label: "Recent Trades" },
-  ];
 
   const { width: winW } = useWindowDimensions();
   const tabBarH      = Platform.OS === "web" ? 68 : 76 + insets.bottom;
@@ -623,37 +618,13 @@ export default function ChartsScreen() {
 
       </View>
 
-      {/* ── Sub-tabs (full width) ── */}
-      <View style={[s.subNav, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.subNavInner}>
-          {subTabs.map(({ key, label }) => {
-            const active = subTab === key;
-            return (
-              <TouchableOpacity key={key} onPress={() => setSubTab(key)} style={s.subNavItem} activeOpacity={0.7}>
-                <Text style={[s.subNavText, { color: active ? colors.primary : colors.mutedForeground }]}>
-                  {label}
-                </Text>
-                {active && <View style={[s.subNavUnderline, { backgroundColor: colors.primary }]} />}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
 
       {/* ── Middle Row: Chart + Desktop Crypto Panel ── */}
       <View style={{ flex: 1, flexDirection: "row" }}>
 
-        {/* Chart / order book / trades — takes all remaining width */}
+        {/* Chart */}
         <View style={{ flex: 1 }} onLayout={onChartLayout}>
-          <View style={subTab === "traded" ? { flex: 1 } : { height: 0, overflow: "hidden" as const }}>
-            <TradingViewChart symbol={selectedSymbol.id} height={chartHeight} />
-          </View>
-          {subTab === "orderbook" && (
-            <OrderBook price={currentPrice} colors={colors} />
-          )}
-          {subTab === "trades" && (
-            <RecentTrades price={currentPrice} colors={colors} />
-          )}
+          <TradingViewChart symbol={selectedSymbol.id} height={chartHeight} />
         </View>
 
         {/* Desktop-only crypto panel (right side, 768px+) */}
