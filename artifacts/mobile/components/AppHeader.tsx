@@ -26,10 +26,11 @@ import { SYMBOLS, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CoinLogo from "@/components/CoinLogo";
+import { useAdmin } from "@/context/AdminContext";
 
 const PROFILE_KEY = "trademock_profile_image";
 
-const ANNOUNCEMENTS = [
+const STATIC_ANNOUNCEMENTS = [
   {
     icon: "sparkles-outline",
     color: "#f59e0b",
@@ -39,11 +40,11 @@ const ANNOUNCEMENTS = [
     isNew: true,
   },
   {
-    icon: "trending-up-outline",
+    icon: "rocket-outline",
     color: "#10b981",
-    title: "18 New Drawing Tools Added",
-    body: "Trend lines, Fibonacci retracements, pitchfork, Elliott waves & more — now available on the chart.",
-    date: "May 2, 2026",
+    title: "100+ Coins Coming Soon",
+    body: "We are expanding our coins list to 100+ cryptocurrencies. Stay tuned for the update!",
+    date: "May 3, 2026",
     isNew: true,
   },
   {
@@ -72,6 +73,17 @@ const ANNOUNCEMENTS = [
   },
 ];
 
+const ADMIN_TYPE_COLORS: Record<string, string> = {
+  info: "#3b82f6",
+  warning: "#f59e0b",
+  success: "#22c55e",
+};
+const ADMIN_TYPE_ICONS: Record<string, string> = {
+  info: "information-circle-outline",
+  warning: "warning-outline",
+  success: "checkmark-circle-outline",
+};
+
 const COIN_COLORS: Record<string, string> = {
   BTCUSDT: "#F7931A", ETHUSDT: "#627EEA", BNBUSDT: "#F0B90B",
   DOGEUSDT: "#C2A633", SOLUSDT: "#9945FF",
@@ -93,6 +105,9 @@ export default function AppHeader() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { theme, setTheme, currencyMode, setCurrencyMode, setSelectedSymbol, symbolPrices } = useTradingContext();
+
+  const { announcements: adminAnnouncements } = useAdmin();
+  const activeAdminAnnouncements = adminAnnouncements.filter((a) => a.active);
 
   const [profileOpen, setProfileOpen]   = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -269,7 +284,12 @@ export default function AppHeader() {
             style={[styles.iconBtn, { backgroundColor: colors.muted }]}
             onPress={() => setAnnouncementsOpen(true)}
           >
-            <SvgIcon name="megaphone-outline" size={16} color={colors.foreground} />
+            <SvgIcon name="notifications-outline" size={16} color={colors.foreground} />
+            {activeAdminAnnouncements.length > 0 && (
+              <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+                <Text style={styles.badgeText}>{activeAdminAnnouncements.length > 9 ? "9+" : activeAdminAnnouncements.length}</Text>
+              </View>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -292,7 +312,7 @@ export default function AppHeader() {
           <View style={[styles.announcHandle, { backgroundColor: colors.border }]} />
           <View style={styles.announcHeader}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <SvgIcon name="megaphone-outline" size={18} color={colors.foreground} />
+              <SvgIcon name="notifications-outline" size={18} color={colors.foreground} />
               <Text style={[styles.announcTitle, { color: colors.foreground }]}>Announcements</Text>
             </View>
             <TouchableOpacity onPress={() => setAnnouncementsOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -301,7 +321,42 @@ export default function AppHeader() {
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            {ANNOUNCEMENTS.map((a, i) => (
+            {/* Live admin announcements */}
+            {activeAdminAnnouncements.length > 0 && (
+              <>
+                <View style={[styles.announcSectionLabel, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.announcSectionText, { color: colors.primary }]}>FROM ADMIN</Text>
+                </View>
+                {activeAdminAnnouncements.map((a) => {
+                  const color = ADMIN_TYPE_COLORS[a.type] ?? "#3b82f6";
+                  const icon  = ADMIN_TYPE_ICONS[a.type]  ?? "information-circle-outline";
+                  const date  = new Date(a.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+                  return (
+                    <View key={a.id} style={[styles.announcRow, { borderBottomColor: colors.border }]}>
+                      <View style={[styles.announcIconWrap, { backgroundColor: color + "22" }]}>
+                        <SvgIcon name={icon as any} size={16} color={color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                          <Text style={[styles.announcRowTitle, { color: colors.foreground }]}>{a.title}</Text>
+                          <View style={[styles.newBadge, { backgroundColor: color }]}>
+                            <Text style={styles.newBadgeText}>{a.type.toUpperCase()}</Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.announcRowBody, { color: colors.mutedForeground }]}>{a.message}</Text>
+                        <Text style={[styles.announcRowDate, { color: colors.mutedForeground }]}>{date}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Static announcements */}
+            <View style={[styles.announcSectionLabel, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.announcSectionText, { color: colors.mutedForeground }]}>UPDATES</Text>
+            </View>
+            {STATIC_ANNOUNCEMENTS.map((a, i) => (
               <View key={i} style={[styles.announcRow, { borderBottomColor: colors.border }]}>
                 <View style={[styles.announcIconWrap, { backgroundColor: a.color + "22" }]}>
                   <SvgIcon name={a.icon as any} size={16} color={a.color} />
@@ -693,4 +748,9 @@ const styles = StyleSheet.create({
   announcRowDate:  { fontSize: 11 },
   newBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
   newBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" as const, letterSpacing: 0.5 },
+  announcSectionLabel: {
+    paddingHorizontal: 18, paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  announcSectionText: { fontSize: 10, fontWeight: "800" as const, letterSpacing: 1 },
 });
