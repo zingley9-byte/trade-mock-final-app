@@ -1514,10 +1514,11 @@ function ChartWebView({
 }
 
 export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }: Props) {
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [fsLoading,    setFsLoading]    = useState(false);
+  const [loading,        setLoading]        = useState(true);
+  const [error,          setError]          = useState(false);
+  const [isFullscreen,   setIsFullscreen]   = useState(false);
+  // Once true, stays true so the Modal (and its WebView) is never unmounted
+  const [fsEverOpened,   setFsEverOpened]   = useState(false);
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   const bin = symbol.replace("/","").toUpperCase().endsWith("USDT")
@@ -1542,8 +1543,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
   }, [isFullscreen]);
 
   const onNormalLoad = useCallback(() => setLoading(false), []);
-  const onFsLoad     = useCallback(() => setFsLoading(false), []);
-  const onError      = useCallback(() => { setLoading(false); setFsLoading(false); setError(true); }, []);
+  const onError      = useCallback(() => { setLoading(false); setError(true); }, []);
   const retry     = useCallback(() => {
     setError(false); setLoading(true);
     setIsFullscreen(false);
@@ -1551,7 +1551,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
   // Lock to landscape when fullscreen opens via rotate button; unlock on close
   const openFullscreenLandscape = useCallback(async () => {
-    setFsLoading(true);
+    setFsEverOpened(true); // Modal mounts WebView once, stays mounted forever
     setIsFullscreen(true);
     try {
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
@@ -1577,7 +1577,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     try {
       const data = JSON.parse(e.nativeEvent.data);
       if (data.type === "toggleFS") {
-        if (data.value) { setFsLoading(true); setIsFullscreen(true); }
+        if (data.value) { setFsEverOpened(true); setIsFullscreen(true); }
         else { closeFullscreen(); }
       } else if (data.type === "rotateFS") {
         openFullscreenLandscape();
@@ -1589,13 +1589,6 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     <>
       {/* ── Normal view ── */}
       <View style={[styles.root, { height }]}>
-        {/* Loading overlay — only on first load, never when returning from fullscreen */}
-        {loading && !isFullscreen && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator color="#26a69a" size="small" />
-            <Text style={styles.loadingTxt}>Loading chart…</Text>
-          </View>
-        )}
         {error ? (
           <View style={styles.errBox}>
             <Text style={styles.errIcon}>⚠</Text>
@@ -1606,9 +1599,8 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
             </TouchableOpacity>
           </View>
         ) : (
-          /* Always keep WebView mounted so it stays connected in background during fullscreen.
-             Hidden with opacity:0 + pointer-events off while fullscreen modal is open.
-             On exit, chart is instantly visible — no reload, no loading screen. */
+          /* Always keep WebView mounted — hidden (opacity 0) while fullscreen is open,
+             visible instantly when returning. No reload, no loading screen. */
           <View style={isFullscreen ? styles.hiddenWebView : styles.visibleWebView}>
             <ChartWebView
               html={html}
@@ -1622,38 +1614,50 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
         )}
       </View>
 
-      {/* ── Fullscreen Modal — uses htmlFS (initialFS=true) so exit works ── */}
-      <Modal
-        visible={isFullscreen}
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={closeFullscreen}
-        supportedOrientations={["portrait", "landscape"]}
-      >
-        <StatusBar hidden backgroundColor="#131722" />
-        <View style={[styles.fsRoot, { width: screenW, height: screenH }]}>
-          {fsLoading && (
-            <LoadingCandleAnimation overlay status="connecting" message="Loading chart" size="sm" />
-          )}
-          <ChartWebView
-            html={htmlFS}
-            binKey={`${bin}-fs-static`}
-            h={0}
-            onLoad={onFsLoad}
-            onError={onError}
-            onMsg={onMessage}
-          />
-          {/* Small ✕ exit — bottom-center */}
-          <TouchableOpacity
-            style={styles.fsExitBtn}
-            onPress={closeFullscreen}
-            activeOpacity={0.75}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      {/* ── Fullscreen Modal ──────────────────────────────────────────────────
+          visible={fsEverOpened} — once opened, STAYS visible so the WebView
+          inside is never unmounted/reloaded on subsequent open/close cycles.
+          When isFullscreen=false the inner View is 0×0 + pointerEvents=none
+          so it doesn't intercept touches or show anything.                  */}
+      {fsEverOpened && (
+        <Modal
+          visible={fsEverOpened}
+          animationType="none"
+          transparent
+          statusBarTranslucent
+          onRequestClose={closeFullscreen}
+          supportedOrientations={["portrait", "landscape"]}
+        >
+          <StatusBar hidden={isFullscreen} backgroundColor="#131722" />
+          {/* When NOT fullscreen: 0×0 invisible — WebView stays mounted silently */}
+          <View
+            pointerEvents={isFullscreen ? "auto" : "none"}
+            style={isFullscreen
+              ? [styles.fsRoot, { width: screenW, height: screenH }]
+              : styles.fsHidden}
           >
-            <Text style={styles.fsExitIcon}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+            <ChartWebView
+              html={htmlFS}
+              binKey={`${bin}-fs-static`}
+              h={0}
+              onLoad={onNormalLoad}
+              onError={onError}
+              onMsg={onMessage}
+            />
+            {/* ✕ exit button — only rendered (touchable) when fullscreen */}
+            {isFullscreen && (
+              <TouchableOpacity
+                style={styles.fsExitBtn}
+                onPress={closeFullscreen}
+                activeOpacity={0.75}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={styles.fsExitIcon}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </Modal>
+      )}
     </>
   );
 }
@@ -1662,15 +1666,11 @@ const styles = StyleSheet.create({
   root:           { backgroundColor: "#131722", overflow: "hidden" },
   fsRoot:         { backgroundColor: "#131722", flex: 1 },
   webview:        { flex: 1, backgroundColor: "#131722" },
-  // Normal WebView stays mounted during fullscreen — just hidden, never unmounted
+  // Normal WebView: always mounted, hidden while fullscreen modal is active
   visibleWebView: { flex: 1 },
   hiddenWebView:  { ...StyleSheet.absoluteFillObject, opacity: 0, pointerEvents: "none" } as any,
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#131722",
-    alignItems: "center", justifyContent: "center", gap: 8, zIndex: 10,
-  },
-  loadingTxt: { color: "#787b86", fontSize: 12 },
+  // Fullscreen WebView: 0×0 invisible when not in fullscreen — stays mounted silently
+  fsHidden:       { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0 } as any,
   errBox:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 24 },
   errIcon:    { fontSize: 28, color: "#f59e0b" },
   errTitle:   { color: "#d1d4dc", fontSize: 14, fontWeight: "700" },
