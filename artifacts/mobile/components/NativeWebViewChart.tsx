@@ -12,7 +12,6 @@ import {
 import LoadingCandleAnimation from "./LoadingCandleAnimation";
 import { WebView } from "react-native-webview";
 import { LWC_SCRIPT } from "../lib/lwcScript";
-import * as ScreenOrientation from "expo-screen-orientation";
 
 interface Props {
   symbol?: string;
@@ -1517,10 +1516,6 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState(false);
   const [isFullscreen,   setIsFullscreen]   = useState(false);
-  // exitingFS: true while we animate back from fullscreen. A solid #131722 overlay
-  // sits on top of the portrait WebView so the user never sees the chart at the
-  // wrong (landscape) size during the orientation-back animation.
-  const [exitingFS,      setExitingFS]      = useState(false);
   const normalWVRef = useRef<any>(null); // ref to normal (portrait) WebView
   const { width: screenW, height: screenH } = useWindowDimensions();
 
@@ -1565,33 +1560,16 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     setIsFullscreen(false);
   }, []);
 
-  // Lock to landscape when fullscreen opens via rotate button; unlock on close
-  const openFullscreenLandscape = useCallback(async () => {
+  // Open fullscreen Modal — no orientation lock so the portrait WebView's
+  // viewport never changes and resize glitches are impossible.
+  // The Modal supports both orientations; users rotate the device themselves.
+  const openFullscreenLandscape = useCallback(() => {
     setIsFullscreen(true);
-    try {
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-    } catch (_) {}
   }, []);
 
-  const closeFullscreen = useCallback(async () => {
+  const closeFullscreen = useCallback(() => {
     Keyboard.dismiss();
-    // 1. Activate the dark overlay BEFORE any orientation change so the portrait
-    //    WebView is always covered while it is at the wrong (landscape) size.
-    setExitingFS(true);
-    // 2. Close the fullscreen modal — portrait WebView becomes flex:1 (still
-    //    covered by the overlay, so any squish is invisible to the user).
     setIsFullscreen(false);
-    // 3. Rotate device back to portrait.
-    try { await ScreenOrientation.unlockAsync(); } catch (_) {}
-    // 4. Wait for the orientation animation to finish, then force a resize inside
-    //    the portrait WebView so lightweight-charts redraws at portrait dimensions.
-    await new Promise<void>(r => setTimeout(r, 450));
-    normalWVRef.current?.injectJavaScript(
-      "try{window.dispatchEvent(new Event('resize'));if(typeof resizeChart==='function')resizeChart();}catch(e){} true;"
-    );
-    // 5. Short pause for the chart to finish drawing, then lift the overlay.
-    await new Promise<void>(r => setTimeout(r, 120));
-    setExitingFS(false);
   }, []);
 
   const onMessage = useCallback((e: any) => {
@@ -1633,11 +1611,6 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
               onError={onError}
               onMsg={onMessage}
             />
-            {/* Dark overlay during fullscreen-exit transition — prevents the user
-                from seeing the chart at landscape dimensions before it redraws */}
-            {exitingFS && (
-              <View style={styles.exitOverlay} pointerEvents="none" />
-            )}
           </View>
         )}
       </View>
@@ -1679,7 +1652,6 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
 const styles = StyleSheet.create({
   root:           { backgroundColor: "#131722", overflow: "hidden" },
-  exitOverlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: "#131722", zIndex: 10 },
   fsRoot:         { backgroundColor: "#131722", flex: 1 },
   webview:        { flex: 1, backgroundColor: "#131722" },
   // Normal WebView: always mounted. Layout stays IDENTICAL (flex:1) in both
