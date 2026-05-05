@@ -36,7 +36,7 @@ function fmt(n: number, decimals = 2) {
 }
 
 export default function TradeFlashOverlay() {
-  const { tradeFlash, currentPrice, closePosition } = useTradingContext();
+  const { tradeFlash, currentPrice } = useTradingContext();
 
   const translateY = useRef(new Animated.Value(160)).current;
   const opacity    = useRef(new Animated.Value(0)).current;
@@ -137,22 +137,6 @@ export default function TradeFlashOverlay() {
             <Text style={styles.statValue}>{flash.leverage}×</Text>
             <Text style={styles.statSub}>{flash.quantity} lot</Text>
           </View>
-        </View>
-
-        {/* ── Buttons ── */}
-        <View style={styles.btnRow}>
-          <TouchableOpacity style={styles.btnClose} onPress={dismiss}>
-            <Text style={styles.btnCloseText}>Close</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.btnModify} onPress={dismiss}>
-            <Text style={styles.btnModifyText}>Modify</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.btnExit}
-            onPress={() => { closePosition(flash.positionId); dismiss(); }}
-          >
-            <Text style={styles.btnExitText}>Exit Trade</Text>
-          </TouchableOpacity>
         </View>
 
       </Animated.View>
@@ -269,46 +253,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  btnRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  btnClose: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 8,
-    backgroundColor: "#1e293b",
-    alignItems: "center",
-  },
-  btnCloseText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#9ca3af",
-  },
-  btnModify: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 8,
-    backgroundColor: "#1e3a5f",
-    alignItems: "center",
-  },
-  btnModifyText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#60a5fa",
-  },
-  btnExit: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 8,
-    backgroundColor: "#3f1010",
-    borderWidth: 1,
-    borderColor: "#ef4444aa",
-    alignItems: "center",
-  },
-  btnExitText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#ef4444",
-  },
 });
