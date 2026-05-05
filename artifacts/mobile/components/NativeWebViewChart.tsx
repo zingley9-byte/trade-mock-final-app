@@ -4,7 +4,7 @@
  * Identical look to the web chart: dark theme, candles, volume, crosshair,
  * timeframe picker, drawing toolbar, fullscreen, OHLCV tooltip, IST clock.
  */
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import {
   View, StyleSheet, ActivityIndicator, TouchableOpacity, Text,
   Modal, StatusBar, useWindowDimensions, Platform, BackHandler, Keyboard,
@@ -1517,16 +1517,16 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState(false);
   const [isFullscreen,   setIsFullscreen]   = useState(false);
-  // Once true, stays true so the Modal (and its WebView) is never unmounted
-  const [fsEverOpened,   setFsEverOpened]   = useState(false);
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   const bin = symbol.replace("/","").toUpperCase().endsWith("USDT")
     ? symbol.replace("/","").toUpperCase()
     : symbol.replace("/","").toUpperCase() + "USDT";
 
-  const html   = buildHtml(bin, false);
-  const htmlFS = buildHtml(bin, true);
+  // CRITICAL: memoize so `source={{ html }}` never changes reference between renders.
+  // Without this, iOS WebView silently reloads on every parent re-render.
+  const html   = useMemo(() => buildHtml(bin, false), [bin]);
+  const htmlFS = useMemo(() => buildHtml(bin, true),  [bin]);
 
   // Android: intercept hardware back button when fullscreen is open
   // prevents the back event from leaking to the Charts screen and opening the coin picker
@@ -1551,7 +1551,6 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
   // Lock to landscape when fullscreen opens via rotate button; unlock on close
   const openFullscreenLandscape = useCallback(async () => {
-    setFsEverOpened(true); // Modal mounts WebView once, stays mounted forever
     setIsFullscreen(true);
     try {
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
@@ -1577,7 +1576,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     try {
       const data = JSON.parse(e.nativeEvent.data);
       if (data.type === "toggleFS") {
-        if (data.value) { setFsEverOpened(true); setIsFullscreen(true); }
+        if (data.value) { setIsFullscreen(true); }
         else { closeFullscreen(); }
       } else if (data.type === "rotateFS") {
         openFullscreenLandscape();
@@ -1614,50 +1613,37 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
         )}
       </View>
 
-      {/* ── Fullscreen Modal ──────────────────────────────────────────────────
-          visible={fsEverOpened} — once opened, STAYS visible so the WebView
-          inside is never unmounted/reloaded on subsequent open/close cycles.
-          When isFullscreen=false the inner View is 0×0 + pointerEvents=none
-          so it doesn't intercept touches or show anything.                  */}
-      {fsEverOpened && (
-        <Modal
-          visible={fsEverOpened}
-          animationType="none"
-          transparent
-          statusBarTranslucent
-          onRequestClose={closeFullscreen}
-          supportedOrientations={["portrait", "landscape"]}
-        >
-          <StatusBar hidden={isFullscreen} backgroundColor="#131722" />
-          {/* When NOT fullscreen: 0×0 invisible — WebView stays mounted silently */}
-          <View
-            pointerEvents={isFullscreen ? "auto" : "none"}
-            style={isFullscreen
-              ? [styles.fsRoot, { width: screenW, height: screenH }]
-              : styles.fsHidden}
+      {/* ── Fullscreen Modal ─────────────────────────────────────────────────
+          Uses simple visible={isFullscreen} — no transparent always-open trick
+          that causes iOS view lifecycle issues.
+          html/htmlFS are memoized so source never changes → no silent reload. */}
+      <Modal
+        visible={isFullscreen}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeFullscreen}
+        supportedOrientations={["portrait", "landscape"]}
+      >
+        <StatusBar hidden backgroundColor="#131722" />
+        <View style={[styles.fsRoot, { width: screenW, height: screenH }]}>
+          <ChartWebView
+            html={htmlFS}
+            binKey={`${bin}-fs-static`}
+            h={0}
+            onLoad={onNormalLoad}
+            onError={onError}
+            onMsg={onMessage}
+          />
+          <TouchableOpacity
+            style={styles.fsExitBtn}
+            onPress={closeFullscreen}
+            activeOpacity={0.75}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <ChartWebView
-              html={htmlFS}
-              binKey={`${bin}-fs-static`}
-              h={0}
-              onLoad={onNormalLoad}
-              onError={onError}
-              onMsg={onMessage}
-            />
-            {/* ✕ exit button — only rendered (touchable) when fullscreen */}
-            {isFullscreen && (
-              <TouchableOpacity
-                style={styles.fsExitBtn}
-                onPress={closeFullscreen}
-                activeOpacity={0.75}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Text style={styles.fsExitIcon}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </Modal>
-      )}
+            <Text style={styles.fsExitIcon}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -1669,8 +1655,6 @@ const styles = StyleSheet.create({
   // Normal WebView: always mounted, hidden while fullscreen modal is active
   visibleWebView: { flex: 1 },
   hiddenWebView:  { ...StyleSheet.absoluteFillObject, opacity: 0, pointerEvents: "none" } as any,
-  // Fullscreen WebView: 0×0 invisible when not in fullscreen — stays mounted silently
-  fsHidden:       { position: "absolute", width: 0, height: 0, overflow: "hidden", opacity: 0 } as any,
   errBox:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 24 },
   errIcon:    { fontSize: 28, color: "#f59e0b" },
   errTitle:   { color: "#d1d4dc", fontSize: 14, fontWeight: "700" },
