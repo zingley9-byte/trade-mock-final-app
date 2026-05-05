@@ -5,6 +5,7 @@ import React, { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,6 +17,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import SvgIcon from "@/components/SvgIcon";
@@ -63,6 +65,25 @@ export default function AppHeader() {
   const [feedbackSent, setFeedbackSent] = useState(false);
   const searchRef = useRef<TextInput>(null);
   const isDark = theme === "dark";
+
+  // Track screen dimensions — on Android, rotation changes width/height.
+  // When orientation flips, immediately blur search & dismiss keyboard so
+  // the search bar does not auto-open during re-render.
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const prevOrientationRef = useRef<"portrait" | "landscape">(
+    screenWidth > screenHeight ? "landscape" : "portrait"
+  );
+  React.useEffect(() => {
+    const current = screenWidth > screenHeight ? "landscape" : "portrait";
+    if (current !== prevOrientationRef.current) {
+      prevOrientationRef.current = current;
+      // Orientation changed — close search bar immediately
+      Keyboard.dismiss();
+      searchRef.current?.blur();
+      setSearchFocused(false);
+      setSearchQuery("");
+    }
+  }, [screenWidth, screenHeight]);
 
   React.useEffect(() => {
     AsyncStorage.getItem(PROFILE_KEY).then((v) => { if (v) setProfileImage(v); });
