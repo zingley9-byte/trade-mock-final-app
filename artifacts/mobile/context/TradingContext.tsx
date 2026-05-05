@@ -293,7 +293,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     }
     fetchRate();
   }, []);
-  const lastSymbolRef = useRef<string>("");
+  const lastSymbolRef       = useRef<string>("");
+  // always reflects the current selectedSymbol.id so interval callbacks can sync priceChange24h
+  const selectedSymbolIdRef = useRef<string>(SYMBOLS[0].id);
 
   useEffect(() => {
     loadState();
@@ -336,6 +338,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
             }
             return next;
           });
+          // Keep priceChange24h in sync with the same bulk data (single source of truth)
+          const selEntry = statsData.find((d) => d.symbol === selectedSymbolIdRef.current);
+          if (selEntry) setPriceChange24h(parseFloat(selEntry.priceChangePercent));
         }
       } catch {
         try {
@@ -355,6 +360,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
             }
             return next;
           });
+          // Sync priceChange24h from fallback bulk data too
+          const selId = selectedSymbolIdRef.current;
+          if (map[selId] !== undefined) setPriceChange24h(map[selId].change24h);
         } catch {}
       }
     }
@@ -442,20 +450,25 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch(`${BINANCE_REST}/ticker/24hr?symbol=${symbol.id}`);
       const data = await res.json();
       if (data && data.priceChangePercent) {
-        setPriceChange24h(parseFloat(data.priceChangePercent));
+        const pct = parseFloat(data.priceChangePercent);
+        setPriceChange24h(pct);
         setHigh24h(parseFloat(data.highPrice));
         setLow24h(parseFloat(data.lowPrice));
         setVolume24h(parseFloat(data.volume));
+        // Keep symbolChanges in sync (same data, single source of truth)
+        setSymbolChanges((prev) => ({ ...prev, [symbol.id]: pct }));
       }
     } catch {
       try {
         const res = await fetch(`${API_BASE}/market/ticker24hr?symbol=${symbol.id}`);
         const data = await res.json();
         if (data && data.priceChangePercent) {
-          setPriceChange24h(parseFloat(data.priceChangePercent));
+          const pct = parseFloat(data.priceChangePercent);
+          setPriceChange24h(pct);
           setHigh24h(parseFloat(data.highPrice));
           setLow24h(parseFloat(data.lowPrice));
           setVolume24h(parseFloat(data.volume));
+          setSymbolChanges((prev) => ({ ...prev, [symbol.id]: pct }));
         }
       } catch {}
     }
@@ -577,6 +590,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   const setSelectedSymbol = useCallback((s: MarketSymbol) => {
     lastSymbolRef.current = "";
+    selectedSymbolIdRef.current = s.id;
     setSelectedSymbolState(s);
   }, []);
 
