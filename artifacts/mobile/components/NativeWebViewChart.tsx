@@ -872,6 +872,9 @@ var SUB_ICONS = {
 function openSubById(gid, btnEl) {
   const g = TOOL_GROUPS.find(x=>x!=='sep'&&x.id===gid);
   if (!g) return;
+  // If this group is already active → tap again deselects (return to cursor)
+  const groupActive = TOOL === gid || g.items.some(function(it){ return it.id === TOOL; });
+  if (groupActive) { setToolGroup('cursor'); closeSub(); return; }
   if (g.items.length === 1) { setTool(g.items[0].id); return; }
   if (SUB_OPEN === gid) { closeSub(); return; }
   SUB_OPEN = gid;
