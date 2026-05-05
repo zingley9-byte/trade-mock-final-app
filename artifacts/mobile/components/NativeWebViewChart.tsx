@@ -259,8 +259,44 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
         </svg>
         <div class="sb-tri"></div>
       </button>
-      <!-- Fibonacci: three clean horizontal parallel lines -->
-      <button class="sb-btn" id="sb-fib" title="Fibonacci" onclick="openSubById('fib',this)">
+      <!-- Long Position: upward arrow with entry line -->
+      <button class="sb-btn" id="sb-longpos" title="Long Position" onclick="setTool('longposition')">
+        <svg viewBox="0 0 24 24">
+          <line x1="5" y1="17" x2="19" y2="17" stroke="#22C55E" stroke-width="1.8"/>
+          <line x1="12" y1="17" x2="12" y2="7" stroke="#22C55E" stroke-width="1.8"/>
+          <polyline points="8 11 12 7 16 11" stroke="#22C55E" stroke-width="1.8" fill="none"/>
+        </svg>
+      </button>
+      <!-- Short Position: downward arrow with entry line -->
+      <button class="sb-btn" id="sb-shortpos" title="Short Position" onclick="setTool('shortposition')">
+        <svg viewBox="0 0 24 24">
+          <line x1="5" y1="7" x2="19" y2="7" stroke="#EF4444" stroke-width="1.8"/>
+          <line x1="12" y1="7" x2="12" y2="17" stroke="#EF4444" stroke-width="1.8"/>
+          <polyline points="8 13 12 17 16 13" stroke="#EF4444" stroke-width="1.8" fill="none"/>
+        </svg>
+      </button>
+      <!-- Date Range: two vertical lines with horizontal bridge -->
+      <button class="sb-btn" id="sb-daterange" title="Date Range" onclick="setTool('daterange')">
+        <svg viewBox="0 0 24 24">
+          <line x1="7" y1="4" x2="7" y2="20"/>
+          <line x1="17" y1="4" x2="17" y2="20"/>
+          <line x1="7" y1="12" x2="17" y2="12"/>
+          <line x1="7" y1="8" x2="10" y2="8"/>
+          <line x1="14" y1="8" x2="17" y2="8"/>
+        </svg>
+      </button>
+      <!-- Price Range: two horizontal lines with vertical bridge -->
+      <button class="sb-btn" id="sb-pricerange" title="Price Range" onclick="setTool('pricerange')">
+        <svg viewBox="0 0 24 24">
+          <line x1="4" y1="7" x2="20" y2="7"/>
+          <line x1="4" y1="17" x2="20" y2="17"/>
+          <line x1="12" y1="7" x2="12" y2="17"/>
+          <line x1="8" y1="7" x2="8" y2="10"/>
+          <line x1="8" y1="14" x2="8" y2="17"/>
+        </svg>
+      </button>
+      <!-- Fibonacci: three horizontal parallel lines -->
+      <button class="sb-btn" id="sb-fib" title="Fibonacci Retracement" onclick="openSubById('fib',this)">
         <svg viewBox="0 0 24 24">
           <line x1="3" y1="7" x2="21" y2="7"/>
           <line x1="3" y1="12" x2="21" y2="12"/>
@@ -905,11 +941,11 @@ const TOOL_GROUPS = [
       { id:'hline',        label:'Horizontal Line',   pts:1 },
       { id:'vline',        label:'Vertical Line',     pts:1 },
       { id:'channel',      label:'Parallel Channel',  pts:3 },
-      { id:'longposition', label:'Long Position',     pts:1 },
-      { id:'shortposition',label:'Short Position',    pts:1 },
-      { id:'daterange',    label:'Date Range',        pts:2 },
-      { id:'pricerange',   label:'Price Range',       pts:2 },
     ] },
+  { id:'longpos',  label:'Long Position',  multi:false, items:[{ id:'longposition',  label:'Long Position',  pts:1 }] },
+  { id:'shortpos', label:'Short Position', multi:false, items:[{ id:'shortposition', label:'Short Position', pts:1 }] },
+  { id:'daterange',label:'Date Range',     multi:false, items:[{ id:'daterange',     label:'Date Range',     pts:2 }] },
+  { id:'pricerange',label:'Price Range',   multi:false, items:[{ id:'pricerange',    label:'Price Range',    pts:2 }] },
   { id:'fib', label:'Fibonacci', multi:true,
     items:[{ id:'fibretracement', label:'Fib Retracement', pts:2 }] },
   { id:'shapes', label:'Shapes', multi:true,
@@ -1627,8 +1663,8 @@ function hitBody(d,cx,cy) {
 
 // ── Sidebar ───────────────────────────────────────────────────────
 function buildSidebar() {
-  var IDS={lines:'sb-lines',fib:'sb-fib',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
-  var toolToGroup={trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',longposition:'lines',shortposition:'lines',daterange:'lines',pricerange:'lines',fibretracement:'fib',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text'};
+  var IDS={lines:'sb-lines',longpos:'sb-longpos',shortpos:'sb-shortpos',daterange:'sb-daterange',pricerange:'sb-pricerange',fib:'sb-fib',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
+  var toolToGroup={trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',longposition:'longpos',shortposition:'shortpos',daterange:'daterange',pricerange:'pricerange',fibretracement:'fib',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text'};
   Object.entries(IDS).forEach(function(e) {
     var gid=e[0], btnId=e[1];
     var btn=document.getElementById(btnId); if(!btn) return;
@@ -1689,11 +1725,15 @@ function _addBtn(id, fn) {
   el.addEventListener('click',function(){fn(el);});
 }
 function initSidebarEvents() {
-  _addBtn('sb-lines',   function(el){openSubById('lines',el);});
-  _addBtn('sb-fib',     function(el){openSubById('fib',el);});
-  _addBtn('sb-shapes',  function(el){openSubById('shapes',el);});
-  _addBtn('sb-brush',   function(el){openSubById('brush',el);});
-  _addBtn('sb-text',    function(el){openSubById('text',el);});
+  _addBtn('sb-lines',      function(el){openSubById('lines',el);});
+  _addBtn('sb-longpos',    function(){setTool('longposition');});
+  _addBtn('sb-shortpos',   function(){setTool('shortposition');});
+  _addBtn('sb-daterange',  function(){setTool('daterange');});
+  _addBtn('sb-pricerange', function(){setTool('pricerange');});
+  _addBtn('sb-fib',        function(el){openSubById('fib',el);});
+  _addBtn('sb-shapes',     function(el){openSubById('shapes',el);});
+  _addBtn('sb-brush',      function(el){openSubById('brush',el);});
+  _addBtn('sb-text',       function(el){openSubById('text',el);});
   _addBtn('sb-hide',    function(){toggleHide();});
   _addBtn('sb-lock',    function(){toggleLockAll();});
   _addBtn('sb-delete',  function(){clearAllDrawings();});
