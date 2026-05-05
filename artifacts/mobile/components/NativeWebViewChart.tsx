@@ -27,7 +27,7 @@ function buildHtml(symbol: string, initialFS = false): string {
   return `<!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;padding:0;}
@@ -37,7 +37,7 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 #topbar{
   display:flex;align-items:center;background:#1e222d;
   border-bottom:1px solid #2a2e39;height:42px;flex-shrink:0;
-  padding:0 4px;gap:2px;
+  padding:0 calc(4px + env(safe-area-inset-right,0px)) 0 calc(4px + env(safe-area-inset-left,0px));gap:2px;
 }
 .tb-btn{
   width:32px;height:36px;display:flex;align-items:center;justify-content:center;
@@ -54,7 +54,7 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 
 /* ── TF Dropdown ── */
 #tf-menu{
-  position:fixed;top:42px;left:44px;
+  position:fixed;top:42px;left:calc(44px + env(safe-area-inset-left,0px));
   background:#1e222d;border:1px solid #2a2e39;border-radius:6px;
   display:flex;flex-wrap:wrap;width:140px;padding:4px;z-index:200;
 }
@@ -67,7 +67,7 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 
 /* ── Body / chart area ── */
 #body{flex:1;min-height:0;position:relative;}
-#chart-wrap{position:absolute;top:0;left:44px;right:0;bottom:0;}
+#chart-wrap{position:absolute;top:0;left:calc(44px + env(safe-area-inset-left,0px));right:env(safe-area-inset-right,0px);bottom:0;}
 #chart{width:100%;height:100%;}
 
 /* ── OHLCV tooltip ── */
@@ -93,7 +93,9 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 #botbar{
   height:32px;display:flex;align-items:center;gap:8px;
   background:#1e222d;border-top:1px solid #2a2e39;
-  padding:0 8px;flex-shrink:0;font-size:12px;color:#787b86;
+  padding:0 calc(8px + env(safe-area-inset-right,0px)) 0 calc(8px + env(safe-area-inset-left,0px));
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  flex-shrink:0;font-size:12px;color:#787b86;
 }
 #ist-time{font-size:10px;color:#d1d4dc;font-variant-numeric:tabular-nums;}
 #ws-badge{font-size:9px;font-weight:700;margin-left:auto;}
@@ -115,7 +117,7 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 #backdrop.show{display:block;}
 
 /* ── Drawing sidebar ── */
-#sidebar{position:absolute;top:0;left:0;width:44px;bottom:0;background:#1e222d;border-right:1px solid #2a2e39;display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px;z-index:20;overflow-y:auto;overflow-x:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+#sidebar{position:absolute;top:0;left:env(safe-area-inset-left,0px);width:44px;bottom:0;background:#1e222d;border-right:1px solid #2a2e39;display:flex;flex-direction:column;align-items:center;padding:4px 0;gap:1px;z-index:20;overflow-y:auto;overflow-x:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
 #sidebar::-webkit-scrollbar{display:none;}
 .sb-btn{width:34px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:none;border-radius:5px;cursor:pointer;color:#787b86;position:relative;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
 .sb-btn.act{background:#2962FF22;color:#2962FF;}
@@ -125,7 +127,7 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 .sb-btn.act .sb-tri{border-top-color:#2962FF;}
 .sb-sep{width:28px;height:1px;background:#2a2e39;flex-shrink:0;margin:3px 0;}
 /* Submenu */
-#sb-sub{position:fixed;left:46px;background:#1e222d;border:1px solid #2a2e39;border-radius:7px;min-width:180px;padding:4px 0;z-index:500;box-shadow:0 4px 24px #00000090;}
+#sb-sub{position:fixed;left:calc(46px + env(safe-area-inset-left,0px));background:#1e222d;border:1px solid #2a2e39;border-radius:7px;min-width:180px;padding:4px 0;z-index:500;box-shadow:0 4px 24px #00000090;}
 #sb-sub.hidden{display:none;}
 .sub-title{padding:4px 12px;font-size:9px;font-weight:700;color:#787b86;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid #2a2e39;margin-bottom:2px;}
 .sub-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#d1d4dc;cursor:pointer;border:none;background:none;width:100%;text-align:left;-webkit-tap-highlight-color:transparent;}
