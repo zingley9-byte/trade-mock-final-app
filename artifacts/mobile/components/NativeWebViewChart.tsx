@@ -186,15 +186,10 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
       </svg>
     </button>
     <div style="flex:1"></div>
-    <button class="tb-btn" title="Settings">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/>
-      </svg>
-    </button>
-    <button class="tb-btn" id="tb-reset" title="Reset Chart">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-        <path d="M3 3v5h5"/>
+    <button class="tb-btn" id="tb-fs" title="Fullscreen" onclick="postRN({type:'toggleFS',value:true})">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+        <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
       </svg>
     </button>
   </div>
@@ -818,13 +813,6 @@ function initSidebarEvents() {
   sbBtn('sb-hide',    function(el)  { toggleHide(el); });
   sbBtn('sb-lock',    function(el)  { toggleLockAll(el); });
   sbBtn('sb-delete',  function()    { clearAllDrawings(); });
-  // Topbar reset button — fits all chart data into view
-  var resetBtn = document.getElementById('tb-reset');
-  if (resetBtn) {
-    function doReset(e) { if(e) e.preventDefault(); if(chart) { try { chart.timeScale().fitContent(); } catch(_){} } }
-    resetBtn.addEventListener('touchend', function(e) { doReset(e); }, {passive:false});
-    resetBtn.addEventListener('click', doReset);
-  }
 }
 
 function setTool(id) {
@@ -1559,9 +1547,10 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
   const onMessage = useCallback((e: any) => {
     try {
       const data = JSON.parse(e.nativeEvent.data);
-      // rotateFS / toggleFS messages are no longer sent from HTML
-      // (buttons removed), but kept for safety.
-      if (data.type === "toggleFS" && !data.value) { closeFullscreen(); }
+      if (data.type === "toggleFS") {
+        if (data.value) setIsFullscreen(true); // fullscreen button tapped
+        else closeFullscreen();                 // close from within fullscreen
+      }
     } catch (_) {}
   }, [closeFullscreen]);
 
