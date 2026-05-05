@@ -2,7 +2,7 @@ import { Router } from "express";
 
 const router = Router();
 
-const BINANCE_BASE = "https://data-api.binance.vision/api/v3";
+const BINANCE_BASE = "https://api.binance.com/api/v3";
 
 const COINGECKO_IDS: Record<string, string> = {
   BTCUSDT: "bitcoin",
@@ -57,28 +57,27 @@ router.get("/market/price", async (req, res) => {
 router.get("/market/prices", async (req, res) => {
   const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT", "SOLUSDT"];
   try {
-    const [priceRes, geckoRes] = await Promise.all([
+    const [priceRes, statsRes] = await Promise.all([
       fetch(`${BINANCE_BASE}/ticker/price?symbols=${encodeURIComponent(JSON.stringify(symbols))}`),
-      fetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${Object.values(COINGECKO_IDS).join(",")}&vs_currencies=usd&include_24hr_change=true`
-      ),
+      fetch(`${BINANCE_BASE}/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`),
     ]);
 
-    const priceData: Array<{ symbol: string; price: string }> = await priceRes.json();
-    const geckoData: Record<string, { usd: number; usd_24h_change?: number }> = await geckoRes.json();
+    const priceData = await priceRes.json() as Array<{ symbol: string; price: string }>;
+    const statsData = await statsRes.json() as Array<{ symbol: string; priceChangePercent: string }>;
 
-    const priceMap: Record<string, number> = {};
-    if (Array.isArray(priceData)) {
-      for (const item of priceData) priceMap[item.symbol] = parseFloat(item.price);
+    const changeMap: Record<string, number> = {};
+    if (Array.isArray(statsData)) {
+      for (const item of statsData) changeMap[item.symbol] = parseFloat(item.priceChangePercent);
     }
 
     const result: Record<string, { price: number; change24h: number }> = {};
-    for (const [symbolId, geckoId] of Object.entries(COINGECKO_IDS)) {
-      const price = priceMap[symbolId] || geckoData[geckoId]?.usd || 0;
-      result[symbolId] = {
-        price,
-        change24h: geckoData[geckoId]?.usd_24h_change ?? 0,
-      };
+    if (Array.isArray(priceData)) {
+      for (const item of priceData) {
+        result[item.symbol] = {
+          price: parseFloat(item.price),
+          change24h: changeMap[item.symbol] ?? 0,
+        };
+      }
     }
     res.json(result);
   } catch (err) {
