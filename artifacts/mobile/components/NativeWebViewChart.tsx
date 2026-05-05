@@ -483,8 +483,9 @@ function initChart() {
     ohlcvEl.classList.remove('hidden');
   });
 
-  // Resize observer
-  const ro = new ResizeObserver(() => resizeChart());
+  // Resize observer — suppressed while native fullscreen is active so the
+  // hidden portrait WebView doesn't resize to landscape dimensions
+  const ro = new ResizeObserver(() => { if (!window.__suppressResize) resizeChart(); });
   ro.observe(el);
 }
 
@@ -640,7 +641,7 @@ window.addEventListener('load', () => {
   setTimeout(initDrwEngine, 600);
 });
 
-window.addEventListener('resize', () => { resizeChart(); redraw(); });
+window.addEventListener('resize', () => { if (!window.__suppressResize) { resizeChart(); redraw(); } });
 </script>
 
 <script>
@@ -1562,6 +1563,9 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
   // Lock to landscape when fullscreen opens via rotate button; unlock on close
   const openFullscreenLandscape = useCallback(async () => {
+    // Suppress resize in the portrait WebView so rotating to landscape
+    // doesn't cause the hidden chart canvas to redraw at landscape dimensions.
+    normalWVRef.current?.injectJavaScript("window.__suppressResize = true; true;");
     setIsFullscreen(true);
     try {
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
@@ -1570,13 +1574,20 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
   const closeFullscreen = useCallback(async () => {
     Keyboard.dismiss();
-    if (Platform.OS === "ios") {
-      try { await ScreenOrientation.unlockAsync(); } catch (_) {}
-      setIsFullscreen(false);
-    } else {
-      setIsFullscreen(false);
-      try { await ScreenOrientation.unlockAsync(); } catch (_) {}
-    }
+    // 1. Rotate back to portrait first
+    try { await ScreenOrientation.unlockAsync(); } catch (_) {}
+    // 2. While the portrait WebView is still hidden (opacity:0), lift the
+    //    suppress flag and force a resize so the chart canvas is at the
+    //    correct portrait size BEFORE we make it visible.
+    await new Promise<void>(r => setTimeout(r, 300));
+    normalWVRef.current?.injectJavaScript(
+      "window.__suppressResize = false;" +
+      "try{window.dispatchEvent(new Event('resize'));if(typeof resizeChart==='function')resizeChart();}catch(e){}" +
+      " true;"
+    );
+    // 3. Short wait for lightweight-charts to finish drawing, then reveal
+    await new Promise<void>(r => setTimeout(r, 100));
+    setIsFullscreen(false);
   }, []);
 
   const onMessage = useCallback((e: any) => {
