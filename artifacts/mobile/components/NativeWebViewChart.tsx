@@ -1560,25 +1560,11 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
   const closeFullscreen = useCallback(async () => {
     Keyboard.dismiss();
     if (Platform.OS === "ios") {
-      // iOS: unlock orientation FIRST — device rotates to portrait before Modal closes
       try { await ScreenOrientation.unlockAsync(); } catch (_) {}
       setIsFullscreen(false);
-      // After a frame, force-resize the normal WebView canvas.
-      // When hidden (opacity:0) the chart doesn't know the layout changed;
-      // dispatching 'resize' makes lightweight-charts redraw at correct size.
-      setTimeout(() => {
-        normalWVRef.current?.injectJavaScript(
-          "try{window.dispatchEvent(new Event('resize'));if(typeof resizeChart==='function')resizeChart();}catch(e){} true;"
-        );
-      }, 150);
     } else {
       setIsFullscreen(false);
       try { await ScreenOrientation.unlockAsync(); } catch (_) {}
-      setTimeout(() => {
-        normalWVRef.current?.injectJavaScript(
-          "try{window.dispatchEvent(new Event('resize'));if(typeof resizeChart==='function')resizeChart();}catch(e){} true;"
-        );
-      }, 150);
     }
   }, []);
 
@@ -1663,9 +1649,11 @@ const styles = StyleSheet.create({
   root:           { backgroundColor: "#131722", overflow: "hidden" },
   fsRoot:         { backgroundColor: "#131722", flex: 1 },
   webview:        { flex: 1, backgroundColor: "#131722" },
-  // Normal WebView: always mounted, hidden while fullscreen modal is active
+  // Normal WebView: always mounted. Layout stays IDENTICAL (flex:1) in both
+  // states — only opacity changes. Switching position:absolute ↔ flex:1 caused
+  // a brief layout recalculation that squished the chart canvas on return.
   visibleWebView: { flex: 1 },
-  hiddenWebView:  { ...StyleSheet.absoluteFillObject, opacity: 0, pointerEvents: "none" } as any,
+  hiddenWebView:  { flex: 1, opacity: 0, pointerEvents: "none" } as any,
   errBox:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 24 },
   errIcon:    { fontSize: 28, color: "#f59e0b" },
   errTitle:   { color: "#d1d4dc", fontSize: 14, fontWeight: "700" },
