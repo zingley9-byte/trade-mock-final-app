@@ -438,9 +438,7 @@ function initChart() {
     layout: { background: { type: 'solid', color: '#131722' }, textColor: '#787b86' },
     grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
     crosshair: {
-      mode: LightweightCharts.CrosshairMode.Normal,
-      vertLine: { color: '#758696', labelBackgroundColor: '#1e222d' },
-      horzLine: { color: '#758696', labelBackgroundColor: '#26a69a' },
+      mode: LightweightCharts.CrosshairMode.Hidden,
     },
     rightPriceScale: { borderColor: '#2a2e39' },
     timeScale: {
