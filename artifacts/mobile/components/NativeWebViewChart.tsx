@@ -931,6 +931,7 @@ let _previewPt = null;
 let _lastX = 0, _lastY = 0;
 let _dragState   = null;
 let _resizeState = null;
+let _longPressTimer = null, _longPressD = null, _longPressCx = 0, _longPressCy = 0;
 
 // ── Interaction mode & chart lock ─────────────────────────────────
 // Modes: 'selecting' | 'draggingHandle' | 'draggingShape' | 'panningChart' | 'drawing'
@@ -2041,6 +2042,15 @@ function initDrawingEvents() {
           DRAW_MODE='draggingShape';
           lockChart();
           hideFM();
+          // Long-press: show settings after 480ms if not dragged
+          clearTimeout(_longPressTimer);
+          _longPressD=d; _longPressCx=cx; _longPressCy=cy;
+          _longPressTimer=setTimeout(function(){
+            _longPressTimer=null;
+            if(_longPressD&&SEL===_longPressD.id&&DRAW_MODE==='draggingShape'){
+              showFM(_longPressD,_longPressCx,_longPressCy);
+            }
+          },480);
         }
         scheduleRedraw();
       } else if (hit&&hit.locked) {
@@ -2082,6 +2092,11 @@ function initDrawingEvents() {
   document.addEventListener('touchmove',function(e) {
     var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
     _lastX=t.clientX;_lastY=t.clientY;
+
+    // Cancel long-press if finger moved > 8px
+    if(_longPressTimer&&(Math.abs(t.clientX-_longPressCx)>8||Math.abs(t.clientY-_longPressCy)>8)){
+      clearTimeout(_longPressTimer);_longPressTimer=null;_longPressD=null;
+    }
 
     // Handle drag-move in cursor mode
     if(_dragState) {
@@ -2143,14 +2158,26 @@ function initDrawingEvents() {
     var t=e.changedTouches&&e.changedTouches[0];
     var cx=t?t.clientX:_lastX,cy=t?t.clientY:_lastY;
 
+    // Cancel long-press on finger lift (short tap — no settings)
+    var _lpWasPending=!!_longPressTimer;
+    if(_longPressTimer){clearTimeout(_longPressTimer);_longPressTimer=null;_longPressD=null;}
+
     if(_dragState) {
       e.preventDefault(); e.stopPropagation();
-      saveDrw();
       var dd=_dragState.d;
+      var _didMove=_dragState.startData&&(function(){
+        var cp=clientToCanvas(cx,cy),cd=svgToData(cp.x,cp.y);
+        return Math.abs((cd.price||0)-(_dragState.startData.price||0))>0.0001||
+               Math.abs((cd.time||0)-(_dragState.startData.time||0))>0;
+      })();
+      saveDrw();
       _dragState=null;
       DRAW_MODE='selecting';
       unlockChart();
-      showFM(dd,cx,cy);
+      // Long-press types: only show settings after actual drag (not tap)
+      var _isLpType=dd.type==='longposition'||dd.type==='shortposition'||
+                    dd.type==='daterange'||dd.type==='pricerange'||dd.type==='fibretracement';
+      if(!_isLpType||_didMove) showFM(dd,cx,cy);
       scheduleRedraw();
       return;
     }
