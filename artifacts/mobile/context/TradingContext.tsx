@@ -233,12 +233,27 @@ function calcLiquidationPrice(
   }
 }
 
-function calcPnL(pos: Position, currentPrice: number): number {
-  const priceDiff =
-    pos.side === "buy"
-      ? currentPrice - pos.entryPrice
-      : pos.entryPrice - currentPrice;
-  return priceDiff * pos.quantity * pos.leverage;
+function calcPnL(pos: Position, price: number): number {
+  if (!price || price <= 0) return 0;
+  const entry = parseFloat(String(pos.entryPrice));
+  const qty   = parseFloat(String(pos.quantity));
+  const lev   = parseFloat(String(pos.leverage));
+  if (!entry || !qty || !lev) return 0;
+  const priceDiff = pos.side === "buy" ? price - entry : entry - price;
+  return priceDiff * qty * lev;
+}
+
+/** Returns the live price for a position's symbol, with fallback to currentPrice for the selected symbol. Returns 0 if unknown. */
+function getPosPrice(
+  pos: Position,
+  symbolPrices: Record<string, number>,
+  currentPrice: number,
+  selectedSymbolId: string
+): number {
+  const p = symbolPrices[pos.symbol.id];
+  if (p && p > 0) return p;
+  if (pos.symbol.id === selectedSymbolId && currentPrice > 0) return currentPrice;
+  return 0;
 }
 
 const BINANCE_REST = "https://api.binance.com/api/v3";
@@ -659,20 +674,24 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         const pos = prev.find((p) => p.id === positionId);
         if (!pos) return prev;
 
-        const pnlRaw = calcPnL(pos, currentPrice);
+        // Use the position's own symbol price, not just the selected symbol price
+        const exitPrice = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id) || pos.entryPrice;
+        const pnlRaw = calcPnL(pos, exitPrice);
         const pnl = pnlRaw * usdToInr;
-        const exitValue = pos.margin + pnl;
-        const pnlPct = (pnl / pos.margin) * 100;
+        // Clamp: can't lose more than margin
+        const clampedPnl = Math.max(-pos.margin, pnl);
+        const exitValue = pos.margin + clampedPnl;
+        const pnlPct = (clampedPnl / pos.margin) * 100;
 
         const histEntry: TradeHistory = {
           id: positionId,
           symbol: pos.symbol,
           side: pos.side,
           entryPrice: pos.entryPrice,
-          exitPrice: currentPrice,
+          exitPrice: exitPrice,
           quantity: pos.quantity,
           leverage: pos.leverage,
-          pnl,
+          pnl: clampedPnl,
           pnlPct,
           openedAt: pos.openedAt,
           closedAt: Date.now(),
@@ -692,7 +711,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         return updated;
       });
     },
-    [currentPrice, tradeHistory, theme, leverage, usdToInr]
+    [currentPrice, symbolPrices, selectedSymbol, tradeHistory, theme, leverage, usdToInr]
   );
 
   const modifyPosition = useCallback(
@@ -710,14 +729,22 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   const getRunningPnL = useCallback((): number => {
     return positions.reduce((sum, pos) => {
-      const pnlRaw = calcPnL(pos, currentPrice);
-      return sum + pnlRaw * usdToInr;
+      const price = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id);
+      if (!price) return sum;
+      const pnlRaw = calcPnL(pos, price);
+      const pnlInr = pnlRaw * usdToInr;
+      // Safety: single position can't lose more than its margin
+      const clampedPnl = Math.max(-pos.margin, pnlInr);
+      return sum + clampedPnl;
     }, 0);
-  }, [positions, currentPrice, usdToInr]);
+  }, [positions, currentPrice, symbolPrices, selectedSymbol.id, usdToInr]);
 
   const getTotalPortfolioValue = useCallback((): number => {
-    const marginUsed = positions.reduce((s, p) => s + p.margin, 0);
-    return balance + marginUsed + getRunningPnL();
+    const marginUsed = positions.reduce((s, p) => s + parseFloat(String(p.margin)), 0);
+    const runningPnL = getRunningPnL();
+    const raw = parseFloat(String(balance)) + marginUsed + runningPnL;
+    // Safety clamp: portfolio can't go below 0 or above 100× initial
+    return Math.max(0, Math.min(raw, INITIAL_BALANCE * 100));
   }, [balance, positions, getRunningPnL]);
 
   const resetAccount = useCallback((): { allowed: boolean; message: string } => {
@@ -733,30 +760,31 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (positions.length === 0 || currentPrice === 0) return;
+      if (positions.length === 0) return;
       positions.forEach((pos) => {
-        const pnl = calcPnL(pos, currentPrice);
+        const posPrice = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id);
+        if (!posPrice || posPrice <= 0) return;
         const isLiquidated =
           pos.side === "buy"
-            ? currentPrice <= pos.liquidationPrice
-            : currentPrice >= pos.liquidationPrice;
+            ? posPrice <= pos.liquidationPrice
+            : posPrice >= pos.liquidationPrice;
         const isSLHit =
           pos.stopLoss !== undefined &&
           (pos.side === "buy"
-            ? currentPrice <= pos.stopLoss
-            : currentPrice >= pos.stopLoss);
+            ? posPrice <= pos.stopLoss
+            : posPrice >= pos.stopLoss);
         const isTPHit =
           pos.takeProfit !== undefined &&
           (pos.side === "buy"
-            ? currentPrice >= pos.takeProfit
-            : currentPrice <= pos.takeProfit);
+            ? posPrice >= pos.takeProfit
+            : posPrice <= pos.takeProfit);
         if (isLiquidated || isSLHit || isTPHit) {
           closePosition(pos.id);
         }
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [positions, currentPrice, closePosition]);
+  }, [positions, currentPrice, symbolPrices, selectedSymbol.id, closePosition]);
 
   const handleSetTheme = useCallback(
     (t: "dark" | "light") => {

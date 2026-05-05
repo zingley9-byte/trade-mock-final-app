@@ -63,13 +63,13 @@ export default function TradeFlashOverlay() {
         Animated.timing(opacity,    { toValue: 1, duration: 260, useNativeDriver: true }),
       ]).start();
 
-      clearTimeout(autoTimer.current);
+      if (autoTimer.current !== null) clearTimeout(autoTimer.current);
       autoTimer.current = setTimeout(dismiss, 2800);
     }
   }, [tradeFlash]);
 
   function dismiss() {
-    clearTimeout(autoTimer.current);
+    if (autoTimer.current !== null) clearTimeout(autoTimer.current);
     Animated.parallel([
       Animated.timing(translateY, { toValue: 160, duration: 320, useNativeDriver: true }),
       Animated.timing(opacity,    { toValue: 0,   duration: 280, useNativeDriver: true }),
