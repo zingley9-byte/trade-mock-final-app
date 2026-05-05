@@ -180,6 +180,9 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 .fp-del-btn{color:#EF5350 !important;}
 .fp-del-btn svg{stroke:#EF5350 !important;}
 .fp-reset-btn{color:#F59E0B;font-size:11px;padding:2px 0;}
+/* Position Settings Panel */
+#pos-panel{position:fixed;background:#1C2333;border:1px solid #283045;border-radius:14px;padding:0;z-index:601;box-shadow:0 8px 28px #00000099;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);width:224px;overflow:hidden;}
+#pos-panel.hidden{display:none;}
 </style>
 </head>
 <body>
@@ -402,6 +405,59 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
       <button class="fm-btn" id="fp-lck" title="Lock">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </button>
+    </div>
+  </div>
+
+  <!-- Position Settings Panel -->
+  <div id="pos-panel" class="hidden">
+    <div class="fp-header">
+      <span class="fp-title" id="pp-title">Long Position</span>
+      <div class="fp-hbtns">
+        <button class="fm-btn fp-del-btn" id="pp-del" title="Delete">
+          <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        </button>
+        <button class="fm-btn" id="pp-close" title="Close" style="color:#6B7280;">
+          <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="fp-row">
+      <span class="fp-label">Show Labels</span>
+      <label class="fp-sw"><input type="checkbox" id="pp-labels" checked><span class="fp-sw-track"></span></label>
+    </div>
+    <div class="fp-row">
+      <span class="fp-label">Show Prices</span>
+      <label class="fp-sw"><input type="checkbox" id="pp-prices" checked><span class="fp-sw-track"></span></label>
+    </div>
+    <div class="fp-row">
+      <span class="fp-label">Risk / Reward</span>
+      <label class="fp-sw"><input type="checkbox" id="pp-rr" checked><span class="fp-sw-track"></span></label>
+    </div>
+    <div class="fp-row">
+      <span class="fp-label">Thickness</span>
+      <div class="fp-tog">
+        <button id="pp-w1" class="act" onclick="posSetWidth(1)">1</button>
+        <button id="pp-w2" onclick="posSetWidth(2)">2</button>
+        <button id="pp-w3" onclick="posSetWidth(3)">3</button>
+      </div>
+    </div>
+    <div class="fp-row" style="flex-direction:column;align-items:flex-start;gap:5px;">
+      <div style="display:flex;justify-content:space-between;width:100%;">
+        <span class="fp-label">Opacity</span>
+        <span class="fp-label" id="pp-opacity-val">22%</span>
+      </div>
+      <input type="range" class="fp-slider" id="pp-opacity" min="10" max="60" value="22">
+    </div>
+    <div class="fp-row" style="border-bottom:none;">
+      <button class="fm-btn fp-reset-btn" id="pp-reset" onclick="posResetStyle()">Reset Style</button>
+      <div style="display:flex;gap:2px;">
+        <button class="fm-btn" id="pp-dup" title="Duplicate" style="color:#60A5FA;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button class="fm-btn" id="pp-lck" title="Lock">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -838,8 +894,8 @@ const TOOL_GROUPS = [
       { id:'hline',        label:'Horizontal Line',   pts:1 },
       { id:'vline',        label:'Vertical Line',     pts:1 },
       { id:'channel',      label:'Parallel Channel',  pts:3 },
-      { id:'longposition', label:'Long Position',     pts:3 },
-      { id:'shortposition',label:'Short Position',    pts:3 },
+      { id:'longposition', label:'Long Position',     pts:1 },
+      { id:'shortposition',label:'Short Position',    pts:1 },
       { id:'daterange',    label:'Date Range',        pts:2 },
       { id:'pricerange',   label:'Price Range',       pts:2 },
     ] },
@@ -926,6 +982,8 @@ function fmtP(p) {
   if (p>=1) return p.toFixed(4);
   return p.toFixed(6);
 }
+function tfToSec(tf){return({'1m':60,'3m':180,'5m':300,'15m':900,'30m':1800,'1h':3600,'2h':7200,'4h':14400,'1D':86400,'1W':604800})[tf]||300;}
+function estimateEndTime(startTime){return (startTime||0)+tfToSec(currentTf)*20;}
 
 // ── Canvas pointer-events mode ────────────────────────────────────
 function updateCanvasMode() {
@@ -1020,6 +1078,8 @@ function updateHint() {
       txt='Tap to place price label';
     } else if (TOOL==='text'||TOOL==='note') {
       txt='Tap to place text';
+    } else if (TOOL==='longposition'||TOOL==='shortposition') {
+      txt='Tap chart to place position';
     } else if (THREE_PT.has(TOOL)) {
       if (!IP || CUR_PTS.length===0) txt='Tap to set first point';
       else if (CUR_PTS.length===1)   txt='Tap to set second point';
@@ -1258,28 +1318,86 @@ function drawPriceLabel(ctx,d,sel,c) {
   if (sel) cHandle(ctx,p.x,p.y);
 }
 function drawPosition(ctx,d,sel,isLong) {
-  if (!d.pts||d.pts.length<2) return;
-  var entry=dataToSvg(d.pts[0].price,d.pts[0].time), tgt=dataToSvg(d.pts[1].price,d.pts[1].time);
-  if (entry.x==null) return;
-  var X=entry.x,W2=_W-X,ey=entry.y,ty=tgt.y;
-  var profC='#26a69a',lossC='#ef5350',fillC=ty<ey?profC:lossC;
-  ctx.fillStyle=fillC+'44'; ctx.fillRect(X,Math.min(ey,ty),W2,Math.abs(ty-ey));
-  cStroke(ctx,'#d1d4dc',1.5); ctx.beginPath(); ctx.moveTo(X,ey); ctx.lineTo(_W,ey); ctx.stroke();
-  cStroke(ctx,fillC,1.5); ctx.beginPath(); ctx.moveTo(X,ty); ctx.lineTo(_W,ty); ctx.stroke();
-  ctx.fillStyle='#d1d4dc'; ctx.font='9px monospace'; ctx.textAlign='left';
-  ctx.fillText('Entry '+fmtP(d.pts[0].price),X+6,ey-4);
-  ctx.fillStyle=fillC; ctx.fillText('Target '+fmtP(d.pts[1].price),X+6,ty+12);
-  if (d.pts.length>=3) {
-    var stop=dataToSvg(d.pts[2].price,d.pts[2].time);
-    if (stop.x!=null) {
-      var sy=stop.y;
-      ctx.fillStyle=lossC+'44'; ctx.fillRect(X,Math.min(ey,sy),W2,Math.abs(sy-ey));
-      cStroke(ctx,lossC,1.5); ctx.beginPath(); ctx.moveTo(X,sy); ctx.lineTo(_W,sy); ctx.stroke();
-      ctx.fillStyle=lossC; ctx.fillText('Stop '+fmtP(d.pts[2].price),X+6,sy+12);
-      if (sel) cHandle(ctx,stop.x,stop.y);
+  // New data model: entryPrice/targetPrice/stopPrice/startTime/endTime
+  // Legacy fallback: pts[0]=entry, pts[1]=target, pts[2]=stop
+  var entryP,targetP,stopP,x1,x2;
+  if (d.entryPrice!=null) {
+    entryP=d.entryPrice; targetP=d.targetPrice; stopP=d.stopPrice;
+    x1=chart.timeScale().timeToCoordinate(d.startTime);
+    x2=chart.timeScale().timeToCoordinate(d.endTime);
+    if (x1==null) x1=0; if (x2==null) x2=_W;
+  } else {
+    // Legacy
+    if (!d.pts||d.pts.length<2) return;
+    entryP=d.pts[0].price; targetP=d.pts[1].price;
+    stopP=d.pts.length>=3?d.pts[2].price:entryP*(isLong?0.995:1.005);
+    var lp1=dataToSvg(entryP,d.pts[0].time); if(lp1.x==null) return;
+    x1=lp1.x; x2=_W;
+  }
+  var ey=candleSeries.priceToCoordinate(entryP);
+  var ty=candleSeries.priceToCoordinate(targetP);
+  var sy=candleSeries.priceToCoordinate(stopP);
+  if(ey==null||ty==null||sy==null) return;
+  // Clamp to canvas bounds
+  x1=Math.max(0,x1); x2=Math.min(_W,x2);
+  var bx=Math.min(x1,x2), bw=Math.abs(x2-x1);
+  if(bw<2) bw=2;
+  var opacity=d.posOpacity!=null?d.posOpacity:0.22;
+  var lw=d.posLineWidth||1;
+  var showLabels=d.posShowLabels!==false;
+  var showPrices=d.posShowPrices!==false;
+  var showRR=d.posShowRR!==false;
+  ctx.save();
+  // Clip to chart area
+  ctx.beginPath(); ctx.rect(0,0,_W,_H); ctx.clip();
+  // Target zone (green)
+  ctx.globalAlpha=opacity; ctx.fillStyle='#22C55E';
+  ctx.fillRect(bx,Math.min(ey,ty),bw,Math.abs(ty-ey));
+  // Stop zone (red)
+  ctx.fillStyle='#EF4444';
+  ctx.fillRect(bx,Math.min(ey,sy),bw,Math.abs(sy-ey));
+  ctx.globalAlpha=1;
+  // Border around full position box
+  var boxTop=Math.min(ey,ty,sy), boxBot=Math.max(ey,ty,sy);
+  ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=1; ctx.setLineDash([]);
+  ctx.strokeRect(bx,boxTop,bw,boxBot-boxTop);
+  // Lines
+  cStroke(ctx,'#FACC15',lw+0.5); ctx.beginPath(); ctx.moveTo(bx,ey); ctx.lineTo(bx+bw,ey); ctx.stroke();
+  cStroke(ctx,'#22C55E',lw); ctx.beginPath(); ctx.moveTo(bx,ty); ctx.lineTo(bx+bw,ty); ctx.stroke();
+  cStroke(ctx,'#EF4444',lw); ctx.beginPath(); ctx.moveTo(bx,sy); ctx.lineTo(bx+bw,sy); ctx.stroke();
+  // Labels
+  if(showLabels) {
+    ctx.font='600 11px system-ui,sans-serif'; ctx.textAlign='right'; ctx.textBaseline='middle';
+    var lbx=bx+bw-3;
+    function posLabel(txt,y,clr){
+      var tw=ctx.measureText(txt).width;
+      var lx=lbx-tw-8;
+      ctx.globalAlpha=0.85; ctx.fillStyle='#0f172a';
+      cRRect(ctx,lx-4,y-9,tw+14,18,4); ctx.fill();
+      ctx.globalAlpha=1; ctx.fillStyle=clr; ctx.fillText(txt,lbx,y);
+    }
+    var eL='Entry'+(showPrices?' '+fmtP(entryP):'');
+    var tL='Target'+(showPrices?' '+fmtP(targetP):'');
+    var sL='Stop'+(showPrices?' '+fmtP(stopP):'');
+    posLabel(eL,ey,'#FACC15');
+    posLabel(tL,ty,'#22C55E');
+    posLabel(sL,sy,'#EF4444');
+    if(showRR){
+      var profit=Math.abs(targetP-entryP), risk=Math.abs(stopP-entryP);
+      if(risk>0){
+        var rr=(profit/risk).toFixed(1);
+        posLabel('1:'+rr,(ey+ty)/2,'#94A3B8');
+      }
     }
   }
-  if (sel) { cHandle(ctx,entry.x,entry.y); cHandle(ctx,tgt.x,tgt.y); }
+  ctx.restore();
+  // Selection handles (blue) — entry mid, target mid, stop mid, left edge, right edge
+  if(sel){
+    var midX=(bx+bw/2);
+    cHandle(ctx,midX,ey); cHandle(ctx,midX,ty); cHandle(ctx,midX,sy);
+    var midY=(ey+ty+sy)/3;
+    cHandle(ctx,bx,midY); cHandle(ctx,bx+bw,midY);
+  }
 }
 function drawDateRange(ctx,d,sel,c,w) {
   if (!d.pts||d.pts.length<2) return;
@@ -1364,6 +1482,18 @@ function getHandlePositions(d) {
       var drp1=dataToSvg(d.pts[0].price,d.pts[0].time), drp2=dataToSvg(d.pts[1].price,d.pts[1].time);
       return [{x:drp1.x,y:_H/2},{x:drp2.x,y:_H/2}];
     }
+    case 'longposition': case 'shortposition': {
+      if (d.entryPrice==null) return d.pts.map(function(pt){return dataToSvg(pt.price,pt.time);});
+      var px1=chart.timeScale().timeToCoordinate(d.startTime)||0;
+      var px2=chart.timeScale().timeToCoordinate(d.endTime)||_W;
+      px1=Math.max(0,px1); px2=Math.min(_W,px2);
+      var midX=(px1+px2)/2;
+      var pey=candleSeries.priceToCoordinate(d.entryPrice);
+      var pty=candleSeries.priceToCoordinate(d.targetPrice);
+      var psy=candleSeries.priceToCoordinate(d.stopPrice);
+      var midY=((pey||0)+(pty||0)+(psy||0))/3;
+      return [{x:midX,y:pey},{x:midX,y:pty},{x:midX,y:psy},{x:px1,y:midY},{x:px2,y:midY}];
+    }
     default: return d.pts.map(function(pt){return dataToSvg(pt.price,pt.time);});
   }
 }
@@ -1426,10 +1556,19 @@ function hitBody(d,cx,cy) {
       return tp.x!=null&&Math.sqrt((cx-tp.x)*(cx-tp.x)+(cy-tp.y)*(cy-tp.y))<30;
     }
     case 'longposition': case 'shortposition': {
-      if (pts.length<2) return false;
-      var ep=dataToSvg(pts[0].price,pts[0].time), tp2=dataToSvg(pts[1].price,pts[1].time);
-      if (ep.x==null) return false;
-      return Math.abs(cy-ep.y)<HIT||Math.abs(cy-tp2.y)<HIT;
+      if (d.entryPrice==null) {
+        if (pts.length<2) return false;
+        var ep=dataToSvg(pts[0].price,pts[0].time); if(ep.x==null) return false;
+        return Math.abs(cy-ep.y)<HIT;
+      }
+      var hx1=chart.timeScale().timeToCoordinate(d.startTime)||0;
+      var hx2=chart.timeScale().timeToCoordinate(d.endTime)||_W;
+      var hey=candleSeries.priceToCoordinate(d.entryPrice);
+      var hty=candleSeries.priceToCoordinate(d.targetPrice);
+      var hsy=candleSeries.priceToCoordinate(d.stopPrice);
+      if(hey==null||hty==null||hsy==null) return false;
+      var hmn=Math.min(hey,hty,hsy)-HIT, hmx=Math.max(hey,hty,hsy)+HIT;
+      return cx>=hx1-HIT&&cx<=hx2+HIT&&cy>=hmn&&cy<=hmx;
     }
     case 'pricerange': {
       if (pts.length<2) return false;
@@ -1546,8 +1685,9 @@ function _fmSetLock(locked) {
   lk.style.color=locked?'#f59e0b':'';
 }
 function showFM(d, ex, ey) {
-  hideFibPanel();
+  hideFibPanel(); hidePosPanel();
   if(d.type==='fibretracement'){showFibPanel(d,ex,ey);return;}
+  if(d.type==='longposition'||d.type==='shortposition'){showPosPanel(d,ex,ey);return;}
   var fm=document.getElementById('float-menu'); if(!fm) return;
   fm.classList.remove('hidden');
   fm.style.left=Math.min(ex||200,window.innerWidth-210)+'px';
@@ -1557,7 +1697,7 @@ function showFM(d, ex, ey) {
 }
 function hideFM() {
   var fm=document.getElementById('float-menu'); if(fm) fm.classList.add('hidden');
-  hideFibPanel();
+  hideFibPanel(); hidePosPanel();
 }
 function deleteSel() {
   if(!SEL) return;
@@ -1627,6 +1767,82 @@ function fibResetColors(){
   _fibTarget.levels=FIB_DEFAULT_LEVELS.map(function(l){return{level:l.level,color:l.color};});
   fibSave();
 }
+// ── Position panel ────────────────────────────────────────────────
+var _posTarget = null;
+function showPosPanel(d, ex, ey) {
+  _posTarget = d;
+  var pp=document.getElementById('pos-panel'); if(!pp) return;
+  var ti=document.getElementById('pp-title');
+  if(ti) ti.textContent=d.type==='longposition'?'Long Position':'Short Position';
+  var chkL=document.getElementById('pp-labels'),chkP=document.getElementById('pp-prices'),chkRR=document.getElementById('pp-rr');
+  var slOp=document.getElementById('pp-opacity'),opV=document.getElementById('pp-opacity-val');
+  if(chkL) chkL.checked=d.posShowLabels!==false;
+  if(chkP) chkP.checked=d.posShowPrices!==false;
+  if(chkRR) chkRR.checked=d.posShowRR!==false;
+  var op=Math.round((d.posOpacity!=null?d.posOpacity:0.22)*100);
+  if(slOp) slOp.value=op; if(opV) opV.textContent=op+'%';
+  var pw=d.posLineWidth||1;
+  ['pp-w1','pp-w2','pp-w3'].forEach(function(id,i){var b=document.getElementById(id);if(b)b.classList.toggle('act',pw===i+1);});
+  var lkBtn=document.getElementById('pp-lck');
+  if(lkBtn) lkBtn.style.color=d.locked?'#f59e0b':'#C9D1D9';
+  pp.classList.remove('hidden');
+  var panW=224,ph=pp.offsetHeight||270;
+  var top=Math.max(50,Math.min((ey||200)-ph-8,window.innerHeight-ph-20));
+  var left=Math.min(Math.max(8,(ex||200)-panW/2),window.innerWidth-panW-8);
+  pp.style.top=top+'px'; pp.style.left=left+'px';
+}
+function hidePosPanel(){_posTarget=null;var pp=document.getElementById('pos-panel');if(pp)pp.classList.add('hidden');}
+function posSave(){if(_posTarget){saveDrw();scheduleRedraw();}}
+function posSetWidth(w){
+  if(!_posTarget)return; _posTarget.posLineWidth=w;
+  ['pp-w1','pp-w2','pp-w3'].forEach(function(id,i){var b=document.getElementById(id);if(b)b.classList.toggle('act',w===i+1);});
+  posSave();
+}
+function posResetStyle(){
+  if(!_posTarget)return;
+  _posTarget.posOpacity=0.22; _posTarget.posLineWidth=1;
+  _posTarget.posShowLabels=true; _posTarget.posShowPrices=true; _posTarget.posShowRR=true;
+  posSave(); showPosPanel(_posTarget,0,0);
+}
+function initPosEvents(){
+  var chkL=document.getElementById('pp-labels');
+  if(chkL)chkL.addEventListener('change',function(){if(_posTarget){_posTarget.posShowLabels=this.checked;posSave();}});
+  var chkP=document.getElementById('pp-prices');
+  if(chkP)chkP.addEventListener('change',function(){if(_posTarget){_posTarget.posShowPrices=this.checked;posSave();}});
+  var chkRR=document.getElementById('pp-rr');
+  if(chkRR)chkRR.addEventListener('change',function(){if(_posTarget){_posTarget.posShowRR=this.checked;posSave();}});
+  var slOp=document.getElementById('pp-opacity');
+  if(slOp)slOp.addEventListener('input',function(){
+    if(!_posTarget)return;
+    _posTarget.posOpacity=parseInt(this.value)/100;
+    var v=document.getElementById('pp-opacity-val');if(v)v.textContent=this.value+'%';
+    posSave();
+  });
+  function _ppBtn(id,fn){var b=document.getElementById(id);if(b){b.addEventListener('touchend',function(e){e.preventDefault();fn();},{passive:false});b.addEventListener('click',fn);}}
+  _ppBtn('pp-del',function(){
+    if(!_posTarget)return;
+    DRW=DRW.filter(function(d){return d.id!==_posTarget.id;});
+    SEL=null;hidePosPanel();saveDrw();scheduleRedraw();
+  });
+  _ppBtn('pp-dup',function(){
+    if(!_posTarget)return;
+    var nd=JSON.parse(JSON.stringify(_posTarget));
+    nd.id=genId();
+    nd.startTime=(nd.startTime||0)+tfToSec(currentTf)*5;
+    nd.endTime=(nd.endTime||0)+tfToSec(currentTf)*5;
+    nd.pts=[{price:nd.entryPrice,time:nd.startTime}];
+    DRW.push(nd);SEL=nd.id;_posTarget=nd;saveDrw();scheduleRedraw();
+  });
+  _ppBtn('pp-close',function(){SEL=null;hidePosPanel();scheduleRedraw();});
+  _ppBtn('pp-lck',function(){
+    if(!_posTarget)return;
+    _posTarget.locked=!_posTarget.locked;saveDrw();
+    if(_posTarget.locked){SEL=null;hidePosPanel();}
+    else{var b=document.getElementById('pp-lck');if(b)b.style.color='#C9D1D9';}
+    scheduleRedraw();
+  });
+}
+
 function initFibEvents(){
   var chkL=document.getElementById('fp-labels');
   if(chkL)chkL.addEventListener('change',function(){if(_fibTarget){_fibTarget.fibShowLabels=this.checked;fibSave();}});
@@ -1660,7 +1876,7 @@ function initFibEvents(){
 }
 
 // ── 3-point tool set ─────────────────────────────────────────────
-var THREE_PT = new Set(['channel','longposition','shortposition']);
+var THREE_PT = new Set(['channel']);
 
 // ── Inside chart-wrap check ───────────────────────────────────────
 function ptInWrap(cx,cy) {
@@ -1680,7 +1896,7 @@ function initDrawingEvents() {
 
     // Always let float-menu, sidebar, and sub-menu receive their own events first
     var el=document.elementFromPoint(cx,cy);
-    if(el&&el.closest&&(el.closest('#float-menu')||el.closest('#fib-panel')||el.closest('#sidebar')||el.closest('#sb-sub'))) return;
+    if(el&&el.closest&&(el.closest('#float-menu')||el.closest('#fib-panel')||el.closest('#pos-panel')||el.closest('#sidebar')||el.closest('#sb-sub'))) return;
 
     if(!ptInWrap(cx,cy)) return;
 
@@ -1704,7 +1920,10 @@ function initDrawingEvents() {
           // body drag — lock chart so it doesn't pan
           e.stopPropagation();
           var sxy=clientToCanvas(cx,cy);
-          _dragState={d:d,origPts:JSON.parse(JSON.stringify(d.pts)),startData:svgToData(sxy.x,sxy.y)};
+          var _isPT=d.type==='longposition'||d.type==='shortposition';
+          _dragState={d:d,origPts:JSON.parse(JSON.stringify(d.pts||[])),
+            origPos:_isPT?{entryPrice:d.entryPrice,targetPrice:d.targetPrice,stopPrice:d.stopPrice,startTime:d.startTime,endTime:d.endTime}:null,
+            startData:svgToData(sxy.x,sxy.y)};
           DRAW_MODE='draggingShape';
           lockChart();
           showFM(d,cx,cy);
@@ -1715,6 +1934,30 @@ function initDrawingEvents() {
         SEL=hit.did; scheduleRedraw();
       } else {
         SEL=null;hideFM();scheduleRedraw();
+      }
+      return;
+    }
+
+    // Long/Short position: create full box on single tap (no multi-step drag)
+    if(TOOL==='longposition'||TOOL==='shortposition'){
+      e.preventDefault();
+      var pPos=clientToCanvas(cx,cy);
+      var pPt=svgToData(pPos.x,pPos.y);
+      if(pPt.price!=null&&pPt.time!=null){
+        var pIsLong=TOOL==='longposition', pEntry=pPt.price, pId=genId();
+        var pDrw={id:pId,type:TOOL,
+          entryPrice:pEntry,
+          targetPrice:pIsLong?pEntry*1.01:pEntry*0.99,
+          stopPrice:pIsLong?pEntry*0.995:pEntry*1.005,
+          startTime:pPt.time,endTime:estimateEndTime(pPt.time),
+          pts:[{price:pEntry,time:pPt.time}],
+          posShowLabels:true,posShowPrices:true,posShowRR:true,
+          posOpacity:0.22,posLineWidth:1,
+          visible:true,locked:false};
+        DRW.push(pDrw);SEL=pId;
+        TOOL='cursor';IP=null;CUR_PTS=[];_previewPt=null;DRAW_MODE='selecting';
+        unlockChart();saveDrw();buildSidebar();updateCanvasMode();scheduleRedraw();
+        showFM(pDrw,cx,cy);
       }
       return;
     }
@@ -1735,7 +1978,17 @@ function initDrawingEvents() {
       if(curData.time!=null) {
         var dP=curData.price-(_dragState.startData.price||0);
         var dT=(curData.time||0)-(_dragState.startData.time||0);
-        _dragState.d.pts=_dragState.origPts.map(function(pt){return{price:(pt.price||0)+dP,time:(pt.time||0)+dT};});
+        var _dd=_dragState.d;
+        if((_dd.type==='longposition'||_dd.type==='shortposition')&&_dragState.origPos){
+          _dd.entryPrice=(_dragState.origPos.entryPrice||0)+dP;
+          _dd.targetPrice=(_dragState.origPos.targetPrice||0)+dP;
+          _dd.stopPrice=(_dragState.origPos.stopPrice||0)+dP;
+          _dd.startTime=(_dragState.origPos.startTime||0)+dT;
+          _dd.endTime=(_dragState.origPos.endTime||0)+dT;
+          _dd.pts=[{price:_dd.entryPrice,time:_dd.startTime}];
+        } else {
+          _dd.pts=_dragState.origPts.map(function(pt){return{price:(pt.price||0)+dP,time:(pt.time||0)+dT};});
+        }
         scheduleRedraw();
       }
       return;
@@ -1746,14 +1999,21 @@ function initDrawingEvents() {
       e.preventDefault();
       var rp=clientToCanvas(t.clientX,t.clientY);
       var rpt=svgToData(rp.x,rp.y);
-      if(rpt.time!=null) {
+      if(rpt.price!=null) {
         var rd=_resizeState.d,ri=_resizeState.idx;
-        if(rd.type==='rectangle'){
+        if(rd.type==='longposition'||rd.type==='shortposition'){
+          if(ri===0){rd.entryPrice=rpt.price;}
+          else if(ri===1){rd.targetPrice=rpt.price;}
+          else if(ri===2){rd.stopPrice=rpt.price;}
+          else if(ri===3&&rpt.time!=null){rd.startTime=rpt.time;}
+          else if(ri===4&&rpt.time!=null){rd.endTime=rpt.time;}
+          rd.pts=[{price:rd.entryPrice,time:rd.startTime}];
+        } else if(rd.type==='rectangle'){
           if(ri===0){rd.pts[0]={price:rpt.price,time:rpt.time};}
           else if(ri===1){rd.pts[0].time=rpt.time;if(!rd.pts[1])rd.pts[1]={};rd.pts[1].price=rd.pts[0].price;}
           else if(ri===2){rd.pts[0].time=rpt.time;if(!rd.pts[1])rd.pts[1]={};rd.pts[1].price=rpt.price;}
           else{if(!rd.pts[1])rd.pts[1]={};rd.pts[1].price=rpt.price;rd.pts[1].time=rpt.time;}
-        } else if(rd.pts[ri]!==undefined){
+        } else if(rpt.time!=null&&rd.pts[ri]!==undefined){
           rd.pts[ri]={price:rpt.price,time:rpt.time};
         }
         scheduleRedraw();
@@ -1863,7 +2123,10 @@ function initDrawingEvents() {
         e.preventDefault(); e.stopPropagation(); SEL=md.id;
         showFM(md,e.clientX,e.clientY);
         var sxy=clientToCanvas(e.clientX,e.clientY);
-        _dragState={d:md,origPts:JSON.parse(JSON.stringify(md.pts)),startData:svgToData(sxy.x,sxy.y)};
+        var _isPTp=md.type==='longposition'||md.type==='shortposition';
+        _dragState={d:md,origPts:JSON.parse(JSON.stringify(md.pts||[])),
+          origPos:_isPTp?{entryPrice:md.entryPrice,targetPrice:md.targetPrice,stopPrice:md.stopPrice,startTime:md.startTime,endTime:md.endTime}:null,
+          startData:svgToData(sxy.x,sxy.y)};
         DRAW_MODE='draggingShape'; lockChart();
         scheduleRedraw();
       }
@@ -2020,6 +2283,7 @@ function initDrwEngine() {
     initSidebarEvents();
     initFMEvents();
     initFibEvents();
+    initPosEvents();
     initDrawingEvents();
   } catch(e) {}
 })();

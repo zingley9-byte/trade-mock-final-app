@@ -1,0 +1,141 @@
+Fix Long/Short position drawing tool completely.
+
+Do not change candles, API, WebSocket, login, portfolio, or layout.
+Only fix Long/Short position tool behavior, design, and editing.
+
+Problems:
+1. Long/Short tool first draws only a line, then after tap it becomes position box.
+2. Colors look unprofessional.
+3. Position box goes outside chart area.
+4. One tap does not show resize/edit handles.
+5. Dragging/resizing moves chart also.
+6. Drawing is not locked with candle time/price during zoom/scroll.
+
+Required behavior:
+1. Select Long Position or Short Position tool.
+2. First tap on chart = create full position box immediately.
+   Do NOT show simple line first.
+3. Default position box should include:
+   - Entry line
+   - Target line
+   - Stop line
+   - Risk/reward zones
+   - labels with price
+4. Tap on position box = select it.
+5. Selected position must show blue handles:
+   - entry handle
+   - target handle
+   - stop handle
+   - left/right width handles
+6. Drag handles to resize target, stop, entry, and width.
+7. Drag body to move full position.
+8. While dragging/resizing:
+   - disable chart pan/scroll/zoom
+   - preventDefault
+   - stopPropagation
+9. On release:
+   - enable chart pan/scroll/zoom again
+   - save updated values
+
+Design:
+Long Position:
+- Target zone fill: rgba(34, 197, 94, 0.22)
+- Target line: #22C55E
+- Stop zone fill: rgba(239, 68, 68, 0.22)
+- Stop line: #EF4444
+- Entry line: #FACC15
+- Border: rgba(255,255,255,0.25)
+
+Short Position:
+- Target zone fill: rgba(34, 197, 94, 0.22)
+- Target line: #22C55E
+- Stop zone fill: rgba(239, 68, 68, 0.22)
+- Stop line: #EF4444
+- Entry line: #FACC15
+- Border: rgba(255,255,255,0.25)
+
+Labels:
+- font size: 11px
+- font weight: 600
+- label background: rgba(15, 23, 42, 0.85)
+- label text color: #E5E7EB
+- padding: 4px 6px
+- border radius: 4px
+
+Label format:
+Entry 81,468.22
+Target 80,557.48
+Stop 80,223.68
+Risk/Reward 1:2.0
+
+Important:
+Position box must stay inside chart drawing area.
+Clip drawings to chart bounds:
+- overflow: hidden
+- SVG clipPath or canvas clipping
+- Do not render outside chart area
+
+Coordinate system:
+Do NOT store pixels.
+Store position using chart values:
+- startTime
+- endTime
+- entryPrice
+- targetPrice
+- stopPrice
+
+On render convert:
+x = timeScale.timeToCoordinate(time)
+y = series.priceToCoordinate(price)
+
+On drag convert:
+time = timeScale.coordinateToTime(x)
+price = series.coordinateToPrice(y)
+
+Re-render when:
+- chart zooms
+- chart scrolls
+- price scale changes
+- timeframe changes
+- window resizes
+- new candles update
+
+Default creation:
+For Long:
+- entryPrice = current clicked price
+- targetPrice = entryPrice * 1.01
+- stopPrice = entryPrice * 0.995
+
+For Short:
+- entryPrice = current clicked price
+- targetPrice = entryPrice * 0.99
+- stopPrice = entryPrice * 1.005
+
+Default width:
+- from clicked candle time
+- to 20 candles forward
+
+Settings panel:
+- Show/Hide labels
+- Show/Hide prices
+- Show/Hide Risk Reward
+- Extend right ON/OFF
+- Lock position
+- Delete position
+- Duplicate position
+- Reset style
+- Opacity slider 10% to 60%
+- Line thickness 1/2/3
+
+One tap selected behavior:
+When user taps any position box:
+- show edit toolbar
+- show handles
+- do not create new drawing
+- do not move chart
+
+Critical:
+Long/Short tool should create complete position box on first tap.
+No temporary line.
+No drawing outside chart area.
+Blue color only for selected handles, not full position.
