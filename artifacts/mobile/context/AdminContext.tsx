@@ -3,7 +3,7 @@ import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, doc, setDoc, updateDoc, deleteDoc,
-  onSnapshot, query, orderBy, getDoc,
+  onSnapshot, query, orderBy, getDoc, increment,
 } from "firebase/firestore";
 
 export const ADMIN_EMAIL = "Zingley9@gmail.com";
@@ -23,6 +23,7 @@ export interface AdminUser {
   lastSeen?: number;
   needsReset?: boolean;
   fakeBalanceAdded?: number;
+  pendingFundAdd?: number;
 }
 
 export interface Announcement {
@@ -81,6 +82,7 @@ interface AdminContextType {
     balance: number, tradeCount: number, totalPnl: number
   ) => Promise<void>;
   checkAndApplyAdminReset: (uid: string, applyReset: () => void) => Promise<void>;
+  checkAndApplyAdminFundAdd: (uid: string, applyFundAdd: (amount: number) => void) => Promise<void>;
 }
 
 const AdminContext = createContext<AdminContextType | null>(null);
@@ -186,6 +188,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     await updateDoc(doc(db, "users", uid), {
       balance: currentBal + amount,
       fakeBalanceAdded: currentFake + amount,
+      pendingFundAdd: increment(amount),
     });
   }
 
@@ -207,6 +210,20 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       if (snap.exists() && snap.data()?.needsReset === true) {
         applyReset();
         await updateDoc(doc(db, "users", uid), { needsReset: false });
+      }
+    } catch {}
+  }
+
+  async function checkAndApplyAdminFundAdd(uid: string, applyFundAdd: (amount: number) => void) {
+    try {
+      const db = getFirebaseDb();
+      const snap = await getDoc(doc(db, "users", uid));
+      if (snap.exists()) {
+        const pending = snap.data()?.pendingFundAdd ?? 0;
+        if (pending > 0) {
+          applyFundAdd(pending);
+          await updateDoc(doc(db, "users", uid), { pendingFundAdd: 0 });
+        }
       }
     } catch {}
   }
@@ -269,7 +286,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       isAdmin, role, adminEmail, users, announcements, appConfig, blockedUids, loading,
       refreshUsers, blockUser, unblockUser, addFakeBalance, resetUserFund,
       addAnnouncement, updateAnnouncement, deleteAnnouncement, updateAppConfig,
-      registerUserActivity, checkAndApplyAdminReset,
+      registerUserActivity, checkAndApplyAdminReset, checkAndApplyAdminFundAdd,
     }}>
       {children}
     </AdminContext.Provider>

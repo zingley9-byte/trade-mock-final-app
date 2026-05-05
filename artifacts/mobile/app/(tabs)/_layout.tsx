@@ -28,8 +28,8 @@ const TAB_BG         = "rgba(20, 24, 33, 0.97)";
 const NAV_CONTENT_H  = 68;
 
 function UserSyncEffect() {
-  const { balance, tradeHistory, resetAccount } = useTradingContext();
-  const { registerUserActivity, checkAndApplyAdminReset } = useAdmin();
+  const { balance, tradeHistory, resetAccount, addAdminBonus } = useTradingContext();
+  const { registerUserActivity, checkAndApplyAdminReset, checkAndApplyAdminFundAdd } = useAdmin();
   const [authUser, setAuthUser] = React.useState<{ uid: string; email: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -46,6 +46,9 @@ function UserSyncEffect() {
         AsyncStorage.setItem(TM_AUTH_KEY, JSON.stringify(u)).catch(() => {});
         checkAndApplyAdminReset(user.uid, () => {
           resetAccount();
+        });
+        checkAndApplyAdminFundAdd(user.uid, (amount) => {
+          addAdminBonus(amount);
         });
       } else {
         setAuthUser(null);

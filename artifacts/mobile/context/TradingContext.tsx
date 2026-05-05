@@ -210,6 +210,7 @@ interface TradingContextType {
   getRunningPnL: () => number;
   getTotalPortfolioValue: () => number;
   resetAccount: () => { allowed: boolean; message: string };
+  addAdminBonus: (amount: number) => void;
 }
 
 const TradingContext = createContext<TradingContextType | null>(null);
@@ -758,6 +759,14 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     return { allowed: true, message: "Account reset successfully." };
   }, [resetTimestamps, theme, marketFilter, currencyMode]);
 
+  const addAdminBonus = useCallback((amount: number) => {
+    setBalance((prev) => {
+      const updated = prev + amount;
+      saveState(updated, positions, tradeHistory, theme, leverage, marketFilter, currencyMode, resetTimestamps);
+      return updated;
+    });
+  }, [positions, tradeHistory, theme, leverage, marketFilter, currencyMode, resetTimestamps]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (positions.length === 0) return;
@@ -855,6 +864,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         getRunningPnL,
         getTotalPortfolioValue,
         resetAccount,
+        addAdminBonus,
       }}
     >
       {children}
