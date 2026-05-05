@@ -26,10 +26,51 @@ import { SYMBOLS, useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CoinLogo from "@/components/CoinLogo";
-import { useAlerts } from "@/context/AlertsContext";
-import AlertsModal from "@/components/AlertsModal";
 
 const PROFILE_KEY = "trademock_profile_image";
+
+const ANNOUNCEMENTS = [
+  {
+    icon: "sparkles-outline",
+    color: "#f59e0b",
+    title: "Modify Position Now Live!",
+    body: "You can now edit Stop Loss & Take Profit on any open position directly from the Portfolio tab.",
+    date: "May 5, 2026",
+    isNew: true,
+  },
+  {
+    icon: "trending-up-outline",
+    color: "#10b981",
+    title: "18 New Drawing Tools Added",
+    body: "Trend lines, Fibonacci retracements, pitchfork, Elliott waves & more — now available on the chart.",
+    date: "May 2, 2026",
+    isNew: true,
+  },
+  {
+    icon: "bar-chart-outline",
+    color: "#6366f1",
+    title: "Multi-Timeframe Charts",
+    body: "Switch between 1m, 5m, 15m, 30m, 1h, and 1D candles to analyse any market.",
+    date: "Apr 28, 2026",
+    isNew: false,
+  },
+  {
+    icon: "shield-checkmark-outline",
+    color: "#3b82f6",
+    title: "Liquidation Price Alerts",
+    body: "Get a warning when your position is approaching the liquidation threshold.",
+    date: "Apr 20, 2026",
+    isNew: false,
+  },
+  {
+    icon: "gift-outline",
+    color: "#ec4899",
+    title: "Welcome to Trade Mock",
+    body: "Practice crypto futures trading risk-free with ₹10,00,000 virtual balance. No real money involved.",
+    date: "Apr 10, 2026",
+    isNew: false,
+  },
+];
 
 const COIN_COLORS: Record<string, string> = {
   BTCUSDT: "#F7931A", ETHUSDT: "#627EEA", BNBUSDT: "#F0B90B",
@@ -53,12 +94,11 @@ export default function AppHeader() {
   const insets = useSafeAreaInsets();
   const { theme, setTheme, currencyMode, setCurrencyMode, setSelectedSymbol, symbolPrices } = useTradingContext();
 
-  const { unreadCount, markAllRead } = useAlerts();
   const [profileOpen, setProfileOpen]   = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery]   = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [alertsOpen, setAlertsOpen]     = useState(false);
+  const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackRating, setFeedbackRating] = useState(0);
@@ -224,17 +264,12 @@ export default function AppHeader() {
             </Text>
           </TouchableOpacity>
 
-          {/* Bell / Alerts */}
+          {/* Announcements */}
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: colors.muted }]}
-            onPress={() => { markAllRead(); setAlertsOpen(true); }}
+            onPress={() => setAnnouncementsOpen(true)}
           >
-            <SvgIcon name="notifications-outline" size={16} color={colors.foreground} />
-            {unreadCount > 0 && (
-              <View style={[styles.badge, { backgroundColor: colors.bear }]}>
-                <Text style={styles.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
-              </View>
-            )}
+            <SvgIcon name="megaphone-outline" size={16} color={colors.foreground} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -250,7 +285,44 @@ export default function AppHeader() {
         </View>
       </View>
 
-      <AlertsModal visible={alertsOpen} onClose={() => setAlertsOpen(false)} />
+      {/* ─── Announcements modal ─── */}
+      <Modal visible={announcementsOpen} transparent animationType="slide" onRequestClose={() => setAnnouncementsOpen(false)}>
+        <Pressable style={[styles.profileBackdrop, { backgroundColor: colors.overlay }]} onPress={() => setAnnouncementsOpen(false)} />
+        <View style={[styles.announcSheet, { backgroundColor: colors.card, paddingBottom: topPad + 16 }]}>
+          <View style={[styles.announcHandle, { backgroundColor: colors.border }]} />
+          <View style={styles.announcHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <SvgIcon name="megaphone-outline" size={18} color={colors.foreground} />
+              <Text style={[styles.announcTitle, { color: colors.foreground }]}>Announcements</Text>
+            </View>
+            <TouchableOpacity onPress={() => setAnnouncementsOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <SvgIcon name="close-outline" size={20} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {ANNOUNCEMENTS.map((a, i) => (
+              <View key={i} style={[styles.announcRow, { borderBottomColor: colors.border }]}>
+                <View style={[styles.announcIconWrap, { backgroundColor: a.color + "22" }]}>
+                  <SvgIcon name={a.icon as any} size={16} color={a.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                    <Text style={[styles.announcRowTitle, { color: colors.foreground }]}>{a.title}</Text>
+                    {a.isNew && (
+                      <View style={[styles.newBadge, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.newBadgeText}>NEW</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.announcRowBody, { color: colors.mutedForeground }]}>{a.body}</Text>
+                  <Text style={[styles.announcRowDate, { color: colors.mutedForeground }]}>{a.date}</Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* ─── Search dropdown ─── */}
       {showDropdown && (
@@ -594,4 +666,31 @@ const styles = StyleSheet.create({
   fbThanks:    { alignItems: "center", paddingVertical: 28, gap: 10 },
   fbThanksEmoji: { fontSize: 40 },
   fbThanksText:  { fontSize: 16, fontWeight: "700" as const },
+
+  // Announcements sheet
+  announcSheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    paddingTop: 10, paddingHorizontal: 0, maxHeight: "80%",
+  },
+  announcHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 14 },
+  announcHeader: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 18, marginBottom: 10,
+  },
+  announcTitle: { fontSize: 17, fontWeight: "700" as const },
+  announcRow: {
+    flexDirection: "row", alignItems: "flex-start", gap: 12,
+    paddingHorizontal: 18, paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  announcIconWrap: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: "center", justifyContent: "center", marginTop: 1,
+  },
+  announcRowTitle: { fontSize: 14, fontWeight: "700" as const },
+  announcRowBody:  { fontSize: 13, lineHeight: 19, marginTop: 2, marginBottom: 4 },
+  announcRowDate:  { fontSize: 11 },
+  newBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
+  newBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" as const, letterSpacing: 0.5 },
 });

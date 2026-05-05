@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import { useAdmin, ADMIN_EMAIL } from "@/context/AdminContext";
+import AlertsModal from "@/components/AlertsModal";
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 const KEYS = {
@@ -234,6 +235,7 @@ export default function SettingsScreen() {
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [fontSizeOpen, setFontSizeOpen] = useState(false);
   const [chartBgOpen, setChartBgOpen] = useState(false);
+  const [priceAlertsOpen, setPriceAlertsOpen] = useState(false);
 
   // Load all settings
   useEffect(() => {
@@ -407,6 +409,18 @@ export default function SettingsScreen() {
           value={notif.newsAlert} onToggle={() => toggleNotif("newsAlert")} colors={colors} isLast />
       </View>
 
+      {/* ─── Price Alerts ─── */}
+      <SectionHeader title="Price Alerts" colors={colors} />
+      <View style={styles.section}>
+        <RowItem
+          icon="alarm-outline" iconBg="#f59e0b"
+          label="Manage Price Alerts"
+          sub="Set custom price targets for any coin"
+          colors={colors} showChevron isFirst isLast
+          onPress={() => setPriceAlertsOpen(true)}
+        />
+      </View>
+
       {/* ─── Privacy ─── */}
       <SectionHeader title="Privacy & Security" colors={colors} />
       <View style={styles.section}>
@@ -541,6 +555,7 @@ export default function SettingsScreen() {
         onClose={() => setChartBgOpen(false)}
         colors={colors}
       />
+      <AlertsModal visible={priceAlertsOpen} onClose={() => setPriceAlertsOpen(false)} />
     </ScrollView>
   );
 }
