@@ -1,3 +1,5 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { TM_AUTH_KEY } from "@/constants/authKeys";
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import React, { useEffect } from "react";
@@ -40,6 +42,8 @@ function UserSyncEffect() {
           name:  user.displayName ?? user.email?.split("@")[0] ?? "User",
         };
         setAuthUser(u);
+        // Keep TM_AUTH_KEY fresh so next app open skips login screen
+        AsyncStorage.setItem(TM_AUTH_KEY, JSON.stringify(u)).catch(() => {});
         checkAndApplyAdminReset(user.uid, () => {
           resetAccount();
         });

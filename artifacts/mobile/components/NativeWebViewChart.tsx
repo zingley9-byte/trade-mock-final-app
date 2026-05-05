@@ -1590,8 +1590,8 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
           )}
           <ChartWebView
             html={htmlFS}
-            binKey={`${bin}-fs`}
-            h={screenH}
+            binKey={`${bin}-fs-static`}
+            h={0}
             onLoad={onFsLoad}
             onError={onError}
             onMsg={onMessage}

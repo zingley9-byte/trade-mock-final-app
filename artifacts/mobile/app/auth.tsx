@@ -58,6 +58,43 @@ export default function AuthScreen() {
   const [confirm, setConfirm] = useState("");
   const [name, setName] = useState("");
   const [showPass, setShowPass] = useState(false);
+
+  // If Firebase already has an active session (restored from persistence),
+  // skip the auth screen and go directly to the app
+  useEffect(() => {
+    try {
+      const fbAuth = getFirebaseAuth();
+      const current = fbAuth.currentUser;
+      if (current) {
+        const u = {
+          uid:   current.uid,
+          email: current.email ?? "",
+          name:  current.displayName ?? current.email?.split("@")[0] ?? "User",
+        };
+        AsyncStorage.setItem(TM_AUTH_KEY, JSON.stringify(u))
+          .catch(() => {})
+          .finally(() => router.replace("/(tabs)"));
+        return;
+      }
+      // Firebase may not have restored the session yet — subscribe once
+      const unsub = fbAuth.onAuthStateChanged((user) => {
+        if (user) {
+          const u = {
+            uid:   user.uid,
+            email: user.email ?? "",
+            name:  user.displayName ?? user.email?.split("@")[0] ?? "User",
+          };
+          AsyncStorage.setItem(TM_AUTH_KEY, JSON.stringify(u))
+            .catch(() => {})
+            .finally(() => router.replace("/(tabs)"));
+          unsub();
+        }
+      });
+      // Only wait briefly — if Firebase doesn't restore quickly, show login form
+      const t = setTimeout(unsub, 2500);
+      return () => { clearTimeout(t); unsub(); };
+    } catch {}
+  }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
