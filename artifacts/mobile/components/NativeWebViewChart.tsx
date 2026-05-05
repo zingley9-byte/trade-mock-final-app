@@ -265,17 +265,6 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
         </svg>
         <div class="sb-tri"></div>
       </button>
-      <!-- Measure: ruler with tick marks -->
-      <button class="sb-btn" id="sb-measure" title="Measure" onclick="openSubById('measure',this)">
-        <svg viewBox="0 0 24 24">
-          <rect x="2" y="9.5" width="20" height="5" rx="1"/>
-          <line x1="6" y1="14.5" x2="6" y2="17.5"/>
-          <line x1="10" y1="14.5" x2="10" y2="16.5"/>
-          <line x1="14" y1="14.5" x2="14" y2="16.5"/>
-          <line x1="18" y1="14.5" x2="18" y2="17.5"/>
-        </svg>
-        <div class="sb-tri"></div>
-      </button>
       <div class="sb-sep"></div>
       <!-- Hide/Show: eye (TradingView style with slash when hidden) -->
       <button class="sb-btn" id="sb-hide" title="Hide/Show drawings" onclick="toggleHide(this)">
@@ -748,12 +737,16 @@ function getCtx()    { var c = getCanvas(); return c ? c.getContext('2d') : null
 const TOOL_GROUPS = [
   { id:'lines', label:'Lines', multi:true,
     items:[
-      { id:'trendline', label:'Trend Line', pts:2 },
-      { id:'arrow', label:'Arrow', pts:2 },
-      { id:'ray', label:'Ray', pts:2 },
-      { id:'hline', label:'Horizontal Line', pts:1 },
-      { id:'vline', label:'Vertical Line', pts:1 },
-      { id:'channel', label:'Parallel Channel', pts:3 },
+      { id:'trendline',    label:'Trend Line',       pts:2 },
+      { id:'arrow',        label:'Arrow',             pts:2 },
+      { id:'ray',          label:'Ray',               pts:2 },
+      { id:'hline',        label:'Horizontal Line',   pts:1 },
+      { id:'vline',        label:'Vertical Line',     pts:1 },
+      { id:'channel',      label:'Parallel Channel',  pts:3 },
+      { id:'longposition', label:'Long Position',     pts:3 },
+      { id:'shortposition',label:'Short Position',    pts:3 },
+      { id:'daterange',    label:'Date Range',        pts:2 },
+      { id:'pricerange',   label:'Price Range',       pts:2 },
     ] },
   { id:'fib', label:'Fibonacci', multi:true,
     items:[{ id:'fibretracement', label:'Fib Retracement', pts:2 }] },
@@ -772,13 +765,6 @@ const TOOL_GROUPS = [
       { id:'text', label:'Text', pts:1 },
       { id:'note', label:'Note', pts:1 },
       { id:'pricelabel', label:'Price Label', pts:1 },
-    ] },
-  { id:'measure', label:'Measure', multi:true,
-    items:[
-      { id:'longposition', label:'Long Position', pts:3 },
-      { id:'shortposition', label:'Short Position', pts:3 },
-      { id:'daterange', label:'Date Range', pts:2 },
-      { id:'pricerange', label:'Price Range', pts:2 },
     ] },
   'sep',
   { id:'hide',   label:'Hide/Show', multi:false, toggle:true, items:[] },
@@ -1328,8 +1314,8 @@ function hitBody(d,cx,cy) {
 
 // ── Sidebar ───────────────────────────────────────────────────────
 function buildSidebar() {
-  var IDS={lines:'sb-lines',fib:'sb-fib',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',measure:'sb-measure',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
-  var toolToGroup={trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',fibretracement:'fib',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text',longposition:'measure',shortposition:'measure',daterange:'measure',pricerange:'measure'};
+  var IDS={lines:'sb-lines',fib:'sb-fib',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
+  var toolToGroup={trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',longposition:'lines',shortposition:'lines',daterange:'lines',pricerange:'lines',fibretracement:'fib',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text'};
   Object.entries(IDS).forEach(function(e) {
     var gid=e[0], btnId=e[1];
     var btn=document.getElementById(btnId); if(!btn) return;
@@ -1395,7 +1381,6 @@ function initSidebarEvents() {
   _addBtn('sb-shapes',  function(el){openSubById('shapes',el);});
   _addBtn('sb-brush',   function(el){openSubById('brush',el);});
   _addBtn('sb-text',    function(el){openSubById('text',el);});
-  _addBtn('sb-measure', function(el){openSubById('measure',el);});
   _addBtn('sb-hide',    function(){toggleHide();});
   _addBtn('sb-lock',    function(){toggleLockAll();});
   _addBtn('sb-delete',  function(){clearAllDrawings();});
