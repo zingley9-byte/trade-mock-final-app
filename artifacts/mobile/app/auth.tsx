@@ -22,6 +22,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { ADMIN_EMAIL } from "@/context/AdminContext";
@@ -97,6 +98,54 @@ export default function AuthScreen() {
   }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // ── Forgot Password ────────────────────────────────────────────────────────
+  const [forgotOpen, setForgotOpen]       = useState(false);
+  const [forgotEmail, setForgotEmail]     = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError]     = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+
+  function openForgot() {
+    setForgotEmail(email); // pre-fill from login field if already typed
+    setForgotError("");
+    setForgotSuccess(false);
+    setForgotOpen(true);
+  }
+
+  function closeForgot() {
+    setForgotOpen(false);
+    setForgotEmail("");
+    setForgotError("");
+    setForgotSuccess(false);
+  }
+
+  async function handleForgotSubmit() {
+    const trimmed = forgotEmail.trim();
+    if (!trimmed) { setForgotError("Please enter your email address."); return; }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmed)) { setForgotError("Enter a valid email address."); return; }
+
+    setForgotLoading(true);
+    setForgotError("");
+    try {
+      const fbAuth = getFirebaseAuth();
+      await sendPasswordResetEmail(fbAuth, trimmed);
+      setForgotSuccess(true);
+    } catch (e: any) {
+      if (e?.code === "auth/user-not-found" || e?.code === "auth/invalid-credential") {
+        setForgotError("No account found with this email.");
+      } else if (e?.code === "auth/invalid-email") {
+        setForgotError("Invalid email address.");
+      } else if (e?.code === "auth/too-many-requests") {
+        setForgotError("Too many attempts. Please try again later.");
+      } else {
+        setForgotError("Failed to send reset email. Please try again.");
+      }
+    } finally {
+      setForgotLoading(false);
+    }
+  }
 
   const glowAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -258,6 +307,12 @@ export default function AuthScreen() {
                   </TouchableOpacity>
                 </View>
 
+                {mode === "login" && (
+                  <TouchableOpacity onPress={openForgot} style={styles.forgotRow} activeOpacity={0.7}>
+                    <Text style={styles.forgotText}>Forgot Password?</Text>
+                  </TouchableOpacity>
+                )}
+
                 {mode === "signup" && (
                   <View style={styles.inputWrap}>
                     <Text style={styles.inputIcon}>🔒</Text>
@@ -320,6 +375,92 @@ export default function AuthScreen() {
           status="connecting"
           message={mode === "login" ? "Signing you in" : "Creating account"}
         />
+      )}
+
+      {/* ── Forgot Password Modal ───────────────────────────────────────── */}
+      {forgotOpen && (
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={closeForgot} activeOpacity={1} />
+          <View style={styles.forgotCard}>
+            {/* Header */}
+            <View style={styles.forgotHeader}>
+              <Text style={styles.forgotTitle}>Reset Password</Text>
+              <TouchableOpacity onPress={closeForgot} style={styles.forgotCloseBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={styles.forgotCloseX}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {forgotSuccess ? (
+              /* ── Success state ── */
+              <View style={styles.forgotSuccessWrap}>
+                <View style={styles.forgotSuccessIcon}>
+                  <Text style={{ fontSize: 32 }}>📧</Text>
+                </View>
+                <Text style={styles.forgotSuccessTitle}>Email Sent!</Text>
+                <Text style={styles.forgotSuccessMsg}>
+                  Password reset link sent to{"\n"}
+                  <Text style={styles.forgotSuccessEmail}>{forgotEmail.trim()}</Text>
+                </Text>
+                <Text style={styles.forgotSuccessHint}>
+                  Check your inbox (and spam folder). The link expires in 1 hour.
+                </Text>
+                <TouchableOpacity style={styles.forgotBackBtn} onPress={closeForgot} activeOpacity={0.85}>
+                  <Text style={styles.forgotBackBtnText}>Back to Login</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              /* ── Input state ── */
+              <View style={styles.forgotBody}>
+                <Text style={styles.forgotDesc}>
+                  Enter your registered email address and we'll send you a link to reset your password.
+                </Text>
+
+                <View style={[styles.inputWrap, forgotError ? styles.inputWrapError : null]}>
+                  <Text style={styles.inputIcon}>✉️</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Email address"
+                    placeholderTextColor="#475569"
+                    value={forgotEmail}
+                    onChangeText={(t) => { setForgotEmail(t); setForgotError(""); }}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!forgotLoading}
+                  />
+                </View>
+
+                {forgotError ? (
+                  <Text style={styles.errorText}>{forgotError}</Text>
+                ) : null}
+
+                <TouchableOpacity
+                  style={[styles.mainBtn, forgotLoading && { opacity: 0.7 }]}
+                  onPress={handleForgotSubmit}
+                  activeOpacity={0.85}
+                  disabled={forgotLoading}
+                >
+                  <LinearGradient
+                    colors={["#2563eb", "#3b82f6", "#1d4ed8"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.mainBtnGrad}
+                  >
+                    {forgotLoading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.mainBtnText}>Send Reset Link</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={closeForgot} style={styles.forgotCancelLink}>
+                  <Text style={styles.forgotCancelText}>Cancel · Back to Login</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
       )}
     </LinearGradient>
   );
@@ -431,4 +572,83 @@ const styles = StyleSheet.create({
   },
   switchText: { color: "#64748b", fontSize: 13 },
   switchLink: { color: "#3b82f6", fontWeight: "700" },
+
+  // ── Forgot Password link ───────────────────────────────────────────────────
+  forgotRow: { alignSelf: "flex-end", marginTop: -4, marginBottom: 4 },
+  forgotText: { color: "#3b82f6", fontSize: 13, fontWeight: "600" },
+
+  // ── Forgot Password modal ──────────────────────────────────────────────────
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    zIndex: 999,
+  },
+  forgotCard: {
+    width: "100%",
+    backgroundColor: "#0f172a",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.6,
+    shadowRadius: 32,
+    elevation: 20,
+  },
+  forgotHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+  },
+  forgotTitle: { color: "#f1f5f9", fontSize: 17, fontWeight: "700" },
+  forgotCloseBtn: { padding: 4 },
+  forgotCloseX: { color: "#64748b", fontSize: 16, fontWeight: "700" },
+
+  forgotBody: { padding: 20, gap: 14 },
+  forgotDesc: { color: "#64748b", fontSize: 13, lineHeight: 19 },
+  inputWrapError: { borderColor: "#f87171" },
+
+  forgotCancelLink: { alignItems: "center", paddingTop: 4 },
+  forgotCancelText: { color: "#475569", fontSize: 13 },
+
+  // ── Success state ──────────────────────────────────────────────────────────
+  forgotSuccessWrap: {
+    padding: 28,
+    alignItems: "center",
+    gap: 12,
+  },
+  forgotSuccessIcon: {
+    width: 72, height: 72,
+    borderRadius: 36,
+    backgroundColor: "#1e3a5f",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  forgotSuccessTitle: { color: "#f1f5f9", fontSize: 20, fontWeight: "700" },
+  forgotSuccessMsg: {
+    color: "#94a3b8", fontSize: 14, textAlign: "center", lineHeight: 22,
+  },
+  forgotSuccessEmail: { color: "#3b82f6", fontWeight: "700" },
+  forgotSuccessHint: {
+    color: "#475569", fontSize: 12, textAlign: "center", lineHeight: 18,
+  },
+  forgotBackBtn: {
+    marginTop: 8,
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  forgotBackBtnText: { color: "#3b82f6", fontSize: 15, fontWeight: "700" },
 });
