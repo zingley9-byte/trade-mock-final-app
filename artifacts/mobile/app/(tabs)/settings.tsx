@@ -404,9 +404,7 @@ export default function SettingsScreen() {
         <ToggleRow icon="locate-outline" iconBg="#10b981" label="Target Hit Alert" sub="When take-profit is reached"
           value={notif.targetHit} onToggle={() => toggleNotif("targetHit")} colors={colors} />
         <ToggleRow icon="shield-outline" iconBg="#ef4444" label="Stop Loss Alert" sub="When stop-loss is triggered"
-          value={notif.stopLoss} onToggle={() => toggleNotif("stopLoss")} colors={colors} />
-        <ToggleRow icon="newspaper-outline" iconBg="#8b5cf6" label="News Alert" sub="Market-moving news events"
-          value={notif.newsAlert} onToggle={() => toggleNotif("newsAlert")} colors={colors} isLast />
+          value={notif.stopLoss} onToggle={() => toggleNotif("stopLoss")} colors={colors} isLast />
       </View>
 
       {/* ─── Price Alerts ─── */}
@@ -437,16 +435,9 @@ export default function SettingsScreen() {
       {/* ─── Appearance ─── */}
       <SectionHeader title="Appearance" colors={colors} />
       <View style={styles.section}>
-        <ToggleRow icon={isDark ? "moon" : "sun"} iconBg={isDark ? "#1e293b" : "#f59e0b"} label="Dark Mode"
-          value={isDark} onToggle={(v) => setTheme(v ? "dark" : "light")} colors={colors} isFirst />
-        <RowItem icon="text-outline" iconBg="#0ea5e9" label="Font Size" colors={colors}
-          right={<Text style={[styles.valueText, { color: colors.mutedForeground }]}>{fontLabel}</Text>}
-          showChevron onPress={() => setFontSizeOpen(true)} />
-        <ToggleRow icon="grid-outline" iconBg="#7c3aed" label="Compact Mode" sub="Denser layout"
-          value={appearance.compactMode} onToggle={(v) => setAppearanceKey("compactMode", v)} colors={colors} />
         <RowItem icon="image-outline" iconBg="#0d9488" label="Chart Background" colors={colors}
           right={<Text style={[styles.valueText, { color: colors.mutedForeground }]}>{chartBgLabel}</Text>}
-          showChevron onPress={() => setChartBgOpen(true)} isLast />
+          showChevron onPress={() => setChartBgOpen(true)} isFirst isLast />
       </View>
 
       {/* ─── Learning Mode ─── */}
@@ -466,23 +457,14 @@ export default function SettingsScreen() {
       <SectionHeader title="Backup & Sync" colors={colors} />
       <View style={styles.section}>
         <RowItem icon="cloud-upload-outline" iconBg="#0ea5e9" label="Backup Demo Trades" sub="Save trades to cloud"
-          colors={colors} showChevron onPress={handleBackup} isFirst />
-        <RowItem icon="refresh-outline" iconBg="#6366f1" label="Sync Profile Data" sub="Last synced: Today"
-          colors={colors} showChevron
-          onPress={() => Alert.alert("Sync", "Profile data synced successfully!")} />
-        <RowItem icon="download-outline" iconBg="#10b981" label="Export Trade History CSV"
-          sub="Download all trades as .csv" colors={colors} showChevron onPress={handleExportCSV} isLast />
+          colors={colors} showChevron onPress={handleBackup} isFirst isLast />
       </View>
 
       {/* ─── Support ─── */}
       <SectionHeader title="Support" colors={colors} />
       <View style={styles.section}>
-        <RowItem icon="alert-circle-outline" iconBg="#ef4444" label="Report Bug"
-          sub="Found an issue? Tell us" colors={colors} showChevron onPress={handleReportBug} isFirst />
-        <RowItem icon="flash-outline" iconBg="#f59e0b" label="Request Feature"
-          sub="Suggest something new" colors={colors} showChevron onPress={handleFeatureRequest} />
         <RowItem icon="chatbubble-outline" iconBg="#25D366" label="WhatsApp Support"
-          sub="Chat with us on WhatsApp" colors={colors} showChevron onPress={handleWhatsApp} />
+          sub="Chat with us on WhatsApp" colors={colors} showChevron onPress={handleWhatsApp} isFirst />
         <RowItem icon="star-outline" iconBg="#eab308" label="Rate App"
           sub="Love Trade Mock? Rate us!" colors={colors} showChevron onPress={handleRateApp} isLast />
       </View>
