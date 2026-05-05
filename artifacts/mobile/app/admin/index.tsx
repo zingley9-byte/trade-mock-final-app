@@ -57,13 +57,13 @@ export default function AdminDashboard() {
   const blockedCount = blockedUids.length;
 
   const stats = [
-    { label: "Total Users",    value: users.length.toString(),      icon: "people-outline",          color: "#3b82f6" },
-    { label: "Active",         value: activeUsers.toString(),        icon: "person-add-outline",      color: BULL },
-    { label: "Blocked",        value: blockedCount.toString(),       icon: "person-remove-outline",   color: BEAR },
-    { label: "Total Trades",   value: totalTrades.toString(),        icon: "swap-horizontal-outline", color: GOLD },
-    { label: "Total P&L",      value: `${totalPnl >= 0 ? "+" : ""}₹${Math.abs(totalPnl / 1000).toFixed(0)}K`, icon: "trending-up-outline", color: totalPnl >= 0 ? BULL : BEAR },
-    { label: "Announcements",  value: announcements.filter((a) => a.active).length.toString(), icon: "notifications-outline", color: "#8b5cf6" },
-    { label: "Coins Listed",   value: SYMBOLS.length.toString(),     icon: "layers-outline",          color: GOLD },
+    { label: "Total Users",    value: users.length.toString(),      icon: "people-outline",          color: "#3b82f6", route: "/admin/users" },
+    { label: "Active",         value: activeUsers.toString(),        icon: "person-add-outline",      color: BULL,      route: "/admin/users?filter=active" },
+    { label: "Blocked",        value: blockedCount.toString(),       icon: "person-remove-outline",   color: BEAR,      route: "/admin/users?filter=blocked" },
+    { label: "Total Trades",   value: totalTrades.toString(),        icon: "swap-horizontal-outline", color: GOLD,      route: "/admin/trades" },
+    { label: "Total P&L",      value: `${totalPnl >= 0 ? "+" : ""}₹${Math.abs(totalPnl / 1000).toFixed(0)}K`, icon: "trending-up-outline", color: totalPnl >= 0 ? BULL : BEAR, route: null },
+    { label: "Announcements",  value: announcements.filter((a) => a.active).length.toString(), icon: "notifications-outline", color: "#8b5cf6", route: "/admin/announcements" },
+    { label: "Coins Listed",   value: SYMBOLS.length.toString(),     icon: "layers-outline",          color: GOLD,      route: "/admin/coins" },
   ];
 
   const menuItems = [
@@ -102,13 +102,21 @@ export default function AdminDashboard() {
         <Text style={s.sectionLabel}>OVERVIEW</Text>
         <View style={s.statsGrid}>
           {stats.map((st) => (
-            <View key={st.label} style={s.statCard}>
+            <TouchableOpacity
+              key={st.label}
+              style={s.statCard}
+              onPress={() => st.route && router.push(st.route as any)}
+              activeOpacity={st.route ? 0.7 : 1}
+            >
               <View style={[s.statIcon, { backgroundColor: st.color + "22" }]}>
                 <SvgIcon name={st.icon as any} size={16} color={st.color} />
               </View>
               <Text style={[s.statValue, { color: st.color }]}>{st.value}</Text>
               <Text style={s.statLabel}>{st.label}</Text>
-            </View>
+              {!!st.route && (
+                <SvgIcon name="chevron-forward-outline" size={11} color={st.color + "99"} />
+              )}
+            </TouchableOpacity>
           ))}
         </View>
 

@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,11 +22,17 @@ const FG       = "#f1f5f9";
 const BEAR     = "#ff4d4d";
 const BULL     = "#00c896";
 
+type FilterMode = "all" | "active" | "blocked";
+
 export default function AdminUsers() {
   const insets = useSafeAreaInsets();
+  const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
   const { users, refreshUsers, isAdmin, loading: authLoading } = useAdmin();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [filterMode, setFilterMode] = useState<FilterMode>(
+    filterParam === "active" ? "active" : filterParam === "blocked" ? "blocked" : "all"
+  );
 
   useEffect(() => {
     if (!authLoading) {
@@ -47,13 +53,28 @@ export default function AdminUsers() {
     return null;
   }
 
+  const activeCount  = users.filter((u) => !u.blocked).length;
+  const blockedCount = users.filter((u) => u.blocked).length;
+
+  const filterTabs: { key: FilterMode; label: string; count: number; color: string }[] = [
+    { key: "all",     label: "All",     count: users.length,  color: "#3b82f6" },
+    { key: "active",  label: "Active",  count: activeCount,   color: BULL },
+    { key: "blocked", label: "Blocked", count: blockedCount,  color: BEAR },
+  ];
+
+  const byFilter = filterMode === "active"
+    ? users.filter((u) => !u.blocked)
+    : filterMode === "blocked"
+    ? users.filter((u) => u.blocked)
+    : users;
+
   const filtered = query.trim()
-    ? users.filter(
+    ? byFilter.filter(
         (u) =>
           u.name.toLowerCase().includes(query.toLowerCase()) ||
           u.email.toLowerCase().includes(query.toLowerCase())
       )
-    : users;
+    : byFilter;
 
   function renderUser({ item: u }: { item: AdminUser }) {
     const pnlColor = u.totalPnl >= 0 ? BULL : BEAR;
@@ -91,7 +112,28 @@ export default function AdminUsers() {
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
           <SvgIcon name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Users ({users.length})</Text>
+        <Text style={s.headerTitle}>Users ({filtered.length})</Text>
+      </View>
+
+      {/* Filter tabs */}
+      <View style={s.tabRow}>
+        {filterTabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[s.tab, filterMode === tab.key && { backgroundColor: tab.color + "22", borderColor: tab.color }]}
+            onPress={() => setFilterMode(tab.key)}
+            activeOpacity={0.7}
+          >
+            <Text style={[s.tabText, { color: filterMode === tab.key ? tab.color : MUTED }]}>
+              {tab.label}
+            </Text>
+            <View style={[s.tabBadge, { backgroundColor: filterMode === tab.key ? tab.color : MUTED + "44" }]}>
+              <Text style={[s.tabBadgeText, { color: filterMode === tab.key ? "#fff" : MUTED }]}>
+                {tab.count}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <View style={s.searchWrap}>
@@ -142,7 +184,20 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER,
     backgroundColor: SURFACE,
   },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: FG },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: FG, flex: 1 },
+  tabRow: {
+    flexDirection: "row", gap: 8,
+    paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: SURFACE,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER,
+  },
+  tab: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: BORDER,
+  },
+  tabText: { fontSize: 12, fontWeight: "700" },
+  tabBadge: { borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 },
+  tabBadgeText: { fontSize: 10, fontWeight: "700" },
   searchWrap: {
     flexDirection: "row", alignItems: "center", gap: 10,
     margin: 14, paddingHorizontal: 14, paddingVertical: 10,
