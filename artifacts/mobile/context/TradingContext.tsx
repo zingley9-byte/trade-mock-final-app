@@ -197,7 +197,7 @@ interface TradingContextType {
   setMarketFilter: (f: "crypto") => void;
   setCurrencyMode: (m: "usd" | "inr") => void;
   usdToInr: number;
-  tradeFlash: { side: "buy" | "sell"; symbol: string } | null;
+  tradeFlash: { side: "buy" | "sell"; symbol: string; entryPrice: number; leverage: number; quantity: number; positionId: string } | null;
   openPosition: (params: {
     side: "buy" | "sell";
     quantity: number;
@@ -275,7 +275,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [volume24h, setVolume24h] = useState(0);
   const [marketFilter, setMarketFilterState] = useState<"crypto">("crypto");
   const [currencyMode, setCurrencyModeState] = useState<"usd" | "inr">("usd");
-  const [tradeFlash, setTradeFlash] = useState<{ side: "buy" | "sell"; symbol: string } | null>(null);
+  const [tradeFlash, setTradeFlash] = useState<{ side: "buy" | "sell"; symbol: string; entryPrice: number; leverage: number; quantity: number; positionId: string } | null>(null);
   const [usdToInr, setUsdToInr] = useState(84);
   const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
   const [symbolChanges, setSymbolChanges] = useState<Record<string, number>>({});
@@ -645,8 +645,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         return updated;
       });
 
-      setTradeFlash({ side: params.side, symbol: selectedSymbol.label });
-      setTimeout(() => setTradeFlash(null), 3200);
+      setTradeFlash({ side: params.side, symbol: selectedSymbol.label, entryPrice: usePrice, leverage, quantity: params.quantity, positionId: newPos.id });
+      setTimeout(() => setTradeFlash(null), 4000);
 
       return { success: true, message: "Position opened" };
     },
