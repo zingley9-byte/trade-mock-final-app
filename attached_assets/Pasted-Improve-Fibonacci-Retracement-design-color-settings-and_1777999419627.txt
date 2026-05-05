@@ -1,0 +1,87 @@
+Improve Fibonacci Retracement design, color settings, and edit behavior.
+
+Do not change candles, price API, WebSocket, login, portfolio, or layout.
+Only improve Fibonacci tool.
+
+Problems:
+1. Fibonacci colors look unprofessional.
+2. When resizing/dragging Fibonacci, all lines become blue.
+3. Labels are not clean.
+
+Required fix:
+Fibonacci levels must always keep their own colors.
+Only selected handles/control points should become blue.
+Lines must never turn blue during drag, resize, or selection.
+
+Default Fibonacci colors:
+0%     #22C55E
+23.6%  #F59E0B
+38.2%  #EF4444
+50%    #9CA3AF
+61.8%  #3B82F6
+78.6%  #8B5CF6
+100%   #14B8A6
+
+Style:
+- line width: 1px
+- line style: dashed
+- dash pattern: 6px 4px
+- opacity: 70%
+- label font size: 11px
+- label background: rgba(15, 23, 42, 0.75)
+- label padding: 3px 6px
+- label border radius: 4px
+- label text color same as level line color
+
+Labels format:
+0%  price
+23.6%  price
+38.2%  price
+50%  price
+61.8%  price
+78.6%  price
+100%  price
+
+Add Fibonacci settings panel:
+- Show / Hide labels
+- Show / Hide prices
+- Line thickness: 1 / 2 / 3
+- Line style: Solid / Dashed / Dotted
+- Opacity slider: 30% to 100%
+- Extend lines right ON/OFF
+- Reverse Fibonacci ON/OFF
+- Lock Fibonacci
+- Delete Fibonacci
+- Reset to default colors
+
+Implementation:
+1. Store every level color separately:
+fib.levels = [
+  { level: 0, color: "#22C55E" },
+  { level: 0.236, color: "#F59E0B" },
+  { level: 0.382, color: "#EF4444" },
+  { level: 0.5, color: "#9CA3AF" },
+  { level: 0.618, color: "#3B82F6" },
+  { level: 0.786, color: "#8B5CF6" },
+  { level: 1, color: "#14B8A6" }
+]
+
+2. During render, always use level.color for lines.
+3. Never use selected color for Fibonacci lines.
+4. Selection color should apply only to:
+   - endpoint handles
+   - border/active dots
+   - toolbar highlight
+
+5. On drag/resize:
+   - update only coordinates
+   - keep original colors unchanged
+   - prevent chart pan/scroll while dragging
+
+6. On pointer up:
+   - save updated Fibonacci
+   - re-render with original level colors
+
+Important:
+Do not override Fibonacci line colors with blue.
+Blue color is only for selected handles.
