@@ -3,12 +3,12 @@ import LegalScreen from "@/components/LegalScreen";
 export default function AboutUs() {
   return (
     <LegalScreen
-      title="About Trade Mock"
+      title="About Trade Mock Pro"
       badge="About"
       badgeColor="#00c896"
       sections={[
         {
-          body: "Trade Mock is a cryptocurrency trading simulation and analysis app designed for anyone who wants to learn trading without the risk of losing real money.",
+          body: "Trade Mock Pro is a cryptocurrency trading simulation and analysis app designed for anyone who wants to learn trading without the risk of losing real money.",
         },
         {
           heading: "Our Mission",
@@ -29,11 +29,11 @@ export default function AboutUs() {
         },
         {
           heading: "Technology",
-          body: "Trade Mock is built with React Native (Expo), powered by Firebase for authentication and data storage, and Binance API for live market prices.",
+          body: "Trade Mock Pro is built with React Native (Expo), powered by Firebase for authentication and data storage, and Binance API for live market prices.",
         },
         {
           heading: "Version",
-          body: "Trade Mock v1.0.0\nBuilt with ❤️ for traders worldwide.",
+          body: "Trade Mock Pro v1.0.0\nBuilt with ❤️ for traders worldwide.",
         },
         {
           heading: "Contact",

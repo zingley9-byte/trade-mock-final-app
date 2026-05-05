@@ -8,7 +8,7 @@ export default function TermsConditions() {
       badgeColor="#10b981"
       sections={[
         {
-          body: "By downloading or using Trade Mock, you agree to be bound by the following terms and conditions. Please read them carefully before using the app.",
+          body: "By downloading or using Trade Mock Pro, you agree to be bound by the following terms and conditions. Please read them carefully before using the app.",
         },
         {
           heading: "Acceptance of Terms",
@@ -22,11 +22,11 @@ export default function TermsConditions() {
         },
         {
           heading: "Account Responsibility",
-          body: "Users are fully responsible for maintaining the security of their account credentials. Do not share your password with anyone. Trade Mock will never ask for your password.",
+          body: "Users are fully responsible for maintaining the security of their account credentials. Do not share your password with anyone. Trade Mock Pro will never ask for your password.",
         },
         {
           heading: "Virtual Funds",
-          body: "The ₹10,00,000 starting balance and all trades within Trade Mock use virtual funds only. No real money is involved at any point. Profits or losses are simulated and have no real-world monetary value.",
+          body: "The ₹10,00,000 starting balance and all trades within Trade Mock Pro use virtual funds only. No real money is involved at any point. Profits or losses are simulated and have no real-world monetary value.",
         },
         {
           heading: "Changes to the App",

@@ -78,7 +78,7 @@ function NativeSplash() {
         </Animated.View>
 
         <Animated.View style={{ opacity: taglineOpacity, alignItems: "center" }}>
-          <Text style={styles.appName}>Trade Mock</Text>
+          <Text style={styles.appName}>Trade Mock Pro</Text>
           <Text style={styles.tagline}>Practice Like Pro</Text>
         </Animated.View>
       </View>

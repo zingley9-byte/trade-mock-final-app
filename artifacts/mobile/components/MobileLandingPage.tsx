@@ -233,7 +233,7 @@ export default function MobileLandingPage() {
           <View style={s.heroRow}>
             <View style={s.heroLeft}>
               <Text style={s.h1}>Practice Trading{"\n"}<Text style={s.h1Yellow}>Without Risk</Text></Text>
-              <Text style={s.sub}>Trade Mock is a crypto trading simulation app for educational purposes only. We do not provide financial advice. Practice risk-free with live charts and virtual funds.</Text>
+              <Text style={s.sub}>Trade Mock Pro is a crypto trading simulation app for educational purposes only. We do not provide financial advice. Practice risk-free with live charts and virtual funds.</Text>
               <TouchableOpacity style={s.btnPrimary} onPress={goAuth}>
                 <Text style={s.btnPrimaryTxt}>Get Started →</Text>
               </TouchableOpacity>
@@ -303,7 +303,7 @@ export default function MobileLandingPage() {
 
         {/* ── Why Choose ── */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Why Choose Trade Mock?</Text>
+          <Text style={s.sectionTitle}>Why Choose Trade Mock Pro?</Text>
           <View style={s.featGrid}>
             {FEATURES.map((f) => (
               <View key={f.title} style={s.featCard}>
@@ -373,7 +373,7 @@ export default function MobileLandingPage() {
               </React.Fragment>
             ))}
           </View>
-          <Text style={s.legalCopy}>© 2025 Trade Mock. All rights reserved.</Text>
+          <Text style={s.legalCopy}>© 2025 Trade Mock Pro. All rights reserved.</Text>
         </View>
 
         {/* ── Bottom CTA banner ── */}

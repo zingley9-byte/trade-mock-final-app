@@ -8,7 +8,7 @@ export default function PrivacyPolicy() {
       badgeColor="#3b82f6"
       sections={[
         {
-          body: 'Trade Mock ("we", "our", "us") respects your privacy and is committed to protecting your personal information.',
+          body: 'Trade Mock Pro ("we", "our", "us") respects your privacy and is committed to protecting your personal information.',
         },
         {
           heading: "Information We Collect",
@@ -34,7 +34,7 @@ export default function PrivacyPolicy() {
         },
         {
           heading: "Data Sharing",
-          body: "We do not sell your personal data to any third party. Your data is used solely to operate and improve Trade Mock.",
+          body: "We do not sell your personal data to any third party. Your data is used solely to operate and improve Trade Mock Pro.",
         },
         {
           heading: "Security",

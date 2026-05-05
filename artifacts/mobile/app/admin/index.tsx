@@ -82,7 +82,7 @@ export default function AdminDashboard() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Admin Panel</Text>
-          <Text style={s.headerSub}>Trade Mock Control Center</Text>
+          <Text style={s.headerSub}>Trade Mock Pro Control Center</Text>
         </View>
         <View style={s.adminBadge}>
           <SvgIcon name="shield-checkmark-outline" size={12} color={PRIMARY} />

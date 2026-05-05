@@ -66,7 +66,7 @@ const STATIC_ANNOUNCEMENTS = [
   {
     icon: "gift-outline",
     color: "#ec4899",
-    title: "Welcome to Trade Mock",
+    title: "Welcome to Trade Mock Pro",
     body: "Practice crypto futures trading risk-free with ₹10,00,000 virtual balance. No real money involved.",
     date: "Apr 10, 2026",
     isNew: false,
@@ -190,7 +190,7 @@ export default function AppHeader() {
   }
 
   async function handleShare() {
-    const shareText = "🔥 TradeMock — Practice trading FREE with ₹10,00,000 virtual money!\nLearn crypto trading without any risk 🚀";
+    const shareText = "🔥 Trade Mock Pro — Practice trading FREE with ₹10,00,000 virtual money!\nLearn crypto trading without any risk 🚀";
     const shareUrl  = Platform.OS === "web" && typeof window !== "undefined"
       ? window.location.href
       : "https://trademock.app";
@@ -560,7 +560,7 @@ export default function AppHeader() {
                   </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.fbLabel, { color: colors.mutedForeground }]}>How would you rate TradeMock?</Text>
+                <Text style={[styles.fbLabel, { color: colors.mutedForeground }]}>How would you rate Trade Mock Pro?</Text>
                 <View style={styles.starsRow}>
                   {[1, 2, 3, 4, 5].map((star) => (
                     <TouchableOpacity key={star} onPress={() => setFeedbackRating(star)} activeOpacity={0.7}>

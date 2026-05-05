@@ -115,7 +115,7 @@ export default function LoadingCandleAnimation({
           resizeMode="contain"
         />
         <Text style={[st.logoTxt, { fontSize: Math.round(22 * sc) }]}>
-          Trade Mock
+          Trade Mock Pro
         </Text>
       </View>
 

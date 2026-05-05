@@ -169,7 +169,7 @@ export function PrivacyProvider({ children }: { children: React.ReactNode }) {
     if (Platform.OS === "web") return false;
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Unlock Trade Mock",
+        promptMessage: "Unlock Trade Mock Pro",
         fallbackLabel: "Use PIN",
         cancelLabel:   "Cancel",
         disableDeviceFallback: false,

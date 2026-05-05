@@ -9,11 +9,11 @@ export default function Disclaimer() {
       sections={[
         {
           heading: "Not Financial Advice",
-          body: "Trade Mock is NOT a financial advisor, broker, or investment platform. All content within the app is provided for educational and simulation purposes only.",
+          body: "Trade Mock Pro is NOT a financial advisor, broker, or investment platform. All content within the app is provided for educational and simulation purposes only.",
         },
         {
           heading: "No Real Money",
-          body: "All trading activity within Trade Mock uses virtual/simulated funds only. No real money is deposited, invested, or at risk at any time.",
+          body: "All trading activity within Trade Mock Pro uses virtual/simulated funds only. No real money is deposited, invested, or at risk at any time.",
         },
         {
           heading: "Trading Risk Warning",
@@ -21,7 +21,7 @@ export default function Disclaimer() {
         },
         {
           heading: "No Liability",
-          body: "Trade Mock and its developers are not responsible for any financial decisions made by users based on experience gained from this app. We are not liable for any profit or loss incurred in real trading.",
+          body: "Trade Mock Pro and its developers are not responsible for any financial decisions made by users based on experience gained from this app. We are not liable for any profit or loss incurred in real trading.",
         },
         {
           heading: "Market Data",

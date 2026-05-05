@@ -61,7 +61,7 @@ function serveIndexHtml(res) {
     res.writeHead(503, { "content-type": "text/html; charset=utf-8" });
     res.end(
       `<!doctype html><html><body>
-       <h2>Trade Mock — Build not found</h2>
+       <h2>Trade Mock Pro — Build not found</h2>
        <p>Run <code>npm run build</code> to generate the web build, then restart the server.</p>
        </body></html>`,
     );
@@ -101,7 +101,7 @@ const server = http.createServer((req, res) => {
 
 const port = parseInt(process.env.PORT || "3000", 10);
 server.listen(port, "0.0.0.0", () => {
-  console.log(`Trade Mock web server running on port ${port}`);
+  console.log(`Trade Mock Pro web server running on port ${port}`);
   console.log(`Serving from: ${STATIC_ROOT}`);
   if (!fs.existsSync(STATIC_ROOT)) {
     console.warn(`Warning: ${STATIC_ROOT} does not exist. Run 'npm run build' first.`);

@@ -251,7 +251,7 @@ function Footer() {
         ))}
       </View>
       <View style={ft.bottom}>
-        <Text style={ft.copy}>© 2025 Trade Mock. All rights reserved.</Text>
+        <Text style={ft.copy}>© 2025 Trade Mock Pro. All rights reserved.</Text>
         <View style={ft.btmLinks}>
           {[
             { label: "Privacy Policy", route: "/legal/privacy"    },
@@ -356,7 +356,7 @@ export default function LandingPage() {
                 <Text style={s.h1Yellow}>Without Risk</Text>
               </Text>
               <Text style={s.sub}>
-                Trade Mock is a crypto trading simulation app for educational purposes only. We do not provide financial advice. Practice with live charts, mock balance, portfolio, and history — risk free.
+                Trade Mock Pro is a crypto trading simulation app for educational purposes only. We do not provide financial advice. Practice with live charts, mock balance, portfolio, and history — risk free.
               </Text>
               <View style={s.ctaRow}>
                 <TouchableOpacity style={s.btnPrimary} onPress={goAuth}>

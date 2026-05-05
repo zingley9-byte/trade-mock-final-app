@@ -243,7 +243,7 @@ export default function AuthScreen() {
                   resizeMode="contain"
                 />
               </View>
-              <Text style={styles.appName}>Trade Mock</Text>
+              <Text style={styles.appName}>Trade Mock Pro</Text>
               <Text style={styles.appSub}>Practice. Learn. Trade. Succeed.</Text>
             </View>
 

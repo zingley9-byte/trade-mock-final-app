@@ -393,7 +393,7 @@ export default function SettingsScreen() {
     const url = Platform.OS === "ios"
       ? "https://apps.apple.com/app/id000000000"
       : "https://play.google.com/store/apps/details?id=com.trademock.app";
-    Linking.openURL(url).catch(() => Alert.alert("Rate App", "Please search 'Trade Mock' in the App Store / Play Store."));
+    Linking.openURL(url).catch(() => Alert.alert("Rate App", "Please search 'Trade Mock Pro' in the App Store / Play Store."));
   }
 
   const fontLabel = { small: "Small", medium: "Medium", large: "Large" }[appearance.fontSize];
@@ -529,7 +529,7 @@ export default function SettingsScreen() {
         <RowItem icon="chatbubble-outline" iconBg="#25D366" label="WhatsApp Support"
           sub="Chat with us on WhatsApp" colors={colors} showChevron onPress={handleWhatsApp} isFirst />
         <RowItem icon="star-outline" iconBg="#eab308" label="Rate App"
-          sub="Love Trade Mock? Rate us!" colors={colors} showChevron onPress={handleRateApp} isLast />
+          sub="Love Trade Mock Pro? Rate us!" colors={colors} showChevron onPress={handleRateApp} isLast />
       </View>
 
       {/* ─── Admin Panel (only visible to admin) ─── */}
@@ -562,7 +562,7 @@ export default function SettingsScreen() {
           sub="How we handle your data" colors={colors} showChevron
           onPress={() => router.push("/legal/privacy")} isFirst />
         <RowItem icon="reader-outline" iconBg="#10b981" label="Terms & Conditions"
-          sub="Rules for using Trade Mock" colors={colors} showChevron
+          sub="Rules for using Trade Mock Pro" colors={colors} showChevron
           onPress={() => router.push("/legal/terms")} />
         <RowItem icon="warning-outline" iconBg="#f59e0b" label="Disclaimer"
           sub="Important risk information" colors={colors} showChevron
@@ -570,13 +570,13 @@ export default function SettingsScreen() {
         <RowItem icon="mail-outline" iconBg="#8b5cf6" label="Contact Us"
           sub="Get in touch with support" colors={colors} showChevron
           onPress={() => router.push("/legal/contact")} />
-        <RowItem icon="information-circle-outline" iconBg="#00c896" label="About Trade Mock"
+        <RowItem icon="information-circle-outline" iconBg="#00c896" label="About Trade Mock Pro"
           sub="Our mission & story" colors={colors} showChevron
           onPress={() => router.push("/legal/about")} isLast />
       </View>
 
       {/* ─── App Version ─── */}
-      <Text style={[styles.versionText, { color: colors.mutedForeground }]}>Trade Mock v1.0.0 · Practice. Learn. Trade.</Text>
+      <Text style={[styles.versionText, { color: colors.mutedForeground }]}>Trade Mock Pro v1.0.0 · Practice. Learn. Trade.</Text>
 
       {/* ─── Modals ─── */}
       <EditProfileModal

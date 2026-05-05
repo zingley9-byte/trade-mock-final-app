@@ -1,6 +1,6 @@
 module.exports = {
   expo: {
-    name: "Trade Mock",
+    name: "Trade Mock Pro",
     slug: "mobile",
     version: "1.0.0",
     orientation: "portrait",
@@ -24,14 +24,14 @@ module.exports = {
       },
       package: "com.trademock.app",
     },
-    description: "Trade Mock is a crypto trading simulation app for educational purposes only. We do not provide financial advice.",
+    description: "Trade Mock Pro is a crypto trading simulation app for educational purposes only. We do not provide financial advice.",
     web: {
       bundler: "metro",
       output: "single",
       favicon: "./assets/images/logo.png",
-      name: "Trade Mock",
-      shortName: "TradeMock",
-      description: "Trade Mock is a crypto trading simulation app for educational purposes only. We do not provide financial advice.",
+      name: "Trade Mock Pro",
+      shortName: "TradeMockPro",
+      description: "Trade Mock Pro is a crypto trading simulation app for educational purposes only. We do not provide financial advice.",
       lang: "en",
       backgroundColor: "#000000",
       themeColor: "#0B0E11",

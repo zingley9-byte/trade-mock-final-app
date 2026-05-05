@@ -69,7 +69,7 @@ export default function LegalScreen({ title, badge, badgeColor = "#3b82f6", sect
         ))}
 
         <View style={[s.footer, { borderTopColor: colors.border }]}>
-          <Text style={[s.footerTxt, { color: colors.mutedForeground }]}>Trade Mock · Practice. Learn. Trade.</Text>
+          <Text style={[s.footerTxt, { color: colors.mutedForeground }]}>Trade Mock Pro · Practice. Learn. Trade.</Text>
         </View>
       </ScrollView>
     </View>
