@@ -223,7 +223,7 @@ function ChartBgModal({
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { theme, setTheme } = useTradingContext();
+  const { theme, setTheme, resetAccount, resetsRemaining } = useTradingContext();
   const { isAdmin } = useAdmin();
   const isDark = theme === "dark";
 
@@ -349,6 +349,36 @@ export default function SettingsScreen() {
       { text: "Cancel", style: "cancel" },
       { text: "Backup Now", onPress: () => Alert.alert("Success", "Backup complete!") },
     ]);
+  }
+
+  function handleResetFund() {
+    if (resetsRemaining === 0) {
+      Alert.alert(
+        "Reset Limit Reached",
+        "You have used all 2 resets for this 30-day period. Please wait until your next reset window."
+      );
+      return;
+    }
+    const after = resetsRemaining - 1;
+    Alert.alert(
+      "Reset Fund",
+      `Your balance will be restored to ₹10,00,000 and all open positions & trade history will be cleared.\n\nResets remaining after this: ${after}/2 (30-day limit)`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset Fund",
+          style: "destructive",
+          onPress: () => {
+            const result = resetAccount();
+            if (!result.allowed) {
+              Alert.alert("Limit Reached", result.message);
+            } else {
+              Alert.alert("Fund Reset", "Your balance has been restored to ₹10,00,000.");
+            }
+          },
+        },
+      ]
+    );
   }
 
   function handleWhatsApp() {
@@ -486,7 +516,25 @@ export default function SettingsScreen() {
       <SectionHeader title="Backup & Sync" colors={colors} />
       <View style={styles.section}>
         <RowItem icon="cloud-upload-outline" iconBg="#0ea5e9" label="Backup Demo Trades" sub="Save trades to cloud"
-          colors={colors} showChevron onPress={handleBackup} isFirst isLast />
+          colors={colors} showChevron onPress={handleBackup} isFirst />
+        <RowItem
+          icon="refresh-outline" iconBg="#ef4444" label="Reset Fund"
+          sub={resetsRemaining > 0
+            ? `Restore balance to ₹10,00,000 · ${resetsRemaining}/2 resets left`
+            : "Reset limit reached · Try again in 30 days"}
+          colors={colors} showChevron
+          onPress={handleResetFund}
+          right={
+            <View style={[styles.resetBadge, {
+              backgroundColor: resetsRemaining > 0 ? colors.bearBg : colors.muted,
+            }]}>
+              <Text style={[styles.resetBadgeText, {
+                color: resetsRemaining > 0 ? colors.bear : colors.mutedForeground,
+              }]}>{resetsRemaining}/2</Text>
+            </View>
+          }
+          isLast
+        />
       </View>
 
       {/* ─── Support ─── */}
@@ -690,6 +738,11 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 14, fontWeight: "500" },
   rowSub: { fontSize: 11, marginTop: 1 },
   valueText: { fontSize: 13, marginRight: 2 },
+  resetBadge: {
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 20, marginRight: 4,
+  },
+  resetBadgeText: { fontSize: 12, fontWeight: "700" },
 
   // Edit profile modal
   modalRoot: { flex: 1 },
