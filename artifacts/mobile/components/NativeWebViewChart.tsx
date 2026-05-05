@@ -329,6 +329,23 @@ let stalenessTimer = null;
 let volCollapsed = false;
 let isFS = ${initialFS ? 'true' : 'false'};
 
+// ── RAF update queue — coalesce rapid WS ticks into one frame ────────────────
+// Binance sends kline updates every ~250 ms; without batching, rapid markets
+// trigger multiple layout/paint passes per frame causing jitter.
+let _pendingCandle = null, _pendingVol = null, _rafId = null;
+function scheduleUpdate(candle, vol) {
+  _pendingCandle = candle;
+  _pendingVol    = vol;
+  if (_rafId) return;
+  _rafId = requestAnimationFrame(function() {
+    _rafId = null;
+    if (!candleSeries || !_pendingCandle) return;
+    try { candleSeries.update(_pendingCandle); } catch(_) {}
+    try { volSeries.update(_pendingVol);    } catch(_) {}
+    _pendingCandle = null; _pendingVol = null;
+  });
+}
+
 // ── IST Clock ───────────────────────────────────────────────────────────────
 function tickIST() {
   const now = new Date();
@@ -405,9 +422,15 @@ function initChart() {
       horzLine: { color: '#758696', labelBackgroundColor: '#26a69a' },
     },
     rightPriceScale: { borderColor: '#2a2e39' },
-    timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false },
-    handleScroll: true,
-    handleScale: true,
+    timeScale: {
+      borderColor: '#2a2e39', timeVisible: true, secondsVisible: false,
+      // Smooth kinetic scroll on mobile touch
+      rightOffset: 5, barSpacing: 8, minBarSpacing: 2,
+    },
+    handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+    handleScale:  { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+    // Keep auto-scale stable — prevents price-scale jumping on every live tick
+    autoSize: false,
   });
 
   candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
@@ -541,23 +564,24 @@ function connectWS(sym, tf, id) {
   ws.onmessage = e => {
     if (loadId !== id) return;
     lastMsgAt = Date.now();
-    armStaleness(sym, tf, id); // reset staleness watchdog on every message
+    armStaleness(sym, tf, id);
     try {
       const msg = JSON.parse(e.data);
       const k = msg.k;
       const candle = {
-        time: Math.floor(k.t/1000),
-        open: parseFloat(k.o), high: parseFloat(k.h),
-        low: parseFloat(k.l), close: parseFloat(k.c),
+        time:  Math.floor(k.t / 1000),
+        open:  parseFloat(k.o), high: parseFloat(k.h),
+        low:   parseFloat(k.l), close: parseFloat(k.c),
       };
       const vol = {
-        time: Math.floor(k.t/1000),
+        time:  Math.floor(k.t / 1000),
         value: parseFloat(k.v),
         color: parseFloat(k.c) >= parseFloat(k.o) ? '#26a69a55' : '#ef535055',
       };
-      candleSeries.update(candle);
-      volSeries.update(vol);
-    } catch(_){}
+      // RAF-batched: coalesce rapid ticks into one frame so the chart never
+      // repaints more than 60× per second regardless of WS message rate.
+      scheduleUpdate(candle, vol);
+    } catch(_) {}
   };
 
   ws.onerror = () => { if (loadId !== id) return; clearStaleness(); setWsBadge('error'); };
