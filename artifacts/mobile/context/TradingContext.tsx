@@ -206,6 +206,7 @@ interface TradingContextType {
     entryPrice?: number;
   }) => { success: boolean; message: string };
   closePosition: (positionId: string) => void;
+  modifyPosition: (positionId: string, stopLoss?: number, takeProfit?: number) => void;
   getRunningPnL: () => number;
   getTotalPortfolioValue: () => number;
   resetAccount: () => { allowed: boolean; message: string };
@@ -695,6 +696,19 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     [currentPrice, tradeHistory, theme, leverage, usdToInr]
   );
 
+  const modifyPosition = useCallback(
+    (positionId: string, stopLoss?: number, takeProfit?: number) => {
+      setPositions((prev) => {
+        const updated = prev.map((p) =>
+          p.id === positionId ? { ...p, stopLoss, takeProfit } : p
+        );
+        saveState(balance, updated, tradeHistory, theme, leverage);
+        return updated;
+      });
+    },
+    [balance, tradeHistory, theme, leverage]
+  );
+
   const getRunningPnL = useCallback((): number => {
     return positions.reduce((sum, pos) => {
       const pnlRaw = calcPnL(pos, currentPrice);
@@ -823,6 +837,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         tradeFlash,
         openPosition,
         closePosition,
+        modifyPosition,
         getRunningPnL,
         getTotalPortfolioValue,
         resetAccount,

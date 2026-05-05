@@ -1,21 +1,25 @@
-import React from "react";
+import React, { useState } from "react";
 import {
+  Alert,
   Dimensions,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
-  Alert,
 } from "react-native";
 import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTradingContext } from "@/context/TradingContext";
+import { useTradingContext, Position } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import CoinLogo from "@/components/CoinLogo";
 
 const INITIAL_BALANCE = 1000000;
+const { height: SCREEN_H } = Dimensions.get("window");
 
 export default function PortfolioScreen() {
   const colors = useColors();
@@ -27,17 +31,22 @@ export default function PortfolioScreen() {
     getRunningPnL,
     getTotalPortfolioValue,
     closePosition,
+    modifyPosition,
     resetAccount,
     resetsRemaining,
     currencyMode,
     usdToInr,
   } = useTradingContext();
 
+  const [modifyTarget, setModifyTarget] = useState<Position | null>(null);
+  const [slInput, setSlInput]           = useState("");
+  const [tpInput, setTpInput]           = useState("");
+  const [modifyErr, setModifyErr]       = useState("");
+
   const runningPnL = getRunningPnL();
   const totalValue = getTotalPortfolioValue();
-  const totalPnL = totalValue - INITIAL_BALANCE;
+  const totalPnL   = totalValue - INITIAL_BALANCE;
   const totalPnLPct = (totalPnL / INITIAL_BALANCE) * 100;
-
   const isUSD = currencyMode === "usd";
 
   function fmt(amount: number, decimals = 2): string {
@@ -48,18 +57,68 @@ export default function PortfolioScreen() {
     return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
   }
 
+  function fmtPrice(p: number) {
+    if (p >= 10000) return `$${p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (p >= 1)     return `$${p.toFixed(4)}`;
+    return `$${p.toFixed(6)}`;
+  }
+
+  function openModify(pos: Position) {
+    setModifyTarget(pos);
+    setSlInput(pos.stopLoss ? String(pos.stopLoss) : "");
+    setTpInput(pos.takeProfit ? String(pos.takeProfit) : "");
+    setModifyErr("");
+  }
+
+  function handleSaveModify() {
+    if (!modifyTarget) return;
+    setModifyErr("");
+    const sl = slInput.trim() ? parseFloat(slInput) : undefined;
+    const tp = tpInput.trim() ? parseFloat(tpInput) : undefined;
+    const entry = modifyTarget.entryPrice;
+    const isBuy = modifyTarget.side === "buy";
+
+    if (sl !== undefined && !isNaN(sl)) {
+      if (isBuy && sl >= entry) {
+        setModifyErr(`Stop Loss must be BELOW entry (${fmtPrice(entry)}) for LONG`);
+        return;
+      }
+      if (!isBuy && sl <= entry) {
+        setModifyErr(`Stop Loss must be ABOVE entry (${fmtPrice(entry)}) for SHORT`);
+        return;
+      }
+    }
+    if (tp !== undefined && !isNaN(tp)) {
+      if (isBuy && tp <= entry) {
+        setModifyErr(`Take Profit must be ABOVE entry (${fmtPrice(entry)}) for LONG`);
+        return;
+      }
+      if (!isBuy && tp >= entry) {
+        setModifyErr(`Take Profit must be BELOW entry (${fmtPrice(entry)}) for SHORT`);
+        return;
+      }
+    }
+
+    modifyPosition(
+      modifyTarget.id,
+      sl !== undefined && !isNaN(sl) ? sl : undefined,
+      tp !== undefined && !isNaN(tp) ? tp : undefined,
+    );
+    setModifyTarget(null);
+  }
+
   function handleReset() {
     if (resetsRemaining === 0) {
       Alert.alert(
-        "⚠️ Reset Limit Reached",
-        "You have used all 2 resets for this 30-day period. Please wait for your oldest reset to expire before trying again."
+        "Reset Limit Reached",
+        "You have used all 2 resets for this 30-day period."
       );
       return;
     }
     const afterReset = resetsRemaining - 1;
     Alert.alert(
-      "⚠️ Reset Warning",
-      `You only get 2 resets every 30 days.\n\nAfter this reset, you will have ${afterReset} reset${afterReset !== 1 ? "s" : ""} remaining in this 30-day window.\n\nYour balance will be restored to ${isUSD ? "$1,000,000" : "₹10,00,000"} and all trade history will be cleared.`,
+      "Reset Warning",
+      `You only get 2 resets every 30 days.\n\nAfter this reset, you will have ${afterReset} reset${afterReset !== 1 ? "s" : ""} remaining.\n\nBalance will be restored to ${isUSD ? "$1,000,000" : "₹10,00,000"} and all trade history will be cleared.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -67,179 +126,353 @@ export default function PortfolioScreen() {
           style: "destructive",
           onPress: () => {
             const result = resetAccount();
-            if (!result.allowed) Alert.alert("⚠️ Limit Reached", result.message);
+            if (!result.allowed) Alert.alert("Limit Reached", result.message);
           },
         },
       ]
     );
   }
 
-  return (
-    <ScrollView
-      style={[styles.root, { backgroundColor: colors.background }]}
-      contentContainerStyle={{
-        paddingBottom: Platform.OS === "web" ? 80 : insets.bottom + 90,
-      }}
-    >
-      <View style={styles.headerRow}>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Portfolio</Text>
-        <TouchableOpacity
-          onPress={handleReset}
-          style={[styles.resetBtn, { borderColor: colors.border, opacity: resetsRemaining === 0 ? 0.4 : 1 }]}
-        >
-          <SvgIcon name="refresh-outline" size={14} color={colors.mutedForeground} />
-          <Text style={[styles.resetText, { color: colors.mutedForeground }]}>
-            Reset ({resetsRemaining}/2)
-          </Text>
-        </TouchableOpacity>
-      </View>
+  function handleClose(posId: string, symbol: string) {
+    Alert.alert(
+      "Close Position",
+      `Close ${symbol} position at market price?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Close", style: "destructive", onPress: () => closePosition(posId) },
+      ]
+    );
+  }
 
-      {/* ── Total Portfolio Value ─────────────────────────────────────────── */}
-      <View style={[styles.portfolioCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.portfolioLabel, { color: colors.mutedForeground }]}>
-          Total Portfolio Value
-        </Text>
-        <Text style={[styles.portfolioValue, { color: colors.foreground }]}>
-          {fmt(totalValue)}
-        </Text>
-        <View style={styles.pnlRow}>
-          <Text style={[styles.totalPnL, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
-            {totalPnL >= 0 ? "+" : ""}{fmt(totalPnL)}
-          </Text>
-          <View style={[styles.pnlBadge, { backgroundColor: totalPnL >= 0 ? colors.bullBg : colors.bearBg }]}>
-            <Text style={[styles.pnlBadgeText, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
-              {totalPnLPct >= 0 ? "+" : ""}{totalPnLPct.toFixed(2)}%
+  return (
+    <>
+      <ScrollView
+        style={[styles.root, { backgroundColor: colors.background }]}
+        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 80 : insets.bottom + 90 }}
+      >
+        {/* ── Header ───────────────────────────────────────────────────── */}
+        <View style={styles.headerRow}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Portfolio</Text>
+          <TouchableOpacity
+            onPress={handleReset}
+            style={[styles.resetBtn, { borderColor: colors.border, opacity: resetsRemaining === 0 ? 0.4 : 1 }]}
+          >
+            <SvgIcon name="refresh-outline" size={14} color={colors.mutedForeground} />
+            <Text style={[styles.resetText, { color: colors.mutedForeground }]}>
+              Reset ({resetsRemaining}/2)
             </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Portfolio card ───────────────────────────────────────────── */}
+        <View style={[styles.portfolioCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.portfolioLabel, { color: colors.mutedForeground }]}>Total Portfolio Value</Text>
+          <Text style={[styles.portfolioValue, { color: colors.foreground }]}>{fmt(totalValue)}</Text>
+          <View style={styles.pnlRow}>
+            <Text style={[styles.totalPnL, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
+              {totalPnL >= 0 ? "+" : ""}{fmt(totalPnL)}
+            </Text>
+            <View style={[styles.pnlBadge, { backgroundColor: totalPnL >= 0 ? colors.bullBg : colors.bearBg }]}>
+              <Text style={[styles.pnlBadgeText, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
+                {totalPnLPct >= 0 ? "+" : ""}{totalPnLPct.toFixed(2)}%
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* ── Open Positions ────────────────────────────────────────────────── */}
-      {positions.length === 0 ? (
-        <View style={styles.emptyPos}>
-          <SvgIcon name="file-tray-outline" size={36} color={colors.mutedForeground} />
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No open positions</Text>
-        </View>
-      ) : (
-        <View style={{ marginHorizontal: 14, marginTop: 4 }}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Open Positions ({positions.length})
-          </Text>
-          {positions.map((pos) => {
-            const priceDiff =
-              pos.side === "buy"
+        {/* ── Open Positions ───────────────────────────────────────────── */}
+        {positions.length === 0 ? (
+          <View style={styles.emptyPos}>
+            <SvgIcon name="file-tray-outline" size={36} color={colors.mutedForeground} />
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No open positions</Text>
+          </View>
+        ) : (
+          <View style={{ marginHorizontal: 14, marginTop: 4 }}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+              Open Positions ({positions.length})
+            </Text>
+            {positions.map((pos) => {
+              const priceDiff = pos.side === "buy"
                 ? currentPrice - pos.entryPrice
                 : pos.entryPrice - currentPrice;
-            const posPnl = priceDiff * pos.quantity * pos.leverage;
-            const pnlPct = (posPnl / pos.margin) * 100;
+              const posPnl = priceDiff * pos.quantity * pos.leverage;
+              const pnlPct = (posPnl / pos.margin) * 100;
+              const isBuy  = pos.side === "buy";
+              const accent = isBuy ? colors.bull : colors.bear;
 
-            return (
-              <View
-                key={pos.id}
-                style={[styles.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              >
-                <View style={styles.posTop}>
-                  <View style={styles.posLeft}>
-                    <CoinLogo symbolId={pos.symbol.id} size={36} />
-                    <View style={[styles.sideBadge, { backgroundColor: pos.side === "buy" ? colors.bullBg : colors.bearBg }]}>
-                      <Text style={[styles.sideText, { color: pos.side === "buy" ? colors.bull : colors.bear }]}>
-                        {pos.side === "buy" ? "LONG" : "SHORT"}
+              return (
+                <View
+                  key={pos.id}
+                  style={[styles.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  {/* Top row: logo + badge + symbol/lev + PnL */}
+                  <View style={styles.posTop}>
+                    <View style={styles.posLeft}>
+                      <CoinLogo symbolId={pos.symbol.id} size={34} />
+                      <View style={[styles.sideBadge, { backgroundColor: isBuy ? colors.bullBg : colors.bearBg }]}>
+                        <Text style={[styles.sideText, { color: accent }]}>
+                          {isBuy ? "▲ LONG" : "▼ SHORT"}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={[styles.posSymbol, { color: colors.foreground }]}>{pos.symbol.label}</Text>
+                        <Text style={[styles.posLev, { color: colors.primary }]}>×{pos.leverage}  ·  {pos.quantity} lot</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.posPnlSmall, { color: posPnl >= 0 ? colors.bull : colors.bear }]}>
+                      {posPnl >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
+                    </Text>
+                  </View>
+
+                  {/* Stats grid */}
+                  <View style={[styles.statsGrid, { backgroundColor: colors.muted, borderRadius: 8 }]}>
+                    <StatCell label="Entry"   value={fmtPrice(pos.entryPrice)} colors={colors} />
+                    <StatCell label="Current" value={fmtPrice(currentPrice)}   colors={colors} />
+                    <StatCell label="Margin"  value={fmt(pos.margin, 0)}        colors={colors} />
+                    <StatCell label="PnL"     value={`${posPnl >= 0 ? "+" : ""}${fmt(posPnl)}`} valueColor={posPnl >= 0 ? colors.bull : colors.bear} colors={colors} />
+                  </View>
+
+                  {/* SL / TP row */}
+                  <View style={styles.slTpRow}>
+                    <View style={styles.slTpItem}>
+                      <Text style={[styles.slTpLabel, { color: colors.mutedForeground }]}>Stop Loss</Text>
+                      <Text style={[styles.slTpValue, { color: pos.stopLoss ? colors.bear : colors.mutedForeground }]}>
+                        {pos.stopLoss ? fmtPrice(pos.stopLoss) : "—"}
                       </Text>
                     </View>
-                    <View>
-                      <Text style={[styles.posSymbol, { color: colors.foreground }]}>{pos.symbol.label}</Text>
-                      <Text style={[styles.posLev, { color: colors.primary }]}>x{pos.leverage}</Text>
+                    <View style={[styles.slTpDivider, { backgroundColor: colors.border }]} />
+                    <View style={styles.slTpItem}>
+                      <Text style={[styles.slTpLabel, { color: colors.mutedForeground }]}>Take Profit</Text>
+                      <Text style={[styles.slTpValue, { color: pos.takeProfit ? colors.bull : colors.mutedForeground }]}>
+                        {pos.takeProfit ? fmtPrice(pos.takeProfit) : "—"}
+                      </Text>
                     </View>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.closeBtn, { backgroundColor: colors.destructive }]}
-                    onPress={() => closePosition(pos.id)}
-                  >
-                    <Text style={styles.closeBtnText}>Close</Text>
-                  </TouchableOpacity>
+
+                  {/* Action buttons */}
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity
+                      style={[styles.btnModify, { borderColor: colors.primary + "66", backgroundColor: colors.primary + "12" }]}
+                      onPress={() => openModify(pos)}
+                    >
+                      <Text style={[styles.btnModifyText, { color: colors.primary }]}>Modify</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.btnClose, { borderColor: colors.bear + "66", backgroundColor: colors.bear + "12" }]}
+                      onPress={() => handleClose(pos.id, pos.symbol.label)}
+                    >
+                      <Text style={[styles.btnCloseText, { color: colors.bear }]}>Close Position</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={styles.posDetails}>
-                  <Detail label="Entry" value={`$${pos.entryPrice.toFixed(4)}`} colors={colors} />
-                  <Detail label="Current" value={`$${currentPrice.toFixed(4)}`} colors={colors} />
-                  <Detail label="Qty" value={`${pos.quantity}`} colors={colors} />
-                  <Detail label="Margin" value={fmt(pos.margin, 0)} colors={colors} />
-                </View>
-                <View style={[styles.pnlRow, { paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
-                  <Text style={[styles.posLabel, { color: colors.mutedForeground }]}>P&L</Text>
-                  <Text style={[styles.posPnl, { color: posPnl >= 0 ? colors.bull : colors.bear }]}>
-                    {posPnl >= 0 ? "+" : ""}{fmt(posPnl)}
-                    {"  "}
-                    <Text style={{ fontSize: 12 }}>({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)</Text>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* ── Modify Bottom Sheet Modal ─────────────────────────────────── */}
+      <Modal
+        visible={!!modifyTarget}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModifyTarget(null)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={() => setModifyTarget(null)} />
+
+          <View style={[styles.sheet, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
+            {/* Sheet handle */}
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
+
+            {/* Sheet header */}
+            <View style={styles.sheetHeader}>
+              <View>
+                <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Modify Position</Text>
+                {modifyTarget && (
+                  <Text style={[styles.sheetSub, { color: colors.mutedForeground }]}>
+                    {modifyTarget.symbol.label}  ·  {modifyTarget.side === "buy" ? "LONG" : "SHORT"}  ·  Entry {fmtPrice(modifyTarget.entryPrice)}
                   </Text>
-                </View>
+                )}
               </View>
-            );
-          })}
-        </View>
-      )}
-    </ScrollView>
+              <TouchableOpacity onPress={() => setModifyTarget(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.sheetClose, { color: colors.mutedForeground }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Inputs */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>
+                Stop Loss
+                {modifyTarget && (
+                  <Text style={{ color: colors.bear, fontSize: 10 }}>
+                    {"  "}({modifyTarget.side === "buy" ? "must be below entry" : "must be above entry"})
+                  </Text>
+                )}
+              </Text>
+              <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.muted }]}>
+                <Text style={[styles.inputPrefix, { color: colors.mutedForeground }]}>$</Text>
+                <TextInput
+                  style={[styles.input, { color: colors.foreground }]}
+                  value={slInput}
+                  onChangeText={(t) => { setSlInput(t); setModifyErr(""); }}
+                  placeholder="Leave blank to remove"
+                  placeholderTextColor={colors.mutedForeground}
+                  keyboardType="decimal-pad"
+                />
+                {slInput.length > 0 && (
+                  <TouchableOpacity onPress={() => setSlInput("")}>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 16, paddingHorizontal: 8 }}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>
+                Take Profit
+                {modifyTarget && (
+                  <Text style={{ color: colors.bull, fontSize: 10 }}>
+                    {"  "}({modifyTarget.side === "buy" ? "must be above entry" : "must be below entry"})
+                  </Text>
+                )}
+              </Text>
+              <View style={[styles.inputWrap, { borderColor: colors.border, backgroundColor: colors.muted }]}>
+                <Text style={[styles.inputPrefix, { color: colors.mutedForeground }]}>$</Text>
+                <TextInput
+                  style={[styles.input, { color: colors.foreground }]}
+                  value={tpInput}
+                  onChangeText={(t) => { setTpInput(t); setModifyErr(""); }}
+                  placeholder="Leave blank to remove"
+                  placeholderTextColor={colors.mutedForeground}
+                  keyboardType="decimal-pad"
+                />
+                {tpInput.length > 0 && (
+                  <TouchableOpacity onPress={() => setTpInput("")}>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 16, paddingHorizontal: 8 }}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Error */}
+            {modifyErr ? (
+              <View style={[styles.errBox, { backgroundColor: colors.bear + "18", borderColor: colors.bear + "44" }]}>
+                <Text style={[styles.errText, { color: colors.bear }]}>{modifyErr}</Text>
+              </View>
+            ) : null}
+
+            {/* Hint */}
+            <Text style={[styles.hint, { color: colors.mutedForeground }]}>
+              Leaving a field blank will remove that level from the position.
+            </Text>
+
+            {/* Buttons */}
+            <View style={styles.sheetBtnRow}>
+              <TouchableOpacity
+                style={[styles.sheetBtnCancel, { borderColor: colors.border }]}
+                onPress={() => setModifyTarget(null)}
+              >
+                <Text style={[styles.sheetBtnCancelText, { color: colors.mutedForeground }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sheetBtnSave, { backgroundColor: colors.primary }]}
+                onPress={handleSaveModify}
+              >
+                <Text style={styles.sheetBtnSaveText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
 
-function Detail({ label, value, colors }: { label: string; value: string; colors: ReturnType<typeof useColors> }) {
+function StatCell({ label, value, colors, valueColor }: {
+  label: string; value: string;
+  colors: ReturnType<typeof useColors>;
+  valueColor?: string;
+}) {
   return (
-    <View style={styles.detailItem}>
-      <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>{label}</Text>
-      <Text style={[styles.detailValue, { color: colors.foreground }]}>{value}</Text>
+    <View style={styles.statCell}>
+      <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{label}</Text>
+      <Text style={[styles.statValue, { color: valueColor ?? colors.foreground }]}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerTitle: { fontSize: 22, fontWeight: "700" as const },
-  resetBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  resetText: { fontSize: 13, fontWeight: "500" as const },
-  portfolioCard: {
-    marginHorizontal: 14,
-    padding: 18,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 18,
-    alignItems: "center",
-  },
+
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12 },
+  headerTitle: { fontSize: 22, fontWeight: "700" },
+  resetBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  resetText: { fontSize: 13, fontWeight: "500" },
+
+  portfolioCard: { marginHorizontal: 14, padding: 18, borderRadius: 14, borderWidth: 1, marginBottom: 18, alignItems: "center" },
   portfolioLabel: { fontSize: 12, marginBottom: 6 },
-  portfolioValue: { fontSize: 30, fontWeight: "700" as const, letterSpacing: -1 },
+  portfolioValue: { fontSize: 30, fontWeight: "700", letterSpacing: -1 },
   pnlRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 },
-  totalPnL: { fontSize: 17, fontWeight: "700" as const },
+  totalPnL: { fontSize: 17, fontWeight: "700" },
   pnlBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  pnlBadgeText: { fontSize: 12, fontWeight: "700" as const },
-  sectionTitle: { fontSize: 15, fontWeight: "700" as const, marginBottom: 10 },
+  pnlBadgeText: { fontSize: 12, fontWeight: "700" },
+
+  sectionTitle: { fontSize: 15, fontWeight: "700", marginBottom: 10 },
   emptyPos: { alignItems: "center", justifyContent: "center", gap: 8, marginTop: 60 },
-  emptyText: { fontSize: 15, fontWeight: "500" as const },
-  posCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 10 },
-  posTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  emptyText: { fontSize: 15, fontWeight: "500" },
+
+  posCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 12 },
+  posTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   posLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  sideBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
-  sideText: { fontSize: 11, fontWeight: "700" as const },
-  posSymbol: { fontSize: 14, fontWeight: "700" as const },
-  posLev: { fontSize: 12, fontWeight: "600" as const },
-  closeBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8 },
-  closeBtnText: { fontSize: 13, fontWeight: "600" as const, color: "#fff" },
-  posDetails: { flexDirection: "row", gap: 12, marginBottom: 8 },
-  detailItem: {},
-  detailLabel: { fontSize: 10, marginBottom: 2 },
-  detailValue: { fontSize: 13, fontWeight: "500" as const },
-  posLabel: { fontSize: 12 },
-  posPnl: { fontSize: 16, fontWeight: "700" as const, flex: 1, textAlign: "right" },
+  sideBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5 },
+  sideText: { fontSize: 11, fontWeight: "800" },
+  posSymbol: { fontSize: 14, fontWeight: "700" },
+  posLev: { fontSize: 11, fontWeight: "600", marginTop: 1 },
+  posPnlSmall: { fontSize: 15, fontWeight: "800" },
+
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", padding: 10, gap: 0, marginBottom: 10 },
+  statCell: { width: "50%", paddingVertical: 4, paddingHorizontal: 6 },
+  statLabel: { fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
+  statValue: { fontSize: 13, fontWeight: "600" },
+
+  slTpRow: { flexDirection: "row", alignItems: "center", marginBottom: 12, paddingHorizontal: 2 },
+  slTpItem: { flex: 1 },
+  slTpDivider: { width: 1, height: 32, marginHorizontal: 12 },
+  slTpLabel: { fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 },
+  slTpValue: { fontSize: 13, fontWeight: "700" },
+
+  actionRow: { flexDirection: "row", gap: 10 },
+  btnModify: { flex: 1, paddingVertical: 9, borderRadius: 8, borderWidth: 1, alignItems: "center" },
+  btnModifyText: { fontSize: 13, fontWeight: "700" },
+  btnClose: { flex: 1.4, paddingVertical: 9, borderRadius: 8, borderWidth: 1, alignItems: "center" },
+  btnCloseText: { fontSize: 13, fontWeight: "700" },
+
+  // Modal / Sheet
+  modalOverlay: { flex: 1, justifyContent: "flex-end" },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 18, paddingTop: 10 },
+  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 16 },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
+  sheetTitle: { fontSize: 18, fontWeight: "700" },
+  sheetSub: { fontSize: 12, marginTop: 3 },
+  sheetClose: { fontSize: 18, fontWeight: "600" },
+
+  inputGroup: { marginBottom: 14 },
+  inputLabel: { fontSize: 12, fontWeight: "600", marginBottom: 7, textTransform: "uppercase", letterSpacing: 0.5 },
+  inputWrap: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, height: 48 },
+  inputPrefix: { fontSize: 15, fontWeight: "600", marginRight: 6 },
+  input: { flex: 1, fontSize: 16, fontWeight: "500" },
+
+  errBox: { borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 10 },
+  errText: { fontSize: 12, fontWeight: "600" },
+  hint: { fontSize: 11, marginBottom: 18, lineHeight: 16 },
+
+  sheetBtnRow: { flexDirection: "row", gap: 10 },
+  sheetBtnCancel: { flex: 1, paddingVertical: 13, borderRadius: 10, borderWidth: 1, alignItems: "center" },
+  sheetBtnCancelText: { fontSize: 14, fontWeight: "600" },
+  sheetBtnSave: { flex: 1.6, paddingVertical: 13, borderRadius: 10, alignItems: "center" },
+  sheetBtnSaveText: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });
