@@ -136,9 +136,9 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 .sub-icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
 .sub-item.act .sub-icon svg,.sub-item.act .sub-icon{color:#2F6BFF;}
 /* Drawing SVG overlay */
-#drw-svg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;z-index:5;pointer-events:none;}
+#drw-svg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;z-index:5;pointer-events:none;touch-action:none;}
 #drw-svg.active{pointer-events:all;cursor:crosshair;touch-action:none;}
-#drw-svg.cursor{pointer-events:none;}
+#drw-svg.cursor{pointer-events:all;cursor:default;touch-action:none;}
 /* Float menu */
 #float-menu{position:fixed;background:#1C2333;border:1px solid #283045;border-radius:12px;padding:5px 7px;display:flex;align-items:center;gap:2px;z-index:600;box-shadow:0 8px 28px #00000099;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
 #float-menu.hidden{display:none;}
