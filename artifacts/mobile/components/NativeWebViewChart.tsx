@@ -4,7 +4,7 @@
  * Identical look to the web chart: dark theme, candles, volume, crosshair,
  * timeframe picker, drawing toolbar, fullscreen, OHLCV tooltip, IST clock.
  */
-import React, { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import React, { useRef, useState, useCallback, useEffect, useMemo, forwardRef } from "react";
 import {
   View, StyleSheet, ActivityIndicator, TouchableOpacity, Text,
   Modal, StatusBar, useWindowDimensions, Platform, BackHandler, Keyboard,
@@ -1476,14 +1476,13 @@ function initDrwEngine() {
 </html>`;
 }
 
-function ChartWebView({
-  html, binKey, h, onLoad, onError, onMsg,
-}: {
+const ChartWebView = forwardRef<any, {
   html: string; binKey: string; h: number;
   onLoad: () => void; onError: () => void; onMsg: (e: any) => void;
-}) {
+}>(function ChartWebView({ html, binKey, h, onLoad, onError, onMsg }, ref) {
   return (
     <WebView
+      ref={ref}
       key={`${binKey}-${h}`}
       source={{ html, baseUrl: Platform.OS === "android" ? "file:///android_asset/" : "" }}
       style={styles.webview}
@@ -1511,12 +1510,13 @@ function ChartWebView({
       renderToHardwareTextureAndroid
     />
   );
-}
+});
 
 export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }: Props) {
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState(false);
   const [isFullscreen,   setIsFullscreen]   = useState(false);
+  const normalWVRef = useRef<any>(null); // ref to normal (portrait) WebView
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   const bin = symbol.replace("/","").toUpperCase().endsWith("USDT")
@@ -1558,17 +1558,27 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
   }, []);
 
   const closeFullscreen = useCallback(async () => {
-    Keyboard.dismiss(); // prevent Android from restoring focus to last TextInput
+    Keyboard.dismiss();
     if (Platform.OS === "ios") {
-      // iOS: unlock orientation FIRST so the device is already in portrait
-      // before the Modal disappears — prevents portrait layout rendering
-      // while the screen is still physically in landscape (visual flash/bug)
+      // iOS: unlock orientation FIRST — device rotates to portrait before Modal closes
       try { await ScreenOrientation.unlockAsync(); } catch (_) {}
       setIsFullscreen(false);
+      // After a frame, force-resize the normal WebView canvas.
+      // When hidden (opacity:0) the chart doesn't know the layout changed;
+      // dispatching 'resize' makes lightweight-charts redraw at correct size.
+      setTimeout(() => {
+        normalWVRef.current?.injectJavaScript(
+          "try{window.dispatchEvent(new Event('resize'));if(typeof resizeChart==='function')resizeChart();}catch(e){} true;"
+        );
+      }, 150);
     } else {
-      // Android: close Modal first (snappier feel), then release lock
       setIsFullscreen(false);
       try { await ScreenOrientation.unlockAsync(); } catch (_) {}
+      setTimeout(() => {
+        normalWVRef.current?.injectJavaScript(
+          "try{window.dispatchEvent(new Event('resize'));if(typeof resizeChart==='function')resizeChart();}catch(e){} true;"
+        );
+      }, 150);
     }
   }, []);
 
@@ -1602,6 +1612,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
              visible instantly when returning. No reload, no loading screen. */
           <View style={isFullscreen ? styles.hiddenWebView : styles.visibleWebView}>
             <ChartWebView
+              ref={normalWVRef}
               html={html}
               binKey={`${bin}-normal`}
               h={height}
