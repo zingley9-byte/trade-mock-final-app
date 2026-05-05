@@ -1517,6 +1517,10 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState(false);
   const [isFullscreen,   setIsFullscreen]   = useState(false);
+  // exitingFS: true while we animate back from fullscreen. A solid #131722 overlay
+  // sits on top of the portrait WebView so the user never sees the chart at the
+  // wrong (landscape) size during the orientation-back animation.
+  const [exitingFS,      setExitingFS]      = useState(false);
   const normalWVRef = useRef<any>(null); // ref to normal (portrait) WebView
   const { width: screenW, height: screenH } = useWindowDimensions();
 
@@ -1563,9 +1567,6 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
   // Lock to landscape when fullscreen opens via rotate button; unlock on close
   const openFullscreenLandscape = useCallback(async () => {
-    // Suppress resize in the portrait WebView so rotating to landscape
-    // doesn't cause the hidden chart canvas to redraw at landscape dimensions.
-    normalWVRef.current?.injectJavaScript("window.__suppressResize = true; true;");
     setIsFullscreen(true);
     try {
       await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
@@ -1574,20 +1575,23 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
   const closeFullscreen = useCallback(async () => {
     Keyboard.dismiss();
-    // 1. Rotate back to portrait first
-    try { await ScreenOrientation.unlockAsync(); } catch (_) {}
-    // 2. While the portrait WebView is still hidden (opacity:0), lift the
-    //    suppress flag and force a resize so the chart canvas is at the
-    //    correct portrait size BEFORE we make it visible.
-    await new Promise<void>(r => setTimeout(r, 300));
-    normalWVRef.current?.injectJavaScript(
-      "window.__suppressResize = false;" +
-      "try{window.dispatchEvent(new Event('resize'));if(typeof resizeChart==='function')resizeChart();}catch(e){}" +
-      " true;"
-    );
-    // 3. Short wait for lightweight-charts to finish drawing, then reveal
-    await new Promise<void>(r => setTimeout(r, 100));
+    // 1. Activate the dark overlay BEFORE any orientation change so the portrait
+    //    WebView is always covered while it is at the wrong (landscape) size.
+    setExitingFS(true);
+    // 2. Close the fullscreen modal — portrait WebView becomes flex:1 (still
+    //    covered by the overlay, so any squish is invisible to the user).
     setIsFullscreen(false);
+    // 3. Rotate device back to portrait.
+    try { await ScreenOrientation.unlockAsync(); } catch (_) {}
+    // 4. Wait for the orientation animation to finish, then force a resize inside
+    //    the portrait WebView so lightweight-charts redraws at portrait dimensions.
+    await new Promise<void>(r => setTimeout(r, 450));
+    normalWVRef.current?.injectJavaScript(
+      "try{window.dispatchEvent(new Event('resize'));if(typeof resizeChart==='function')resizeChart();}catch(e){} true;"
+    );
+    // 5. Short pause for the chart to finish drawing, then lift the overlay.
+    await new Promise<void>(r => setTimeout(r, 120));
+    setExitingFS(false);
   }, []);
 
   const onMessage = useCallback((e: any) => {
@@ -1617,7 +1621,8 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
           </View>
         ) : (
           /* Always keep WebView mounted — hidden (opacity 0) while fullscreen is open,
-             visible instantly when returning. No reload, no loading screen. */
+             visible instantly when returning. No reload, no loading screen.
+             exitingFS overlay hides any landscape→portrait resize glitch. */
           <View style={isFullscreen ? styles.hiddenWebView : styles.visibleWebView}>
             <ChartWebView
               ref={normalWVRef}
@@ -1628,6 +1633,11 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
               onError={onError}
               onMsg={onMessage}
             />
+            {/* Dark overlay during fullscreen-exit transition — prevents the user
+                from seeing the chart at landscape dimensions before it redraws */}
+            {exitingFS && (
+              <View style={styles.exitOverlay} pointerEvents="none" />
+            )}
           </View>
         )}
       </View>
@@ -1669,6 +1679,7 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
 
 const styles = StyleSheet.create({
   root:           { backgroundColor: "#131722", overflow: "hidden" },
+  exitOverlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: "#131722", zIndex: 10 },
   fsRoot:         { backgroundColor: "#131722", flex: 1 },
   webview:        { flex: 1, backgroundColor: "#131722" },
   // Normal WebView: always mounted. Layout stays IDENTICAL (flex:1) in both
