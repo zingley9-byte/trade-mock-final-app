@@ -71,9 +71,9 @@ function NativeSplash() {
         <Animated.View style={[styles.logoWrap, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
           <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
           <Image
-            source={require("@/assets/images/logo.png")}
+            source={require("@/assets/images/logo_transparent.png")}
             style={styles.logo}
-            resizeMode="cover"
+            resizeMode="contain"
           />
         </Animated.View>
 
