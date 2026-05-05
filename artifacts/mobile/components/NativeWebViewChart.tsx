@@ -965,6 +965,11 @@ function doRender() {
   drawCrosshair(ctx);
   ctx.restore();
   _dirty = false;
+  // Keep looping every frame while drawings or an active tool exist.
+  // This ensures the overlay stays pixel-locked to the chart during any
+  // scroll, zoom, or price-scale change without relying solely on
+  // subscription callbacks (which may not fire on every touch-pan frame).
+  if (DRW.length > 0 || IP || TOOL) _rafId = requestAnimationFrame(doRender);
 }
 
 // ── Crosshair overlay (shown while any tool is active) ────────────
@@ -1989,7 +1994,11 @@ function finishDrawing() {
 // ── Subscribe to chart viewport changes ───────────────────────────
 function subscribeChartRedraw() {
   if(!chart) return;
+  // Fires on every bar that scrolls in/out of view
   try{chart.timeScale().subscribeVisibleLogicalRangeChange(function(){scheduleRedraw();});}catch(e){}
+  // Fires more granularly during touch pans (sub-bar resolution)
+  try{chart.timeScale().subscribeVisibleTimeRangeChange(function(){scheduleRedraw();});}catch(e){}
+  // Fires on price-scale zoom (drag on price axis)
   try{chart.priceScale('right').subscribeVisiblePriceRangeChange(function(){scheduleRedraw();});}catch(e){}
 }
 
