@@ -331,8 +331,10 @@ const TF_MAP   = {
 };
 let currentTf  = '5m';
 let chart, candleSeries, volSeries;
-let ws, retryTimer, retryDelay = 3000;
+let ws, retryTimer, retryDelay = 500;
 let loadId = 0;
+let lastMsgAt = 0;
+let stalenessTimer = null;
 let volCollapsed = false;
 let isFS = ${initialFS ? 'true' : 'false'};
 
@@ -519,23 +521,47 @@ async function loadData(sym, tf) {
     if (loadId !== id) return;
     setWsBadge('error');
     retryTimer = setTimeout(() => loadData(sym, tf), retryDelay);
-    retryDelay = Math.min(retryDelay*2, 30000);
+    retryDelay = Math.min(retryDelay*2, 5000);
   }
 }
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
+function clearStaleness() {
+  if (stalenessTimer) { clearTimeout(stalenessTimer); stalenessTimer = null; }
+}
+function armStaleness(sym, tf, id) {
+  clearStaleness();
+  stalenessTimer = setTimeout(() => {
+    // No message for 12 s → force reconnect
+    if (loadId !== id) return;
+    setWsBadge('reconnecting');
+    if (ws) { try { ws.close(); } catch(_){} ws = null; }
+    retryDelay = 500;
+    connectWS(sym, tf, id);
+  }, 12000);
+}
+
 function connectWS(sym, tf, id) {
   if (ws) { try { ws.close(); } catch(_){} ws = null; }
   clearTimeout(retryTimer);
+  clearStaleness();
   const interval = TF_MAP[tf] || '5m';
   const url = 'wss://stream.binance.com:9443/ws/'+sym.toLowerCase()+'@kline_'+interval;
   setWsBadge('connecting');
   ws = new WebSocket(url);
 
-  ws.onopen = () => { if (loadId !== id) return; retryDelay = 3000; setWsBadge('live'); };
+  ws.onopen = () => {
+    if (loadId !== id) return;
+    retryDelay = 500;
+    lastMsgAt = Date.now();
+    setWsBadge('live');
+    armStaleness(sym, tf, id);
+  };
 
   ws.onmessage = e => {
     if (loadId !== id) return;
+    lastMsgAt = Date.now();
+    armStaleness(sym, tf, id); // reset staleness watchdog on every message
     try {
       const msg = JSON.parse(e.data);
       const k = msg.k;
@@ -554,15 +580,27 @@ function connectWS(sym, tf, id) {
     } catch(_){}
   };
 
-  ws.onerror = () => { if (loadId !== id) return; setWsBadge('error'); };
+  ws.onerror = () => { if (loadId !== id) return; clearStaleness(); setWsBadge('error'); };
 
   ws.onclose = () => {
     if (loadId !== id) return;
+    clearStaleness();
     setWsBadge('reconnecting');
     retryTimer = setTimeout(() => connectWS(sym, tf, loadId), retryDelay);
-    retryDelay = Math.min(retryDelay*2, 30000);
+    retryDelay = Math.min(retryDelay*2, 5000);
   };
 }
+
+// ── Reconnect when tab/app becomes visible again ──────────────────────────
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    const stale = (Date.now() - lastMsgAt) > 3000;
+    if (stale && candleSeries) {
+      retryDelay = 500;
+      loadData(SYMBOL, currentTf);
+    }
+  }
+});
 
 // ── Timeframe menu ───────────────────────────────────────────────────────────
 function toggleTfMenu() {
