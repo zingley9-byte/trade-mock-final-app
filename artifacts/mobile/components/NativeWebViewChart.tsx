@@ -308,17 +308,17 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 
   <!-- Float menu for selected drawing -->
   <div id="float-menu" class="hidden">
-    <input type="color" id="fm-clr" value="#f0b90b" title="Color" oninput="colorSel(this.value)">
+    <input type="color" id="fm-clr" value="#f0b90b" title="Color">
     <div class="fm-sep"></div>
-    <button class="fm-btn" id="fm-lck" title="Lock" onclick="lockSel()">
+    <button class="fm-btn" id="fm-lck" title="Lock">
       <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     </button>
     <div class="fm-sep"></div>
-    <button class="fm-btn fm-del" title="Delete" onclick="deleteSel()">
+    <button class="fm-btn fm-del" id="fm-del" title="Delete">
       <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
     </button>
     <div class="fm-sep"></div>
-    <button class="fm-btn" title="Deselect" onclick="deselectAll()" style="color:#6B7280;">
+    <button class="fm-btn" id="fm-close" title="Deselect" style="color:#6B7280;">
       <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
@@ -1280,21 +1280,30 @@ function clearAllDrawings() {
 function closeSub() { SUB_OPEN=null; var s=document.getElementById('sb-sub'); if(s) s.classList.add('hidden'); }
 
 // ── Sidebar event listeners ───────────────────────────────────────
+function _addBtn(id, fn) {
+  var el=document.getElementById(id); if(!el) return;
+  el.addEventListener('touchend',function(e){e.preventDefault();fn(el);},{passive:false});
+  el.addEventListener('click',function(){fn(el);});
+}
 function initSidebarEvents() {
-  function sbBtn(id,fn) {
-    var el=document.getElementById(id); if(!el) return;
-    el.addEventListener('touchend',function(e){e.preventDefault();fn(el);},{passive:false});
-    el.addEventListener('click',function(){fn(el);});
-  }
-  sbBtn('sb-lines',   function(el){openSubById('lines',el);});
-  sbBtn('sb-fib',     function(el){openSubById('fib',el);});
-  sbBtn('sb-shapes',  function(el){openSubById('shapes',el);});
-  sbBtn('sb-brush',   function(el){openSubById('brush',el);});
-  sbBtn('sb-text',    function(el){openSubById('text',el);});
-  sbBtn('sb-measure', function(el){openSubById('measure',el);});
-  sbBtn('sb-hide',    function(){toggleHide();});
-  sbBtn('sb-lock',    function(){toggleLockAll();});
-  sbBtn('sb-delete',  function(){clearAllDrawings();});
+  _addBtn('sb-lines',   function(el){openSubById('lines',el);});
+  _addBtn('sb-fib',     function(el){openSubById('fib',el);});
+  _addBtn('sb-shapes',  function(el){openSubById('shapes',el);});
+  _addBtn('sb-brush',   function(el){openSubById('brush',el);});
+  _addBtn('sb-text',    function(el){openSubById('text',el);});
+  _addBtn('sb-measure', function(el){openSubById('measure',el);});
+  _addBtn('sb-hide',    function(){toggleHide();});
+  _addBtn('sb-lock',    function(){toggleLockAll();});
+  _addBtn('sb-delete',  function(){clearAllDrawings();});
+}
+
+// ── Float menu event listeners (touchend for Android WebView) ─────
+function initFMEvents() {
+  _addBtn('fm-lck', function(){lockSel();});
+  _addBtn('fm-del', function(){deleteSel();});
+  _addBtn('fm-close', function(){deselectAll();});
+  var clr=document.getElementById('fm-clr');
+  if(clr) clr.addEventListener('input',function(){colorSel(this.value);});
 }
 
 function setTool(id) {
@@ -1303,12 +1312,21 @@ function setTool(id) {
 }
 
 // ── Float menu ────────────────────────────────────────────────────
+var LOCK_SVG   = '<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+var UNLOCK_SVG = '<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 3 0 0 1 10 0"/></svg>';
+
+function _fmSetLock(locked) {
+  var lk=document.getElementById('fm-lck'); if(!lk) return;
+  lk.innerHTML=locked?UNLOCK_SVG:LOCK_SVG;
+  lk.title=locked?'Unlock':'Lock';
+  lk.style.color=locked?'#f59e0b':'';
+}
 function showFM(d, ex, ey) {
   var fm=document.getElementById('float-menu'); if(!fm) return;
   fm.classList.remove('hidden');
   fm.style.left=Math.min(ex||200,window.innerWidth-210)+'px';
   fm.style.top=Math.max((ey||200)-70,50)+'px';
-  var lk=document.getElementById('fm-lck'); if(lk) lk.textContent=d.locked?'🔓 Unlock':'🔒 Lock';
+  _fmSetLock(d.locked);
   var cl=document.getElementById('fm-clr'); if(cl) cl.value=d.color||'#f0b90b';
 }
 function hideFM() { var fm=document.getElementById('float-menu'); if(fm) fm.classList.add('hidden'); }
@@ -1326,7 +1344,7 @@ function lockSel() {
   if(d){
     d.locked=!d.locked; saveDrw();
     if(d.locked){SEL=null;hideFM();}
-    else{var lk=document.getElementById('fm-lck');if(lk)lk.textContent='🔒 Lock';}
+    else{_fmSetLock(false);}
     scheduleRedraw();
   }
 }
@@ -1350,48 +1368,119 @@ function initDrawingEvents() {
   document.addEventListener('touchstart',function(e) {
     var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
     var cx=t.clientX,cy=t.clientY;
+
+    // Always let float-menu, sidebar, and sub-menu receive their own events first
+    var el=document.elementFromPoint(cx,cy);
+    if(el&&el.closest&&(el.closest('#float-menu')||el.closest('#sidebar')||el.closest('#sb-sub'))) return;
+
     if(!ptInWrap(cx,cy)) return;
 
-    // Cursor mode: hit-test existing drawings for selection
+    // Cursor mode: hit-test existing drawings for selection + drag
     if (!TOOL||TOOL==='cursor') {
       var pos=clientToCanvas(cx,cy);
       var hit=hitTest(pos.x,pos.y);
       if (hit&&!hit.locked) {
         e.preventDefault();
         var d=DRW.find(function(x){return x.id===hit.did;});
-        if(d){SEL=d.id;showFM(d,cx,cy);scheduleRedraw();}
+        if(!d) return;
+        SEL=d.id;
+        if(hit.handleIdx>=0) {
+          // resize handle
+          _resizeState={d:d,idx:hit.handleIdx};
+          hideFM();
+        } else {
+          // body drag — start drag and show float menu
+          var sxy=clientToCanvas(cx,cy);
+          _dragState={d:d,origPts:JSON.parse(JSON.stringify(d.pts)),startData:svgToData(sxy.x,sxy.y)};
+          showFM(d,cx,cy);
+        }
+        scheduleRedraw();
       } else if (hit&&hit.locked) {
-        // locked — ignore
+        // locked — tap selects but no move
+        SEL=hit.did; scheduleRedraw();
       } else {
         SEL=null;hideFM();scheduleRedraw();
       }
       return;
     }
 
-    var el=document.elementFromPoint(cx,cy);
-    if(el&&el.closest&&(el.closest('#sidebar')||el.closest('#sb-sub')||el.closest('#float-menu'))) return;
-
     e.preventDefault();
     onDown({clientX:cx,clientY:cy});
   },{passive:false});
 
   document.addEventListener('touchmove',function(e) {
-    if(!M_DOWN&&!(IP&&THREE_PT.has(IP)&&CUR_PTS.length===2)) return;
     var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
-    e.preventDefault();
     _lastX=t.clientX;_lastY=t.clientY;
+
+    // Handle drag-move in cursor mode
+    if(_dragState) {
+      e.preventDefault();
+      var cur=clientToCanvas(t.clientX,t.clientY);
+      var curData=svgToData(cur.x,cur.y);
+      if(curData.time!=null) {
+        var dP=curData.price-(_dragState.startData.price||0);
+        var dT=(curData.time||0)-(_dragState.startData.time||0);
+        _dragState.d.pts=_dragState.origPts.map(function(pt){return{price:(pt.price||0)+dP,time:(pt.time||0)+dT};});
+        scheduleRedraw();
+      }
+      return;
+    }
+
+    // Handle resize handle in cursor mode
+    if(_resizeState) {
+      e.preventDefault();
+      var rp=clientToCanvas(t.clientX,t.clientY);
+      var rpt=svgToData(rp.x,rp.y);
+      if(rpt.time!=null) {
+        var rd=_resizeState.d,ri=_resizeState.idx;
+        if(rd.type==='rectangle'){
+          if(ri===0){rd.pts[0]={price:rpt.price,time:rpt.time};}
+          else if(ri===1){rd.pts[0].time=rpt.time;if(!rd.pts[1])rd.pts[1]={};rd.pts[1].price=rd.pts[0].price;}
+          else if(ri===2){rd.pts[0].time=rpt.time;if(!rd.pts[1])rd.pts[1]={};rd.pts[1].price=rpt.price;}
+          else{if(!rd.pts[1])rd.pts[1]={};rd.pts[1].price=rpt.price;rd.pts[1].time=rpt.time;}
+        } else if(rd.pts[ri]!==undefined){
+          rd.pts[ri]={price:rpt.price,time:rpt.time};
+        }
+        scheduleRedraw();
+      }
+      return;
+    }
+
+    if(!M_DOWN&&!(IP&&THREE_PT.has(IP)&&CUR_PTS.length===2)) return;
+    e.preventDefault();
     onMove({clientX:t.clientX,clientY:t.clientY});
   },{passive:false});
 
   document.addEventListener('touchend',function(e) {
-    if(!M_DOWN) return;
     var t=e.changedTouches&&e.changedTouches[0];
     var cx=t?t.clientX:_lastX,cy=t?t.clientY:_lastY;
+
+    if(_dragState) {
+      e.preventDefault();
+      saveDrw();
+      // Re-show float menu at final position so buttons remain accessible
+      var dd=_dragState.d;
+      _dragState=null;
+      showFM(dd,cx,cy);
+      scheduleRedraw();
+      return;
+    }
+    if(_resizeState) {
+      e.preventDefault();
+      saveDrw();
+      _resizeState=null;
+      scheduleRedraw();
+      return;
+    }
+
+    if(!M_DOWN) return;
     e.preventDefault();
     onUp({clientX:cx,clientY:cy});
   },{passive:false});
 
   document.addEventListener('touchcancel',function(){
+    if(_dragState){saveDrw();_dragState=null;}
+    if(_resizeState){saveDrw();_resizeState=null;}
     if(M_DOWN){M_DOWN=false;IP=null;CUR_PTS=[];_previewPt=null;scheduleRedraw();}
   });
 
@@ -1591,6 +1680,7 @@ function initDrwEngine() {
     buildSidebar();
     updateCanvasMode();
     initSidebarEvents();
+    initFMEvents();
     initDrawingEvents();
   } catch(e) {}
 })();
