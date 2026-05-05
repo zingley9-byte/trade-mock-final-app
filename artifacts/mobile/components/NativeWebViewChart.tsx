@@ -1483,7 +1483,7 @@ const ChartWebView = forwardRef<any, {
   return (
     <WebView
       ref={ref}
-      key={`${binKey}-${h}`}
+      key={binKey}
       source={{ html, baseUrl: Platform.OS === "android" ? "file:///android_asset/" : "" }}
       style={styles.webview}
       originWhitelist={["*"]}
@@ -1527,6 +1527,17 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
   // Without this, iOS WebView silently reloads on every parent re-render.
   const html   = useMemo(() => buildHtml(bin, false), [bin]);
   const htmlFS = useMemo(() => buildHtml(bin, true),  [bin]);
+
+  // When height prop changes (e.g. parent layout re-measures), inject a resize
+  // event instead of remounting the WebView (key no longer includes height).
+  const prevHeightRef = useRef(height);
+  useEffect(() => {
+    if (prevHeightRef.current === height) return;
+    prevHeightRef.current = height;
+    normalWVRef.current?.injectJavaScript(
+      "try{window.dispatchEvent(new Event('resize'));if(typeof resizeChart==='function')resizeChart();}catch(e){} true;"
+    );
+  }, [height]);
 
   // Android: intercept hardware back button when fullscreen is open
   // prevents the back event from leaking to the Charts screen and opening the coin picker

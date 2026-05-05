@@ -525,9 +525,16 @@ export default function ChartsScreen() {
 
   const chartContainerRef = useRef<View>(null);
 
+  const chartHeightSet = useRef(false);
   const onChartLayout = useCallback((e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
-    if (h > 50) setChartHeight(h);
+    if (h > 50) {
+      // On native: only set once. Re-setting on every layout change (e.g. during
+      // orientation switch) changes the `height` prop → changes WebView key → remount.
+      if (Platform.OS !== "web" && chartHeightSet.current) return;
+      chartHeightSet.current = true;
+      setChartHeight(h);
+    }
   }, []);
 
   // Web: update chartHeight on window resize so chart fills container
