@@ -259,6 +259,17 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
         </svg>
         <div class="sb-tri"></div>
       </button>
+      <!-- Positions & Ranges: long/short arrows with mid bar -->
+      <button class="sb-btn" id="sb-pos" title="Positions &amp; Ranges" onclick="openSubById('pos',this)">
+        <svg viewBox="0 0 24 24">
+          <line x1="4" y1="12" x2="20" y2="12"/>
+          <polyline points="8 7 12 3 16 7" stroke="#22C55E" fill="none"/>
+          <line x1="12" y1="3" x2="12" y2="12" stroke="#22C55E"/>
+          <polyline points="8 17 12 21 16 17" stroke="#EF4444" fill="none"/>
+          <line x1="12" y1="12" x2="12" y2="21" stroke="#EF4444"/>
+        </svg>
+        <div class="sb-tri"></div>
+      </button>
       <!-- Shapes: rectangle -->
       <button class="sb-btn" id="sb-shapes" title="Shapes" onclick="openSubById('shapes',this)">
         <svg viewBox="0 0 24 24">
@@ -896,10 +907,13 @@ const TOOL_GROUPS = [
       { id:'hline',        label:'Horizontal Line',    pts:1 },
       { id:'vline',        label:'Vertical Line',      pts:1 },
       { id:'channel',      label:'Parallel Channel',   pts:3 },
-      { id:'longposition', label:'Long Position',      pts:1 },
-      { id:'shortposition',label:'Short Position',     pts:1 },
-      { id:'daterange',    label:'Date Range',         pts:2 },
-      { id:'pricerange',   label:'Price Range',        pts:2 },
+    ] },
+  { id:'pos', label:'Positions & Ranges', multi:true,
+    items:[
+      { id:'longposition',  label:'Long Position',    pts:1 },
+      { id:'shortposition', label:'Short Position',   pts:1 },
+      { id:'daterange',     label:'Date Range',        pts:2 },
+      { id:'pricerange',    label:'Price Range',       pts:2 },
       { id:'fibretracement',label:'Fib Retracement',  pts:2 },
     ] },
   { id:'shapes', label:'Shapes', multi:true,
@@ -1617,8 +1631,8 @@ function hitBody(d,cx,cy) {
 
 // ── Sidebar ───────────────────────────────────────────────────────
 function buildSidebar() {
-  var IDS={lines:'sb-lines',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
-  var toolToGroup={trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',longposition:'lines',shortposition:'lines',daterange:'lines',pricerange:'lines',fibretracement:'lines',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text'};
+  var IDS={lines:'sb-lines',pos:'sb-pos',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
+  var toolToGroup={trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',longposition:'pos',shortposition:'pos',daterange:'pos',pricerange:'pos',fibretracement:'pos',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text'};
   Object.entries(IDS).forEach(function(e) {
     var gid=e[0], btnId=e[1];
     var btn=document.getElementById(btnId); if(!btn) return;
@@ -1680,6 +1694,7 @@ function _addBtn(id, fn) {
 }
 function initSidebarEvents() {
   _addBtn('sb-lines',   function(el){openSubById('lines',el);});
+  _addBtn('sb-pos',     function(el){openSubById('pos',el);});
   _addBtn('sb-shapes',  function(el){openSubById('shapes',el);});
   _addBtn('sb-brush',      function(el){openSubById('brush',el);});
   _addBtn('sb-text',       function(el){openSubById('text',el);});
