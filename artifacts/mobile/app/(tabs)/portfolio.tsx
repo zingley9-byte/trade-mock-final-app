@@ -16,6 +16,7 @@ import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext, Position } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
+import { usePrivacy } from "@/context/PrivacyContext";
 import CoinLogo from "@/components/CoinLogo";
 
 const INITIAL_BALANCE = 1000000;
@@ -24,6 +25,7 @@ const { height: SCREEN_H } = Dimensions.get("window");
 export default function PortfolioScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { privacy } = usePrivacy();
   const {
     balance,
     positions,
@@ -37,6 +39,7 @@ export default function PortfolioScreen() {
     currencyMode,
     usdToInr,
   } = useTradingContext();
+  const hideBalance = privacy.hideBalance;
 
   const [modifyTarget, setModifyTarget] = useState<Position | null>(null);
   const [slInput, setSlInput]           = useState("");
@@ -167,16 +170,24 @@ export default function PortfolioScreen() {
         {/* ── Portfolio card ───────────────────────────────────────────── */}
         <View style={[styles.portfolioCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.portfolioLabel, { color: colors.mutedForeground }]}>Total Portfolio Value</Text>
-          <Text style={[styles.portfolioValue, { color: colors.foreground }]}>{fmt(totalValue)}</Text>
+          <Text style={[styles.portfolioValue, { color: colors.foreground }]}>
+            {hideBalance ? "••••••" : fmt(totalValue)}
+          </Text>
           <View style={styles.pnlRow}>
-            <Text style={[styles.totalPnL, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
-              {totalPnL >= 0 ? "+" : ""}{fmt(totalPnL)}
-            </Text>
-            <View style={[styles.pnlBadge, { backgroundColor: totalPnL >= 0 ? colors.bullBg : colors.bearBg }]}>
-              <Text style={[styles.pnlBadgeText, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
-                {totalPnLPct >= 0 ? "+" : ""}{totalPnLPct.toFixed(2)}%
-              </Text>
-            </View>
+            {hideBalance ? (
+              <Text style={[styles.totalPnL, { color: colors.mutedForeground }]}>••••••</Text>
+            ) : (
+              <>
+                <Text style={[styles.totalPnL, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
+                  {totalPnL >= 0 ? "+" : ""}{fmt(totalPnL)}
+                </Text>
+                <View style={[styles.pnlBadge, { backgroundColor: totalPnL >= 0 ? colors.bullBg : colors.bearBg }]}>
+                  <Text style={[styles.pnlBadgeText, { color: totalPnL >= 0 ? colors.bull : colors.bear }]}>
+                    {totalPnLPct >= 0 ? "+" : ""}{totalPnLPct.toFixed(2)}%
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
 

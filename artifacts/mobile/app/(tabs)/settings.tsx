@@ -21,6 +21,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import { useAdmin, ADMIN_EMAIL } from "@/context/AdminContext";
+import { usePrivacy } from "@/context/PrivacyContext";
+import PinLockScreen from "@/components/PinLockScreen";
 import AlertsModal from "@/components/AlertsModal";
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
@@ -225,12 +227,25 @@ export default function SettingsScreen() {
   const { isAdmin } = useAdmin();
   const isDark = theme === "dark";
 
+  const {
+    privacy,
+    hasPin, biometricAvailable,
+    enableAppLock, disableAppLock,
+    enableBiometric, disableBiometric,
+    setHideBalance, setScreenshotProtection,
+  } = usePrivacy();
+
   const [avatar, setAvatar] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile>({ name: "Trader", email: "" });
   const [notif, setNotif] = useState<NotifSettings>(DEFAULT_NOTIF);
-  const [privacy, setPrivacy] = useState<PrivacySettings>(DEFAULT_PRIVACY);
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
   const [learning, setLearning] = useState<LearningSettings>(DEFAULT_LEARNING);
+
+  // PIN setup / disable flow states
+  const [pinSetupOpen, setPinSetupOpen]   = useState(false);
+  const [pinSetupStep, setPinSetupStep]   = useState<"enter" | "confirm">("enter");
+  const [pinFirst, setPinFirst]           = useState("");
+  const [pinDisableOpen, setPinDisableOpen] = useState(false);
 
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [fontSizeOpen, setFontSizeOpen] = useState(false);
@@ -240,18 +255,16 @@ export default function SettingsScreen() {
   // Load all settings
   useEffect(() => {
     async function load() {
-      const [av, prof, no, pr, ap, le] = await Promise.all([
+      const [av, prof, no, ap, le] = await Promise.all([
         AsyncStorage.getItem(KEYS.avatar),
         AsyncStorage.getItem(KEYS.profile),
         AsyncStorage.getItem(KEYS.notif),
-        AsyncStorage.getItem(KEYS.privacy),
         AsyncStorage.getItem(KEYS.appearance),
         AsyncStorage.getItem(KEYS.learning),
       ]);
       if (av) setAvatar(av);
       if (prof) setProfile(JSON.parse(prof));
       if (no) setNotif(JSON.parse(no));
-      if (pr) setPrivacy(JSON.parse(pr));
       if (ap) setAppearance(JSON.parse(ap));
       if (le) setLearning(JSON.parse(le));
     }
@@ -273,13 +286,27 @@ export default function SettingsScreen() {
     });
   }, []);
 
-  const togglePrivacy = useCallback(async (key: keyof PrivacySettings) => {
-    setPrivacy((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      AsyncStorage.setItem(KEYS.privacy, JSON.stringify(next));
-      return next;
-    });
-  }, []);
+  // ── Privacy handlers ────────────────────────────────────────────────────────
+  function handleAppLockToggle() {
+    if (privacy.appLock) {
+      // Disable: open verify-PIN flow
+      setPinDisableOpen(true);
+    } else {
+      // Enable: open setup-PIN flow
+      setPinSetupStep("enter");
+      setPinFirst("");
+      setPinSetupOpen(true);
+    }
+  }
+
+  async function handleBiometricToggle() {
+    if (privacy.biometric) {
+      disableBiometric();
+    } else {
+      const res = await enableBiometric();
+      if (!res.ok) Alert.alert("Biometric", res.error ?? "Could not enable biometric.");
+    }
+  }
 
   const setAppearanceKey = useCallback(<K extends keyof AppearanceSettings>(key: K, val: AppearanceSettings[K]) => {
     setAppearance((prev) => {
@@ -422,14 +449,16 @@ export default function SettingsScreen() {
       {/* ─── Privacy ─── */}
       <SectionHeader title="Privacy & Security" colors={colors} />
       <View style={styles.section}>
-        <ToggleRow icon="lock-closed-outline" iconBg="#f59e0b" label="App Lock PIN" sub="Require PIN to open app"
-          value={privacy.appLock} onToggle={() => togglePrivacy("appLock")} colors={colors} isFirst />
-        <ToggleRow icon="hardware-chip-outline" iconBg="#6366f1" label="Biometric Lock" sub="Fingerprint / Face ID"
-          value={privacy.biometric} onToggle={() => togglePrivacy("biometric")} colors={colors} />
+        <ToggleRow icon="lock-closed-outline" iconBg="#f59e0b" label="App Lock PIN"
+          sub={privacy.appLock ? "PIN is active — tap to disable" : "Require PIN to open app"}
+          value={privacy.appLock} onToggle={handleAppLockToggle} colors={colors} isFirst />
+        <ToggleRow icon="hardware-chip-outline" iconBg="#6366f1" label="Biometric Lock"
+          sub={!privacy.appLock ? "Enable App Lock first" : biometricAvailable ? "Fingerprint / Face ID" : "Not available on this device"}
+          value={privacy.biometric} onToggle={handleBiometricToggle} colors={colors} />
         <ToggleRow icon="eye-off-outline" iconBg="#64748b" label="Hide Balance" sub="Mask portfolio value"
-          value={privacy.hideBalance} onToggle={() => togglePrivacy("hideBalance")} colors={colors} />
+          value={privacy.hideBalance} onToggle={(v) => setHideBalance(v)} colors={colors} />
         <ToggleRow icon="camera-outline" iconBg="#dc2626" label="Screenshot Protection" sub="Prevent screenshots"
-          value={privacy.screenshotProtection} onToggle={() => togglePrivacy("screenshotProtection")} colors={colors} isLast />
+          value={privacy.screenshotProtection} onToggle={(v) => setScreenshotProtection(v)} colors={colors} isLast />
       </View>
 
       {/* ─── Appearance ─── */}
@@ -538,6 +567,63 @@ export default function SettingsScreen() {
         colors={colors}
       />
       <AlertsModal visible={priceAlertsOpen} onClose={() => setPriceAlertsOpen(false)} />
+
+      {/* ─── PIN Setup Modal ─── */}
+      <Modal
+        visible={pinSetupOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setPinSetupOpen(false)}
+      >
+        {pinSetupStep === "enter" ? (
+          <PinLockScreen
+            mode="setup"
+            setupStep="enter"
+            subtitle="Choose a 4-digit PIN to protect your app"
+            onCancel={() => setPinSetupOpen(false)}
+            onSuccess={(pin) => {
+              setPinFirst(pin!);
+              setPinSetupStep("confirm");
+            }}
+          />
+        ) : (
+          <PinLockScreen
+            mode="setup"
+            setupStep="confirm"
+            firstPin={pinFirst}
+            subtitle="Re-enter your PIN to confirm"
+            onCancel={() => { setPinSetupStep("enter"); setPinFirst(""); }}
+            onSuccess={async (pin) => {
+              await enableAppLock(pin!);
+              setPinSetupOpen(false);
+              Alert.alert("PIN Set", "App Lock is now active. You'll need your PIN to unlock the app.");
+            }}
+          />
+        )}
+      </Modal>
+
+      {/* ─── PIN Disable Modal ─── */}
+      <Modal
+        visible={pinDisableOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setPinDisableOpen(false)}
+      >
+        <PinLockScreen
+          mode="unlock"
+          subtitle="Enter your current PIN to disable App Lock"
+          onCancel={() => setPinDisableOpen(false)}
+          onSuccess={async (verifiedPin) => {
+            if (verifiedPin) {
+              const res = await disableAppLock(verifiedPin);
+              if (res.ok) {
+                setPinDisableOpen(false);
+                Alert.alert("App Lock Disabled", "PIN and biometric lock have been removed.");
+              }
+            }
+          }}
+        />
+      </Modal>
     </ScrollView>
   );
 }

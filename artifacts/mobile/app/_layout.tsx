@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
-import { Platform } from "react-native";
+import { Platform, View as RNView } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -17,6 +17,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TradingProvider } from "@/context/TradingContext";
 import { AlertsProvider } from "@/context/AlertsContext";
 import { AdminProvider } from "@/context/AdminContext";
+import { PrivacyProvider, usePrivacy } from "@/context/PrivacyContext";
+import PinLockScreen from "@/components/PinLockScreen";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -29,6 +31,18 @@ function AppProviders({ children }: { children: React.ReactNode }) {
     const { KeyboardProvider } =
       require("react-native-keyboard-controller") as typeof import("react-native-keyboard-controller");
     return <KeyboardProvider>{children}</KeyboardProvider>;
+  }
+  return <>{children}</>;
+}
+
+function LockGate({ children }: { children: React.ReactNode }) {
+  const { isLocked } = usePrivacy();
+  if (isLocked) {
+    return (
+      <RNView style={{ flex: 1, backgroundColor: "#0a0e1a" }}>
+        <PinLockScreen mode="unlock" />
+      </RNView>
+    );
   }
   return <>{children}</>;
 }
@@ -47,7 +61,6 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  // Always wait for fonts — never render with broken/missing font
   if (!fontsLoaded && !fontError) return null;
 
   return (
@@ -57,18 +70,22 @@ export default function RootLayout() {
           <TradingProvider>
             <AlertsProvider>
               <AdminProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <AppProviders>
-                    <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
-                      <Stack.Screen name="index" options={{ headerShown: false }} />
-                      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                      <Stack.Screen name="auth" options={{ headerShown: false }} />
-                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                      <Stack.Screen name="admin" options={{ headerShown: false }} />
-                      <Stack.Screen name="legal" options={{ headerShown: false }} />
-                    </Stack>
-                  </AppProviders>
-                </GestureHandlerRootView>
+                <PrivacyProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <AppProviders>
+                      <LockGate>
+                        <Stack screenOptions={{ headerShown: false, animation: "fade" }}>
+                          <Stack.Screen name="index" options={{ headerShown: false }} />
+                          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                          <Stack.Screen name="auth" options={{ headerShown: false }} />
+                          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                          <Stack.Screen name="admin" options={{ headerShown: false }} />
+                          <Stack.Screen name="legal" options={{ headerShown: false }} />
+                        </Stack>
+                      </LockGate>
+                    </AppProviders>
+                  </GestureHandlerRootView>
+                </PrivacyProvider>
               </AdminProvider>
             </AlertsProvider>
           </TradingProvider>
