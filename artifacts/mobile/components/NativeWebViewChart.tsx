@@ -216,18 +216,6 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 
     <!-- Drawing sidebar -->
     <div id="sidebar">
-      <!-- Cursor: crosshair with 4-way arrows (TradingView style) -->
-      <button class="sb-btn" id="sb-cursor" title="Cursor" onclick="setToolGroup('cursor')">
-        <svg viewBox="0 0 24 24">
-          <line x1="12" y1="4" x2="12" y2="20"/>
-          <line x1="4" y1="12" x2="20" y2="12"/>
-          <polyline points="9.5 6.5 12 4 14.5 6.5"/>
-          <polyline points="9.5 17.5 12 20 14.5 17.5"/>
-          <polyline points="6.5 9.5 4 12 6.5 14.5"/>
-          <polyline points="17.5 9.5 20 12 17.5 14.5"/>
-        </svg>
-      </button>
-      <div class="sb-sep"></div>
       <!-- Lines: diagonal line with filled dot at start -->
       <button class="sb-btn" id="sb-lines" title="Lines" onclick="openSubById('lines',this)">
         <svg viewBox="0 0 24 24">
@@ -831,23 +819,18 @@ function fmtP(p) {
 // ── Sidebar ─────────────────────────────────────────────────────
 // ── Sidebar active-state refresh (HTML is now hardcoded, just update classes) ──
 function buildSidebar() {
-  const IDS = {cursor:'sb-cursor',lines:'sb-lines',fib:'sb-fib',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',measure:'sb-measure',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
+  const IDS = {lines:'sb-lines',fib:'sb-fib',shapes:'sb-shapes',brush:'sb-brush',text:'sb-text',measure:'sb-measure',hide:'sb-hide',lock:'sb-lock',delete:'sb-delete'};
   const toolToGroup = {trendline:'lines',arrow:'lines',ray:'lines',hline:'lines',vline:'lines',channel:'lines',fibretracement:'fib',rectangle:'shapes',circle:'shapes',brush:'brush',highlighter:'brush',text:'text',note:'text',pricelabel:'text',longposition:'measure',shortposition:'measure',daterange:'measure',pricerange:'measure'};
   Object.entries(IDS).forEach(([gid,btnId]) => {
     const btn = document.getElementById(btnId); if(!btn) return;
-    const isActive = (TOOL===gid) || (toolToGroup[TOOL]===gid) || (gid==='hide'&&HIDE) || (gid==='cursor'&&TOOL==='cursor');
+    const isActive = (TOOL===gid) || (toolToGroup[TOOL]===gid) || (gid==='hide'&&HIDE);
     btn.classList.toggle('act', !!isActive);
   });
 }
 
 // ── Called from hardcoded HTML buttons ──
 function setToolGroup(gid) {
-  if (gid==='cursor') {
-    // Tap again while cursor active → deselect (TOOL=null, no button lit)
-    TOOL = (TOOL==='cursor') ? null : 'cursor';
-  } else {
-    TOOL = null;
-  }
+  TOOL = null;
   SEL=null; CUR_PTS=[]; FREE_PTS=[]; IP=null;
   hideFM(); updateSvgMode(); buildSidebar(); closeSub(); redraw();
 }
@@ -928,7 +911,6 @@ function initSidebarEvents() {
     el.addEventListener('touchend', function(e) { e.preventDefault(); fn(el); }, {passive:false});
     el.addEventListener('click', function() { fn(el); });
   }
-  sbBtn('sb-cursor',  function()    { setToolGroup('cursor'); });
   sbBtn('sb-lines',   function(el)  { openSubById('lines',   el); });
   sbBtn('sb-fib',     function(el)  { openSubById('fib',     el); });
   sbBtn('sb-shapes',  function(el)  { openSubById('shapes',  el); });
@@ -946,7 +928,10 @@ function setTool(id) {
 function updateSvgMode() {
   const svg = document.getElementById('drw-svg');
   if (!svg) return;
-  svg.className = (!TOOL||TOOL==='cursor') ? 'cursor' : 'active';
+  // Only enable SVG interaction when a drawing tool is actually active.
+  // When TOOL is null/cursor the SVG must be fully transparent to touches
+  // so LWC receives them for panning and price-scale interaction.
+  svg.className = (TOOL && TOOL !== 'cursor') ? 'active' : '';
 }
 
 // ── Redraw ───────────────────────────────────────────────────────
