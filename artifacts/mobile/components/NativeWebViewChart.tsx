@@ -216,53 +216,92 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 
     <!-- Drawing sidebar -->
     <div id="sidebar">
-      <!-- Cursor / Crosshair -->
+      <!-- Cursor: crosshair with 4-way arrows (TradingView style) -->
       <button class="sb-btn" id="sb-cursor" title="Cursor" onclick="setToolGroup('cursor')">
-        <svg viewBox="0 0 24 24"><path d="M4 4l7.07 17 2.51-7.39L21 11.07z" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24">
+          <line x1="12" y1="4" x2="12" y2="20"/>
+          <line x1="4" y1="12" x2="20" y2="12"/>
+          <polyline points="9.5 6.5 12 4 14.5 6.5"/>
+          <polyline points="9.5 17.5 12 20 14.5 17.5"/>
+          <polyline points="6.5 9.5 4 12 6.5 14.5"/>
+          <polyline points="17.5 9.5 20 12 17.5 14.5"/>
+        </svg>
       </button>
       <div class="sb-sep"></div>
-      <!-- Trend Line & Lines submenu -->
+      <!-- Lines: diagonal line with filled dot at start -->
       <button class="sb-btn" id="sb-lines" title="Lines" onclick="openSubById('lines',this)">
-        <svg viewBox="0 0 24 24"><line x1="5" y1="18" x2="19" y2="6"/><polyline points="13 6 19 6 19 12"/></svg>
+        <svg viewBox="0 0 24 24">
+          <line x1="5" y1="19" x2="19" y2="5"/>
+          <circle cx="5" cy="19" r="2.5" fill="currentColor" stroke="none"/>
+          <circle cx="19" cy="5" r="1.5"/>
+        </svg>
         <div class="sb-tri"></div>
       </button>
-      <!-- Fibonacci -->
+      <!-- Fibonacci: three clean horizontal parallel lines -->
       <button class="sb-btn" id="sb-fib" title="Fibonacci" onclick="openSubById('fib',this)">
-        <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><line x1="8" y1="4" x2="8" y2="20" stroke-dasharray="2 3"/></svg>
+        <svg viewBox="0 0 24 24">
+          <line x1="3" y1="7" x2="21" y2="7"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="17" x2="21" y2="17"/>
+        </svg>
         <div class="sb-tri"></div>
       </button>
-      <!-- Shapes -->
+      <!-- Shapes: rectangle -->
       <button class="sb-btn" id="sb-shapes" title="Shapes" onclick="openSubById('shapes',this)">
-        <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="1.5"/></svg>
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="6" width="18" height="12" rx="1.5"/>
+        </svg>
         <div class="sb-tri"></div>
       </button>
-      <!-- Brush / Draw -->
+      <!-- Brush: wavy freehand line (TradingView squiggle style) -->
       <button class="sb-btn" id="sb-brush" title="Draw" onclick="openSubById('brush',this)">
-        <svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+        <svg viewBox="0 0 24 24">
+          <path d="M3 14 C5.5 8 7.5 17 10 12 C12.5 7 14.5 16 17 11 C18.5 8 20.5 10 21 10" fill="none"/>
+        </svg>
         <div class="sb-tri"></div>
       </button>
-      <!-- Text -->
+      <!-- Text: clean T with crossbar and stem -->
       <button class="sb-btn" id="sb-text" title="Text" onclick="openSubById('text',this)">
-        <svg viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M9 20h6"/><line x1="12" y1="5" x2="12" y2="20"/></svg>
+        <svg viewBox="0 0 24 24">
+          <line x1="4" y1="6" x2="20" y2="6"/>
+          <line x1="12" y1="6" x2="12" y2="20"/>
+        </svg>
         <div class="sb-tri"></div>
       </button>
-      <!-- Measure / Positions -->
+      <!-- Measure: ruler with tick marks -->
       <button class="sb-btn" id="sb-measure" title="Measure" onclick="openSubById('measure',this)">
-        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <svg viewBox="0 0 24 24">
+          <rect x="2" y="9.5" width="20" height="5" rx="1"/>
+          <line x1="6" y1="14.5" x2="6" y2="17.5"/>
+          <line x1="10" y1="14.5" x2="10" y2="16.5"/>
+          <line x1="14" y1="14.5" x2="14" y2="16.5"/>
+          <line x1="18" y1="14.5" x2="18" y2="17.5"/>
+        </svg>
         <div class="sb-tri"></div>
       </button>
       <div class="sb-sep"></div>
-      <!-- Hide / Show all -->
+      <!-- Hide/Show: eye (TradingView style with slash when hidden) -->
       <button class="sb-btn" id="sb-hide" title="Hide/Show drawings" onclick="toggleHide(this)">
-        <svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg viewBox="0 0 24 24">
+          <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
       </button>
-      <!-- Lock all -->
+      <!-- Lock all: padlock -->
       <button class="sb-btn" id="sb-lock" title="Lock all drawings" onclick="toggleLockAll(this)">
-        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="11" width="18" height="11" rx="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
       </button>
-      <!-- Clear all -->
+      <!-- Clear all: trash can -->
       <button class="sb-btn" id="sb-delete" title="Clear all drawings" onclick="clearAllDrawings()">
-        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        <svg viewBox="0 0 24 24">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <line x1="10" y1="11" x2="10" y2="17"/>
+          <line x1="14" y1="11" x2="14" y2="17"/>
+        </svg>
       </button>
     </div>
 
