@@ -1727,14 +1727,27 @@ function _fmSetLock(locked) {
   lk.title=locked?'Unlock':'Lock';
   lk.style.color=locked?'#f59e0b':'';
 }
+function _placePanel(el, panW, panH, ex, ey) {
+  var wrap=document.getElementById('chart-wrap');
+  var wb=wrap?wrap.getBoundingClientRect():{top:42,bottom:window.innerHeight,left:50,right:window.innerWidth};
+  var gap=12;
+  var top, left;
+  if(ey - wb.top >= panH + gap + 8) { top = ey - panH - gap; }
+  else { top = ey + gap; }
+  top = Math.max(wb.top + 8, Math.min(top, wb.bottom - panH - 8));
+  left = ex - panW / 2;
+  left = Math.max(wb.left + 8, Math.min(left, wb.right - panW - 8));
+  el.style.top = top + 'px';
+  el.style.left = left + 'px';
+}
 function showFM(d, ex, ey) {
   hideFibPanel(); hidePosPanel();
   if(d.type==='fibretracement'){showFibPanel(d,ex,ey);return;}
   if(d.type==='longposition'||d.type==='shortposition'){showPosPanel(d,ex,ey);return;}
   var fm=document.getElementById('float-menu'); if(!fm) return;
   fm.classList.remove('hidden');
-  fm.style.left=Math.min(ex||200,window.innerWidth-210)+'px';
-  fm.style.top=Math.max((ey||200)-70,50)+'px';
+  var panW=fm.offsetWidth||200, panH=fm.offsetHeight||40;
+  _placePanel(fm, panW, panH, ex||200, ey||200);
   _fmSetLock(d.locked);
   var cl=document.getElementById('fm-clr'); if(cl) cl.value=d.color||'#f0b90b';
 }
@@ -1788,9 +1801,7 @@ function showFibPanel(d, ex, ey) {
   if(lkBtn) lkBtn.style.color=d.locked?'#f59e0b':'#C9D1D9';
   fp.classList.remove('hidden');
   var pw=224,ph=fp.offsetHeight||340;
-  var top=Math.max(50,Math.min((ey||200)-ph-8,window.innerHeight-ph-20));
-  var left=Math.min(Math.max(8,(ex||200)-pw/2),window.innerWidth-pw-8);
-  fp.style.top=top+'px'; fp.style.left=left+'px';
+  _placePanel(fp, pw, ph, ex||200, ey||200);
 }
 function hideFibPanel(){_fibTarget=null;var fp=document.getElementById('fib-panel');if(fp)fp.classList.add('hidden');}
 function fibSave(){if(_fibTarget){saveDrw();scheduleRedraw();}}
@@ -1837,9 +1848,7 @@ function showPosPanel(d, ex, ey) {
   if(lkBtn) lkBtn.style.color=d.locked?'#f59e0b':'#C9D1D9';
   pp.classList.remove('hidden');
   var panW=224,ph=pp.offsetHeight||270;
-  var top=Math.max(50,Math.min((ey||200)-ph-8,window.innerHeight-ph-20));
-  var left=Math.min(Math.max(8,(ex||200)-panW/2),window.innerWidth-panW-8);
-  pp.style.top=top+'px'; pp.style.left=left+'px';
+  _placePanel(pp, panW, ph, ex||200, ey||200);
 }
 function hidePosPanel(){_posTarget=null;var pp=document.getElementById('pos-panel');if(pp)pp.classList.add('hidden');}
 function posSave(){if(_posTarget){saveDrw();scheduleRedraw();}}
@@ -1967,7 +1976,7 @@ function initDrawingEvents() {
           _resizeState={d:d,idx:hit.handleIdx};
           DRAW_MODE='draggingHandle';
           lockChart();
-          showFM(d,cx,cy);
+          hideFM();
         } else {
           // body drag — lock chart so it doesn't pan
           e.stopPropagation();
@@ -1978,7 +1987,7 @@ function initDrawingEvents() {
             startData:svgToData(sxy.x,sxy.y)};
           DRAW_MODE='draggingShape';
           lockChart();
-          showFM(d,cx,cy);
+          hideFM();
         }
         scheduleRedraw();
       } else if (hit&&hit.locked) {
@@ -2009,7 +2018,6 @@ function initDrawingEvents() {
         DRW.push(pDrw);SEL=pId;
         TOOL='cursor';IP=null;CUR_PTS=[];_previewPt=null;DRAW_MODE='selecting';
         unlockChart();saveDrw();buildSidebar();updateCanvasMode();scheduleRedraw();
-        showFM(pDrw,cx,cy);
       }
       return;
     }
@@ -2154,8 +2162,14 @@ function initDrawingEvents() {
   });
   document.addEventListener('pointerup',function(e) {
     if(e.pointerType==='touch') return;
-    if(_dragState){saveDrw();_dragState=null;DRAW_MODE='selecting';unlockChart();}
-    if(_resizeState){saveDrw();_resizeState=null;DRAW_MODE='selecting';unlockChart();}
+    if(_dragState){
+      var _dpu=_dragState.d; saveDrw(); _dragState=null; DRAW_MODE='selecting'; unlockChart();
+      if(SEL) showFM(_dpu, e.clientX, e.clientY);
+    }
+    if(_resizeState){
+      var _rpu=_resizeState.d; saveDrw(); _resizeState=null; DRAW_MODE='selecting'; unlockChart();
+      if(SEL) showFM(_rpu, e.clientX, e.clientY);
+    }
   });
 
   // Cursor-mode tap on canvas for selection
@@ -2175,7 +2189,7 @@ function initDrawingEvents() {
       } else {
         var md=DRW.find(function(x){return x.id===hit.did;}); if(!md) return;
         e.preventDefault(); e.stopPropagation(); SEL=md.id;
-        showFM(md,e.clientX,e.clientY);
+        hideFM();
         var sxy=clientToCanvas(e.clientX,e.clientY);
         var _isPTp=md.type==='longposition'||md.type==='shortposition';
         _dragState={d:md,origPts:JSON.parse(JSON.stringify(md.pts||[])),
