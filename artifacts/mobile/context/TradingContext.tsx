@@ -241,8 +241,8 @@ function calcPnL(pos: Position, currentPrice: number): number {
   return priceDiff * pos.quantity * pos.leverage;
 }
 
-const BINANCE_REST = "https://data-api.binance.vision/api/v3";
-const BINANCE_WS = "wss://data-stream.binance.vision/ws";
+const BINANCE_REST = "https://api.binance.com/api/v3";
+const BINANCE_WS = "wss://stream.binance.com:9443/ws";
 const API_BASE = "/api";
 
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
@@ -367,7 +367,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       }
     }
     fetchAllPrices();
-    const interval = setInterval(fetchAllPrices, 10000);
+    const interval = setInterval(fetchAllPrices, 5000);
     return () => clearInterval(interval);
   }, []);
 
