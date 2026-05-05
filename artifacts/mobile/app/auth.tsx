@@ -238,7 +238,7 @@ export default function AuthScreen() {
             <View style={styles.logoSection}>
               <View style={styles.logoGlowWrap}>
                 <Image
-                  source={require("@/assets/images/logo_transparent.png")}
+                  source={require("@/assets/images/logo_pro.jpg")}
                   style={styles.logo}
                   resizeMode="contain"
                 />

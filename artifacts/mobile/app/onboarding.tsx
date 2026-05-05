@@ -92,7 +92,7 @@ function LogoSlide({ accent }: { accent: string }) {
       <Animated.View style={[styles.glowRing1, { borderColor: accent + "40", opacity: glowOpacity, transform: [{ scale: ring1Anim }] }]} />
       <Animated.View style={[styles.logoBg, { borderColor: accent + "60", shadowColor: accent }]}>
         <Image
-          source={require("@/assets/images/logo_transparent.png")}
+          source={require("@/assets/images/logo_pro.jpg")}
           style={styles.logoImg}
           resizeMode="contain"
         />

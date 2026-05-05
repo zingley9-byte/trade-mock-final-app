@@ -103,7 +103,7 @@ export default function LoadingCandleAnimation({
       {/* Logo */}
       <View style={st.logoWrap}>
         <Image
-          source={require("@/assets/images/logo_transparent.png")}
+          source={require("@/assets/images/logo_pro.jpg")}
           style={[
             st.logo,
             {

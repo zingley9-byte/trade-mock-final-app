@@ -71,15 +71,10 @@ function NativeSplash() {
         <Animated.View style={[styles.logoWrap, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
           <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
           <Image
-            source={require("@/assets/images/logo_transparent.png")}
+            source={require("@/assets/images/logo_pro.jpg")}
             style={styles.logo}
             resizeMode="contain"
           />
-        </Animated.View>
-
-        <Animated.View style={{ opacity: taglineOpacity, alignItems: "center" }}>
-          <Text style={styles.appName}>Trade Mock Pro</Text>
-          <Text style={styles.tagline}>Practice Like Pro</Text>
         </Animated.View>
       </View>
 
@@ -180,16 +175,14 @@ const styles = StyleSheet.create({
   logoWrap: { alignItems: "center", justifyContent: "center", position: "relative" },
   glowRing: {
     position: "absolute",
-    width: 180, height: 180, borderRadius: 90,
+    width: 260, height: 260, borderRadius: 130,
     backgroundColor: "transparent",
-    borderWidth: 1, borderColor: "#3b82f620",
-    shadowColor: "#3b82f6",
+    borderWidth: 1, borderColor: "#d4af3720",
+    shadowColor: "#d4af37",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8, shadowRadius: 30,
+    shadowOpacity: 0.8, shadowRadius: 40,
   },
-  logo:    { width: 150, height: 150, borderRadius: 75, overflow: "hidden" },
-  appName: { fontSize: 32, fontWeight: "800", color: "#ffffff", letterSpacing: 1, marginTop: 8 },
-  tagline: { fontSize: 14, color: "#3b82f6", letterSpacing: 3, textTransform: "uppercase", fontWeight: "500", marginTop: 4 },
+  logo:    { width: 240, height: 240, borderRadius: 120, overflow: "hidden" },
   dotsRow: { position: "absolute", bottom: 60, flexDirection: "row", gap: 8 },
   dot:     { width: 6, height: 6, borderRadius: 3, backgroundColor: "#ffffff30" },
   dotActive: { backgroundColor: "#3b82f6", width: 20, borderRadius: 3 },
