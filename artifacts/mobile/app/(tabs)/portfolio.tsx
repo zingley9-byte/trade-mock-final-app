@@ -226,8 +226,11 @@ export default function PortfolioScreen() {
                 : pos.entryPrice - livePrice;
               // calcPnL returns USD; convert to INR so fmt() works correctly
               const posPnlUsd = priceDiff * pos.quantity * pos.leverage;
-              const posPnl    = Math.max(-pos.margin, posPnlUsd * usdToInr);
-              const pnlPct    = pos.margin > 0 ? (posPnl / pos.margin) * 100 : 0;
+              const posPnlRaw = Math.max(-pos.margin, posPnlUsd * usdToInr);
+              // Guard against -0.00 floating-point display artifact
+              const posPnl    = Math.abs(posPnlRaw) < 0.005 ? 0 : posPnlRaw;
+              const pnlPctRaw = pos.margin > 0 ? (posPnlRaw / pos.margin) * 100 : 0;
+              const pnlPct    = Math.abs(pnlPctRaw) < 0.005 ? 0 : pnlPctRaw;
               const isBuy  = pos.side === "buy";
               const accent = isBuy ? colors.bull : colors.bear;
 

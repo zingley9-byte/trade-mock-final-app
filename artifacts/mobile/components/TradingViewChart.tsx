@@ -307,7 +307,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     const binSym      = toBinanceSymbol(sym);
     const binInterval = toBinanceInterval(tf);
     try {
-      const res  = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${binSym}&interval=${binInterval}&limit=500`);
+      const res  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binSym}&interval=${binInterval}&limit=1000`);
       const data = await res.json();
       if (Array.isArray(data) && candleRef.current) {
         const candles = data.map((d: any[]) => ({

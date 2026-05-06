@@ -309,7 +309,7 @@ export default function MobileCandleChart({
     const binSym = toBinSym(sym);
     const binInterval = TF_LIST.find(t=>t.label===selectedTf)?.bin??"5m";
     try {
-      const res = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${binSym}&interval=${binInterval}&limit=500`);
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binSym}&interval=${binInterval}&limit=1000`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!Array.isArray(data)) throw new Error("Bad data");
