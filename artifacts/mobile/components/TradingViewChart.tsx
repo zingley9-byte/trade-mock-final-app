@@ -24,10 +24,6 @@ const TF_BINANCE: Record<string,string> = {
   "1m":"1m","3m":"3m","5m":"5m","15m":"15m","30m":"30m",
   "1h":"1h","2h":"2h","4h":"4h","1D":"1d","1W":"1w",
 };
-const TF_MEXC_WS: Record<string,string> = {
-  "1m":"Min1","3m":"Min3","5m":"Min5","15m":"Min15","30m":"Min30",
-  "1h":"Hour1","2h":"Hour2","4h":"Hour4","1D":"Day1","1W":"Week1",
-};
 
 // ─── SVG icon helpers ─────────────────────────────────────────────────────────
 function Svg({ children, size=18, viewBox="0 0 24 24" }: { children: React.ReactNode; size?: number; viewBox?: string }) {
@@ -415,7 +411,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       setDataLoaded(true);
     }
 
-    // WebSocket live — MEXC WS endpoint, staleness guard, REST fallback
+    // WebSocket live — stable stream.binance.com endpoint, staleness guard, REST fallback
     const loadId = ++loadIdRef.current;
     retryDelayRef.current = 1000;
 
@@ -458,24 +454,18 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       wsRef.current = null;
 
       setWsStatus("connecting");
-      const mexcWsInterval = TF_MEXC_WS[tf] ?? "Min5";
-      const mexcChannel = `spot@public.kline.v3.api@${binSym}@${mexcWsInterval}`;
-      const ws = new WebSocket("wss://wbs.mexc.com/ws");
+      // Use the production stream endpoint (more reliable than data-stream.binance.vision)
+      const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${binSym.toLowerCase()}@kline_${binInterval}`);
       wsRef.current = ws;
-      let _pingTimer: ReturnType<typeof setInterval> | null = null;
 
       ws.onopen = () => {
         if (!mountedRef.current || loadIdRef.current !== loadId) return;
-        ws.send(JSON.stringify({ method: "SUBSCRIPTION", params: [mexcChannel] }));
         setWsStatus("live");
         retryDelayRef.current = 1000;
         lastMsgAtRef.current = Date.now();
         stopPoll();
         armStaleness();
-        console.log("[Chart] MEXC websocket connected —", binSym, mexcWsInterval);
-        _pingTimer = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ method: "PING" }));
-        }, 15000);
+        console.log("[Chart] websocket connected —", binSym, binInterval);
       };
 
       ws.onmessage = (evt) => {
@@ -483,12 +473,9 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         lastMsgAtRef.current = Date.now();
         armStaleness();
         try {
-          const msg = JSON.parse(evt.data);
-          if (msg.method === "PING") { ws.send(JSON.stringify({ method: "PONG" })); return; }
-          // MEXC kline: { d: { k: { t, o, h, l, c, v } } }
-          const k = msg.d?.k;
-          if (!k || !candleRef.current) return;
-          const c = { time: Math.floor(Number(k.t)/1000) as any, open:+k.o, high:+k.h, low:+k.l, close:+k.c, volume:+k.v };
+          const k = JSON.parse(evt.data).k;
+          if (!candleRef.current) return;
+          const c = { time: Math.floor(k.t/1000) as any, open:+k.o, high:+k.h, low:+k.l, close:+k.c, volume:+k.v };
           candleRef.current.update(c);
           if (volRef.current) {
             volRef.current.update({ time: c.time, value: c.volume, color: c.close >= c.open ? C.bull+"60" : C.bear+"60" });
@@ -498,13 +485,11 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       };
 
       ws.onerror = () => {
-        if (_pingTimer) { clearInterval(_pingTimer); _pingTimer = null; }
         if (!mountedRef.current || loadIdRef.current !== loadId) return;
         setWsStatus("error");
       };
 
       ws.onclose = () => {
-        if (_pingTimer) { clearInterval(_pingTimer); _pingTimer = null; }
         if (!mountedRef.current || loadIdRef.current !== loadId) return;
         if (stalenessTimerRef.current) { clearTimeout(stalenessTimerRef.current); stalenessTimerRef.current = null; }
         setWsStatus("reconnecting");

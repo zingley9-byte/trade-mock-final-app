@@ -263,7 +263,7 @@ function getPosPrice(
   return 0;
 }
 
-const MEXC_WS = "wss://wbs.mexc.com/ws";
+const BINANCE_WS = "wss://stream.binance.com:9443/ws";
 const API_BASE = "/api";
 // MEXC-compatible intervals (same as Binance, except 1h→60m handled by backend)
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
@@ -483,10 +483,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         setIsConnected(true);
       }
 
-      const channel = `spot@public.kline.v3.api@${symbol.id}@Min1`;
-      const ws = new WebSocket(MEXC_WS);
+      const stream = `${symbol.id.toLowerCase()}@kline_1m`;
+      const ws = new WebSocket(`${BINANCE_WS}/${stream}`);
       wsRef.current = ws;
-      let pingInterval: ReturnType<typeof setInterval> | null = null;
 
       const wsTimeout = setTimeout(() => {
         if (!wsConnected) startPolling(symbol.id);
@@ -495,16 +494,11 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       ws.onopen = () => {
         wsConnected = true;
         clearTimeout(wsTimeout);
-        ws.send(JSON.stringify({ method: "SUBSCRIPTION", params: [channel] }));
         if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
         setIsConnected(true);
-        pingInterval = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ method: "PING" }));
-        }, 15000);
       };
       ws.onclose = () => {
         setIsConnected(false);
-        if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
         if (!wsConnected) startPolling(symbol.id);
       };
       ws.onerror = () => {
@@ -515,37 +509,34 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       ws.onmessage = (evt) => {
         try {
           const msg = JSON.parse(evt.data);
-          // MEXC ping keepalive
-          if (msg.method === "PING") { ws.send(JSON.stringify({ method: "PONG" })); return; }
-          // MEXC kline message: { d: { k: { t, o, h, l, c, v } } }
-          const k = msg.d?.k;
-          if (!k) return;
-          const price = parseFloat(k.c);
-          setCurrentPrice(price);
-          setCandles((prev) => {
-            if (prev.length === 0) return prev;
-            const last = prev[prev.length - 1];
-            const newCandle: Candle = {
-              time: Number(k.t),
-              open: parseFloat(k.o),
-              high: parseFloat(k.h),
-              low: parseFloat(k.l),
-              close: price,
-              volume: parseFloat(k.v),
-            };
-            if (Number(k.t) === last.time) {
-              return [...prev.slice(0, -1), newCandle];
-            } else {
-              return [...prev, newCandle];
-            }
-          });
+          if (msg.k) {
+            const k = msg.k;
+            const price = parseFloat(k.c);
+            setCurrentPrice(price);
+            setCandles((prev) => {
+              if (prev.length === 0) return prev;
+              const last = prev[prev.length - 1];
+              const newCandle: Candle = {
+                time: k.t,
+                open: parseFloat(k.o),
+                high: parseFloat(k.h),
+                low: parseFloat(k.l),
+                close: price,
+                volume: parseFloat(k.v),
+              };
+              if (k.t === last.time) {
+                return [...prev.slice(0, -1), newCandle];
+              } else {
+                return [...prev, newCandle];
+              }
+            });
+          }
         } catch {}
       };
 
       return () => {
         clearTimeout(wsTimeout);
         if (pollInterval) clearInterval(pollInterval);
-        if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
       };
     },
     []

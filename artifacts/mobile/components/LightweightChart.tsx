@@ -43,9 +43,6 @@ function buildInterval(tf: string): string {
   const m: Record<string, string> = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h", "1D": "1d" };
   return m[tf] ?? "15m";
 }
-const MEXC_WS_INTERVAL: Record<string, string> = {
-  "1m":"Min1","5m":"Min5","15m":"Min15","30m":"Min30","1h":"Hour1","1D":"Day1",
-};
 
 function calcEMA(closes: number[], period: number): (number | null)[] {
   const result: (number | null)[] = [];
@@ -436,10 +433,8 @@ function WebChart({
         const sym = symbol.replace("/", "").toUpperCase();
         const final = sym.endsWith("USDT") ? sym : sym + "USDT";
         const interval = buildInterval(timeframe);
-        // MEXC REST — same Binance-compatible format (1h→60m)
-        const mexcInterval = interval === "1h" ? "60m" : interval;
         try {
-          const res = await fetch(`https://api.mexc.com/api/v3/klines?symbol=${final}&interval=${mexcInterval}&limit=500`);
+          const res = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${final}&interval=${interval}&limit=500`);
           const data = await res.json();
           if (Array.isArray(data) && !destroyed) {
             const candles = data.map((d: any[]) => ({
@@ -456,40 +451,18 @@ function WebChart({
         } catch {}
 
         if (!destroyed) {
-          const mexcWsInterval = MEXC_WS_INTERVAL[timeframe] ?? "Min5";
-          const mexcChannel = `spot@public.kline.v3.api@${final}@${mexcWsInterval}`;
-          const ws = new WebSocket("wss://wbs.mexc.com/ws");
+          const ws = new WebSocket(`wss://data-stream.binance.vision/ws/${final.toLowerCase()}@kline_${interval}`);
           wsRef.current = ws;
-          let _pingTimer: ReturnType<typeof setInterval> | null = null;
-          ws.onopen = () => {
-            if (destroyed) return;
-            ws.send(JSON.stringify({ method: "SUBSCRIPTION", params: [mexcChannel] }));
-            _pingTimer = setInterval(() => {
-              if (ws.readyState === 1) ws.send(JSON.stringify({ method: "PING" }));
-            }, 15000);
-          };
           ws.onmessage = (evt) => {
             if (destroyed) return;
-            try {
-              const msg = JSON.parse(evt.data);
-              if (msg.method === "PING") { ws.send(JSON.stringify({ method: "PONG" })); return; }
-              // MEXC kline: { d: { k: { t, o, h, l, c, v } } }
-              const k = msg.d?.k;
-              if (!k) return;
-              const c = { time: Math.floor(Number(k.t) / 1000) as any, open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
-              if (chartType === "candle") st.current.series.candle?.update(c);
-              else st.current.series.candle?.update({ time: c.time, value: c.close });
-              if (st.current.series.vol) {
-                st.current.series.vol.update({ time: c.time, value: c.volume, color: c.close >= c.open ? "#26a69a50" : "#ef444450" });
-              }
-              if (onPriceUpdate) onPriceUpdate(+k.c);
-            } catch {}
-          };
-          ws.onclose = () => {
-            if (_pingTimer) { clearInterval(_pingTimer); _pingTimer = null; }
-          };
-          ws.onerror = () => {
-            if (_pingTimer) { clearInterval(_pingTimer); _pingTimer = null; }
+            const k = JSON.parse(evt.data).k;
+            const c = { time: Math.floor(k.t / 1000) as any, open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
+            if (chartType === "candle") st.current.series.candle?.update(c);
+            else st.current.series.candle?.update({ time: c.time, value: c.close });
+            if (st.current.series.vol) {
+              st.current.series.vol.update({ time: c.time, value: c.volume, color: c.close >= c.open ? "#26a69a50" : "#ef444450" });
+            }
+            if (onPriceUpdate) onPriceUpdate(+k.c);
           };
         }
       }
