@@ -120,6 +120,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [volCollapsed, setVolCollapsed] = useState(false);
   const [wsStatus,     setWsStatus]   = useState<"connecting"|"live"|"reconnecting"|"error">("connecting");
   const [dataLoaded,   setDataLoaded]  = useState(false);
+  const [loadFailed,   setLoadFailed]  = useState(false);
   const [webDrawings,  setWebDrawings] = useState<any[]>([]);
   const [webCurrent,   setWebCurrent]  = useState<any>(null);
   const [showWebDraw,  setShowWebDraw] = useState(true);
@@ -309,23 +310,27 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     });
     ro.observe(el);
 
-    // Fetch historical
+    // Fetch historical — route through API proxy to avoid CORS
     const binSym      = toBinanceSymbol(sym);
     const binInterval = toBinanceInterval(tf);
+    if (mountedRef.current) setLoadFailed(false);
     try {
-      const res  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binSym}&interval=${binInterval}&limit=1000`);
+      console.log("[Chart] fetching history —", binSym, binInterval);
+      const res  = await fetch(`/api/market/klines?symbol=${binSym}&interval=${binInterval}&limit=1000`);
       const data = await res.json();
       if (Array.isArray(data) && candleRef.current) {
         const candles = data.map((d: any[]) => ({
           time:   Math.floor(d[0]/1000) as any,
           open:   +d[1], high: +d[2], low: +d[3], close: +d[4], volume: +d[5],
         }));
+        console.log("[Chart] history fetched — candles:", candles.length);
         rawCandlesRef.current = candles;
         if (chartTypeRef.current === "line") {
           candleRef.current.setData(candles.map((c: any) => ({ time: c.time, value: c.close })));
         } else {
           candleRef.current.setData(candles);
         }
+        console.log("[Chart] setData called — candles:", candles.length);
         if (volRef.current) {
           volRef.current.setData(candles.map((c: any) => ({
             time: c.time, value: c.volume,
@@ -335,8 +340,14 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         const last = candles[candles.length-1];
         if (last) setOhlcv({ o:last.open, h:last.high, l:last.low, c:last.close, v:last.volume, ch:last.close-last.open, chp:((last.close-last.open)/last.open)*100 });
         chart.timeScale().fitContent();
+      } else {
+        console.log("[Chart] history fetch returned non-array — retrying via WebSocket only");
+        if (mountedRef.current) setLoadFailed(true);
       }
-    } catch {} finally {
+    } catch (err) {
+      console.log("[Chart] history fetch error:", err);
+      if (mountedRef.current) setLoadFailed(true);
+    } finally {
       if (mountedRef.current) setDataLoaded(true);
     }
 
@@ -354,7 +365,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       pollTimerRef.current = setInterval(async () => {
         if (!mountedRef.current || loadIdRef.current !== loadId) { stopPoll(); return; }
         try {
-          const r = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${binSym}&interval=${binInterval}&limit=2`);
+          const r = await fetch(`/api/market/klines?symbol=${binSym}&interval=${binInterval}&limit=2`);
           if (!r.ok) return;
           const data = await r.json();
           if (!Array.isArray(data) || !candleRef.current) return;
@@ -394,6 +405,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         lastMsgAtRef.current = Date.now();
         stopPoll();
         armStaleness();
+        console.log("[Chart] websocket connected —", binSym, binInterval);
       };
 
       ws.onmessage = (evt) => {
@@ -408,6 +420,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           if (volRef.current) {
             volRef.current.update({ time: c.time, value: c.volume, color: c.close >= c.open ? C.bull+"60" : C.bear+"60" });
           }
+          console.log("[Chart] live candle updated — close:", c.close);
         } catch {}
       };
 
@@ -437,6 +450,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     initChart(symbol, timeframe);
     return () => {
       setDataLoaded(false);
+      setLoadFailed(false);
       if (retryTimerRef.current)   { clearTimeout(retryTimerRef.current);   retryTimerRef.current   = null; }
       if (stalenessTimerRef.current){ clearTimeout(stalenessTimerRef.current); stalenessTimerRef.current = null; }
       if (pollTimerRef.current)    { clearInterval(pollTimerRef.current);    pollTimerRef.current    = null; }
@@ -1223,6 +1237,28 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       {!dataLoaded && (
         <LoadingCandleAnimation overlay status="connecting" />
       )}
+      {dataLoaded && loadFailed && (
+        <div style={{
+          position:"absolute", inset:0, zIndex:300,
+          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+          background:"rgba(19,23,34,0.82)", backdropFilter:"blur(2px)",
+          gap:14, pointerEvents:"none",
+        }}>
+          <span style={{ color:C.bear, fontSize:13, fontWeight:"600" }}>⚠ Failed to load candle history</span>
+          <button
+            style={{
+              background:C.gold, border:"none", borderRadius:7, color:"#131722",
+              fontWeight:"700", fontSize:13, padding:"8px 22px", cursor:"pointer",
+              pointerEvents:"all",
+            }}
+            onClick={() => {
+              setDataLoaded(false);
+              setLoadFailed(false);
+              initChart(symRef.current, tfRef.current);
+            }}
+          >Retry</button>
+        </div>
+      )}
       {dataLoaded && (wsStatus === "reconnecting" || wsStatus === "error") && (
         <LoadingCandleAnimation overlay transparent size="sm" status={wsStatus as "reconnecting" | "error"} />
       )}
@@ -1307,7 +1343,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
             return (
               <div key={g.id} style={{position:"relative"}}>
                 <button title={g.label}
-                  onPointerDown={(e)=>{ e.currentTarget.releasePointerCapture(e.pointerId); if(g.items.length===1){handleToolClick(g.items[0].id);setOpenSubGroup(null);}else{ const r=(e.currentTarget as HTMLElement).getBoundingClientRect(); setSubGroupY(r.top); setOpenSubGroup(v=>v===g.id?null:g.id);}}}
+                  onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }}
+                  onClick={(e)=>{ console.log("[DrawTools] tool selected:", g.id); if(g.items.length===1){handleToolClick(g.items[0].id);setOpenSubGroup(null);}else{ const r=(e.currentTarget as HTMLElement).getBoundingClientRect(); setSubGroupY(r.top); setOpenSubGroup(v=>v===g.id?null:g.id);}}}
                   style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:isAct?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:isAct?"#2962FF":"#787b86",fontSize:13,fontWeight:"bold",position:"relative",touchAction:"manipulation" }}>
                   <SbIcon id={g.id}/>
                   {g.items.length>1&&<span style={{position:"absolute",right:3,bottom:4,width:0,height:0,borderLeft:"3px solid transparent",borderRight:"3px solid transparent",borderTop:`3px solid ${isAct?"#2962FF":"#4a4e5a"}`}}/>}
@@ -1316,7 +1353,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
                   <div style={{ position:"fixed",left:46,top:subGroupY,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,minWidth:180,padding:"4px 0",zIndex:500,boxShadow:"0 4px 24px #00000090" }}>
                     <div style={{padding:"4px 12px",fontSize:9,fontWeight:"700",color:C.dim,textTransform:"uppercase",letterSpacing:".6px",borderBottom:`1px solid ${C.border}`,marginBottom:2}}>{g.label}</div>
                     {g.items.map((it:any)=>(
-                      <button key={it.id} onPointerDown={(e)=>{ e.currentTarget.releasePointerCapture(e.pointerId); handleToolClick(it.id);setOpenSubGroup(null);}}
+                      <button key={it.id} onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }} onClick={()=>{ console.log("[DrawTools] tool selected:", it.id); handleToolClick(it.id);setOpenSubGroup(null);}}
                         style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 12px",fontSize:12,color:activeTool===it.id?"#2962FF":C.text,cursor:"pointer",border:"none",background:activeTool===it.id?"#2962FF18":"none",width:"100%",textAlign:"left",touchAction:"manipulation" }}>
                         <span style={{width:6,height:6,borderRadius:"50%",background:activeTool===it.id?"#2962FF":"none",border:`1px solid ${activeTool===it.id?"#2962FF":"#3a3e4a"}`,flexShrink:0}}/>
                         {it.label}
@@ -1331,7 +1368,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           <div style={{width:28,height:1,background:C.border,margin:"3px 0"}}/>
           {/* Toggle tools */}
           {WEB_TOGGLE_TOOLS.map(t=>(
-            <button key={t.id} title={t.label} onPointerDown={(e)=>{ e.currentTarget.releasePointerCapture(e.pointerId); handleToolClick(t.id);}}
+            <button key={t.id} title={t.label} onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }} onClick={()=>{ handleToolClick(t.id);}}
               style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF":"#787b86",touchAction:"manipulation" }}>
               <SbIcon id={t.id}/>
             </button>
