@@ -498,10 +498,10 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 <script>
 // ── Constants ───────────────────────────────────────────────────────────────
 const SYMBOL   = '${bin}';
-// TF_MAP: Binance WS kline stream interval (kept for WebSocket URL)
-const TF_MAP   = {
-  '1m':'1m','3m':'3m','5m':'5m','15m':'15m','30m':'30m',
-  '1h':'1h','2h':'2h','4h':'4h','1D':'1d','1W':'1w',
+// MEXC_WS_MAP: MEXC WebSocket kline channel intervals
+const MEXC_WS_MAP = {
+  '1m':'Min1','3m':'Min3','5m':'Min5','15m':'Min15','30m':'Min30',
+  '1h':'Hour1','2h':'Hour2','4h':'Hour4','1D':'Day1','1W':'Week1',
 };
 // MEXC_TF_MAP: MEXC REST kline interval (Binance-compatible format, device-accessible)
 const MEXC_TF_MAP = {
@@ -519,7 +519,7 @@ let lastMsgAt = 0;
 let stalenessTimer = null;
 let volCollapsed = false;
 let isFS = ${initialFS ? 'true' : 'false'};
-// Tracks the live (incomplete) candle so aggTrade can update close in real-time
+// Tracks the live (incomplete) candle from the MEXC kline stream
 let liveCandle = null;
 
 
@@ -794,64 +794,29 @@ function armStaleness(sym, tf, id) {
   }, 12000);
 }
 
-// ── aggTrade stream — every single trade → ultra-fast close price updates ────
-// Runs in parallel with the kline stream. Kline gives full OHLCV; aggTrade
-// gives the latest trade price on every transaction (~10-50/s for BTC).
-function connectTradeWS(sym, id) {
-  if (tickerWs) { try { tickerWs.close(); } catch(_){} tickerWs = null; }
-  const url = 'wss://stream.binance.com:9443/ws/' + sym.toLowerCase() + '@aggTrade';
-  tickerWs = new WebSocket(url);
-
-  var _lastPricePost = 0;
-  tickerWs.onmessage = e => {
-    // Only update if we have a live candle reference from the kline stream
-    if (loadId !== id || !liveCandle || !candleSeries) return;
-    try {
-      const msg = JSON.parse(e.data);
-      const price = parseFloat(msg.p);
-      // Update close; also expand high/low so wicks are accurate
-      if (price > liveCandle.high) liveCandle.high = price;
-      if (price < liveCandle.low)  liveCandle.low  = price;
-      liveCandle.close = price;
-      try {
-        if (CHART_TYPE === 'line') candleSeries.update({time:liveCandle.time,value:price});
-        else candleSeries.update({ ...liveCandle });
-      } catch(_) {}
-      // Sync live price to React Native header (throttled to 500ms)
-      var now = Date.now();
-      if (now - _lastPricePost >= 500) {
-        _lastPricePost = now;
-        postRN({ type: 'livePrice', price: price });
-      }
-    } catch(_) {}
-  };
-
-  // Silently reconnect — don't affect the main badge
-  tickerWs.onclose = () => {
-    if (loadId !== id) return;
-    setTimeout(() => connectTradeWS(sym, id), 2000);
-  };
-}
-
 function connectWS(sym, tf, id) {
   if (ws) { try { ws.close(); } catch(_){} ws = null; }
   if (tickerWs) { try { tickerWs.close(); } catch(_){} tickerWs = null; }
   liveCandle = null;
   clearTimeout(retryTimer);
   clearStaleness();
-  const interval = TF_MAP[tf] || '5m';
-  const url = 'wss://stream.binance.com:9443/ws/'+sym.toLowerCase()+'@kline_'+interval;
+  const mexcWsInterval = MEXC_WS_MAP[tf] || 'Min5';
+  const channel = 'spot@public.kline.v3.api@' + sym + '@' + mexcWsInterval;
   setWsBadge('connecting');
-  ws = new WebSocket(url);
+  ws = new WebSocket('wss://wbs.mexc.com/ws');
+  var _pingTimer = null;
 
   ws.onopen = () => {
     if (loadId !== id) return;
     retryDelay = 500;
     lastMsgAt = Date.now();
+    ws.send(JSON.stringify({ method: 'SUBSCRIPTION', params: [channel] }));
     setWsBadge('live');
+    console.log('WS connected');
     armStaleness(sym, tf, id);
-    // Start the fast trade stream as soon as kline is connected
-    connectTradeWS(sym, id);
+    _pingTimer = setInterval(function() {
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ method: 'PING' }));
+    }, 15000);
   };
 
   ws.onmessage = e => {
@@ -860,36 +825,47 @@ function connectWS(sym, tf, id) {
     armStaleness(sym, tf, id);
     try {
       const msg = JSON.parse(e.data);
-      const k = msg.k;
+      // Handle MEXC ping
+      if (msg.method === 'PING') { ws.send(JSON.stringify({ method: 'PONG' })); return; }
+      // MEXC kline message: { d: { k: { t, o, h, l, c, v } } }
+      const k = msg.d && msg.d.k;
+      if (!k) return;
       const candle = {
-        time:  Math.floor(k.t / 1000),
+        time:  Math.floor(Number(k.t) / 1000),
         open:  parseFloat(k.o), high: parseFloat(k.h),
         low:   parseFloat(k.l), close: parseFloat(k.c),
       };
       const vol = {
-        time:  Math.floor(k.t / 1000),
+        time:  Math.floor(Number(k.t) / 1000),
         value: parseFloat(k.v),
         color: parseFloat(k.c) >= parseFloat(k.o) ? '#26a69a55' : '#ef535055',
       };
-      // Keep liveCandle in sync so aggTrade can update it between kline ticks
       liveCandle = { ...candle };
-      if (_rawCandles.length && _rawCandles[_rawCandles.length-1].time===candle.time) {
-        _rawCandles[_rawCandles.length-1]=candle;
+      if (_rawCandles.length && _rawCandles[_rawCandles.length-1].time === candle.time) {
+        _rawCandles[_rawCandles.length-1] = candle;
       }
       try {
         if (CHART_TYPE === 'line') candleSeries.update({time:candle.time,value:candle.close});
         else candleSeries.update(candle);
       } catch(_) {}
       try { volSeries.update(vol); } catch(_) {}
+      console.log('Live candle updated');
+      // Sync live price to React Native header
+      postRN({ type: 'livePrice', price: candle.close });
     } catch(_) {}
   };
 
-  ws.onerror = () => { if (loadId !== id) return; clearStaleness(); setWsBadge('error'); };
-
-  ws.onclose = () => {
+  ws.onerror = () => {
+    if (_pingTimer) { clearInterval(_pingTimer); _pingTimer = null; }
     if (loadId !== id) return;
     clearStaleness();
-    if (tickerWs) { try { tickerWs.close(); } catch(_){} tickerWs = null; }
+    setWsBadge('error');
+  };
+
+  ws.onclose = () => {
+    if (_pingTimer) { clearInterval(_pingTimer); _pingTimer = null; }
+    if (loadId !== id) return;
+    clearStaleness();
     setWsBadge('reconnecting');
     retryTimer = setTimeout(() => connectWS(sym, tf, loadId), retryDelay);
     retryDelay = Math.min(retryDelay*2, 5000);

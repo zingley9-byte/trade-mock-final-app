@@ -43,6 +43,11 @@ const BIN_TO_BYBIT: Record<string,string> = {
   "1m":"1","3m":"3","5m":"5","15m":"15","30m":"30",
   "1h":"60","4h":"240","1d":"D","1w":"W",
 };
+// Map Binance bin interval → MEXC WebSocket channel interval
+const BIN_TO_MEXC_WS: Record<string,string> = {
+  "1m":"Min1","3m":"Min3","5m":"Min5","15m":"Min15","30m":"Min30",
+  "1h":"Hour1","4h":"Hour4","1d":"Day1","1w":"Week1",
+};
 const BYBIT_KLINE = "https://api.bybit.com/v5/market/kline";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -273,32 +278,48 @@ export default function MobileCandleChart({
       },12000);
     }
 
+    const mexcWsInterval = BIN_TO_MEXC_WS[binInterval] ?? 'Min5';
+    const mexcChannel = `spot@public.kline.v3.api@${binSym}@${mexcWsInterval}`;
     setWsStatus("connecting");
-    // Use the stable production stream endpoint
-    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${binSym.toLowerCase()}@kline_${binInterval}`);
+    const ws = new WebSocket("wss://wbs.mexc.com/ws");
     wsRef.current=ws;
+    let pingTimer: ReturnType<typeof setInterval>|null = null;
     ws.onopen  = ()=>{
       if(!mountedRef.current||loadIdRef.current!==loadId) return;
+      ws.send(JSON.stringify({ method: "SUBSCRIPTION", params: [mexcChannel] }));
       setWsStatus("live");
+      console.log("WS connected");
       retryDelay.current=1000;
       stopPoll();
       armStaleness();
+      pingTimer = setInterval(()=>{
+        if(ws.readyState===1) ws.send(JSON.stringify({ method: "PING" }));
+      }, 15000);
     };
     ws.onmessage = (evt)=>{
       if (!mountedRef.current||loadIdRef.current!==loadId) return;
       armStaleness();
       try {
-        const k = JSON.parse(evt.data).k;
-        const nc:Candle = {time:Math.floor(k.t/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c,volume:+k.v};
+        const msg = JSON.parse(evt.data);
+        if (msg.method === "PING") { ws.send(JSON.stringify({ method: "PONG" })); return; }
+        // MEXC kline: { d: { k: { t, o, h, l, c, v } } }
+        const k = msg.d?.k;
+        if (!k) return;
+        const nc:Candle = {time:Math.floor(Number(k.t)/1000),open:+k.o,high:+k.h,low:+k.l,close:+k.c,volume:+k.v};
         const arr = candlesRef.current;
         if (arr.length&&arr[arr.length-1].time===nc.time) arr[arr.length-1]=nc;
         else { arr.push(nc); if(arr.length>1000) arr.shift(); }
         if (offsetRef.current===0) redraw();
         onPrice?.(nc.close);
+        console.log("Live candle updated");
       } catch {}
     };
-    ws.onerror = ()=>{ if(mountedRef.current&&loadIdRef.current===loadId) setWsStatus("error"); };
+    ws.onerror = ()=>{
+      if(pingTimer){ clearInterval(pingTimer); pingTimer=null; }
+      if(mountedRef.current&&loadIdRef.current===loadId) setWsStatus("error");
+    };
     ws.onclose = ()=>{
+      if(pingTimer){ clearInterval(pingTimer); pingTimer=null; }
       if (!mountedRef.current||loadIdRef.current!==loadId) return;
       if(stalenessTimer.current){ clearTimeout(stalenessTimer.current); stalenessTimer.current=null; }
       setWsStatus("reconnecting");
