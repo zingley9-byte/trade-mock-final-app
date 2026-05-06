@@ -1,54 +1,65 @@
 /**
- * AdBanner — Platform-safe Google AdMob Banner wrapper
+ * AdBanner — Crash-safe Google AdMob Banner wrapper
  *
- * • Web / browser  → renders null (no ads, no crash)
- * • Android / iOS  → renders a real BannerAd (TEST ID by default)
+ * Rendering behaviour by environment:
+ *   Web               → null  (no native bridge)
+ *   Expo Go           → null  (RNGoogleMobileAdsModule not bundled → would crash)
+ *   EAS dev client    → real BannerAd with TEST unit ID
+ *   Production build  → real BannerAd with TEST unit ID (replace before launch)
  *
- * Usage:
- *   <AdBanner />
- *
- * The component is intentionally tiny and dependency-free on web so the
- * published Expo web app is never affected.
+ * The native module is required lazily AND only when `isAdMobSupported` is true,
+ * so neither Expo Go nor web ever touch the bridge.
  */
 
 import React from "react";
 import { Platform, View, StyleSheet } from "react-native";
-import { ADS_ENABLED, BANNER_AD_UNIT_ID } from "@/config/admob";
+import { isAdMobSupported, BANNER_AD_UNIT_ID } from "@/config/admob";
 
-// ── Lazy native load — only evaluated on Android / iOS ──────────────────────
-// This pattern avoids importing native modules on web (which has no native
-// bridge and would crash or silently fail).
-let NativeBanner: React.ComponentType<{ unitId: string; size: string }> | null = null;
-let BannerAdSize: Record<string, string> | null = null;
+// ── Lazy native module load ────────────────────────────────────────────────
+// We resolve the module exactly once at module-load time, but only when we
+// know the native bridge is available (isAdMobSupported).
+//
+// Why not a top-level import?
+//   Importing react-native-google-mobile-ads at the top of the file causes
+//   Metro to bundle it for all environments. When the native module
+//   (RNGoogleMobileAdsModule) is absent — Expo Go, web — accessing any
+//   exported symbol throws. We use require() gated on isAdMobSupported so
+//   the module is never even touched in unsupported environments.
+//
+// Why not rely on try/catch around require()?
+//   require() itself succeeds (it returns the JS wrapper). The crash happens
+//   later, when the JS wrapper tries to call a method on the missing native
+//   module. Gating on isAdMobSupported prevents us from ever reaching that call.
 
-if (Platform.OS !== "web" && ADS_ENABLED) {
+type BannerAdModule = {
+  BannerAd: React.ComponentType<{ unitId: string; size: string }>;
+  BannerAdSize: Record<string, string>;
+};
+
+let adMod: BannerAdModule | null = null;
+
+if (isAdMobSupported) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const lib = require("react-native-google-mobile-ads");
-    NativeBanner = lib.BannerAd;
-    BannerAdSize  = lib.BannerAdSize;
+    adMod = require("react-native-google-mobile-ads") as BannerAdModule;
   } catch {
-    // Native module unavailable (e.g. Expo Go without dev-client) — fail silently
-    NativeBanner = null;
+    // Unexpected load failure — fail silently, adMod stays null
+    adMod = null;
   }
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
 export default function AdBanner() {
-  // Web: always hide — AdMob only works on native builds
-  if (Platform.OS === "web") return null;
+  // Not supported: web, Expo Go, or module failed to load
+  if (!isAdMobSupported || !adMod) return null;
 
-  // Native module failed to load (Expo Go / dev environment)
-  if (!NativeBanner || !BannerAdSize) return null;
-
-  const Banner = NativeBanner;
+  const { BannerAd, BannerAdSize } = adMod;
 
   return (
     <View style={styles.wrap}>
-      <Banner
+      <BannerAd
         unitId={BANNER_AD_UNIT_ID}
         size={BannerAdSize.BANNER}
-        // onAdFailedToLoad is intentionally not set — failures are silent
       />
     </View>
   );
@@ -60,6 +71,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: "100%",
     minHeight: 50,
-    // Transparent background so the banner blends with the screen
   },
 });

@@ -24,6 +24,39 @@
  */
 
 import { Platform } from "react-native";
+import Constants, { ExecutionEnvironment } from "expo-constants";
+
+// ── Environment detection ──────────────────────────────────────────────────
+/**
+ * True when running inside Expo Go (the public sandbox app from the App Store).
+ *
+ * Expo Go does NOT support custom native modules — react-native-google-mobile-ads
+ * requires a native build (EAS Build dev client or production APK/IPA).
+ * Calling any of its methods in Expo Go throws:
+ *   "RNGoogleMobileAdsModule could not be found"
+ *
+ * Detection:
+ *   ExecutionEnvironment.StoreClient === 'storeClient'  → Expo Go
+ *   ExecutionEnvironment.Bare        === 'bare'         → dev client / standalone
+ *
+ * Legacy fallback: Constants.appOwnership === 'expo' also identifies Expo Go.
+ */
+export const isExpoGo: boolean =
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
+  Constants.appOwnership === "expo";
+
+/** Master switch — flip to false to disable all ads globally. */
+export const ADS_ENABLED = true;
+
+/**
+ * True only when it is safe to use react-native-google-mobile-ads.
+ * AdMob requires:
+ *   1. A native platform (not web — no native bridge on web)
+ *   2. A native build (not Expo Go — native module not bundled in Expo Go)
+ *   3. ADS_ENABLED flag is on
+ */
+export const isAdMobSupported: boolean =
+  Platform.OS !== "web" && !isExpoGo && ADS_ENABLED;
 
 // ── App IDs (set in app.config.js via env vars) ───────────────────────────
 // These are Google's official TEST App IDs. Replace with real IDs for launch.
@@ -54,6 +87,3 @@ export const INTERSTITIAL_AD_UNIT_ID: string =
 // ── Ad display policy settings ─────────────────────────────────────────────
 /** Minimum milliseconds between two interstitial ads (3 minutes). */
 export const INTERSTITIAL_COOLDOWN_MS = 3 * 60 * 1000;
-
-/** Screens where ads are allowed (others show nothing). */
-export const ADS_ENABLED = true;
