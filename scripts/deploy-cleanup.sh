@@ -1,38 +1,48 @@
 #!/usr/bin/env bash
 # Post-build cleanup to keep deployment image under 8 GiB.
 #
-# At runtime neither artifact needs node_modules:
-#   - API server   → self-contained esbuild bundle (artifacts/api-server/dist/index.mjs)
-#   - Mobile app   → zero-dependency serve.js using only Node.js built-ins
+# At runtime neither artifact needs any of the deleted paths:
+#   - API server → self-contained esbuild bundle (artifacts/api-server/dist/index.mjs)
+#   - Mobile app → zero-dependency serve.js using only Node.js built-ins
 #
-# This script is referenced by .replit [deployment.postBuild].
+# Size breakdown (before cleanup, ~30 GiB total):
+#   .git/              ~21 GiB  (.git/lfs/objects ~17 GiB, .git/objects/pack ~3.5 GiB)
+#   node_modules/       ~1 GiB
+#   .local/ (pnpm)     ~0.9 GiB
+#   .cache/            ~0.6 GiB
+#
+# This script is run as the last step of the mobile production build command.
 set -euo pipefail
 
-echo "=== deploy-cleanup: removing dev dependencies before image snapshot ==="
+WORKSPACE=/home/runner/workspace
 
-# 1. Prune the pnpm content-addressable store (removes orphaned package blobs)
-echo "[1/4] pruning pnpm store..."
-pnpm store prune --force 2>/dev/null || true
+echo "=== deploy-cleanup: removing unneeded files before image snapshot ==="
 
-# 2. Delete root node_modules (pnpm virtual store – the big one)
-echo "[2/4] removing workspace node_modules..."
-rm -rf /home/runner/workspace/node_modules
+# 1. Git history and LFS objects — not needed at runtime (~21 GiB saved)
+echo "[1/5] removing .git history and LFS objects..."
+rm -rf "$WORKSPACE/.git"
+
+# 2. Delete root node_modules (pnpm virtual store)
+echo "[2/5] removing workspace node_modules..."
+rm -rf "$WORKSPACE/node_modules"
 
 # 3. Delete per-artifact and per-lib node_modules
-echo "[3/4] removing per-package node_modules..."
+echo "[3/5] removing per-package node_modules..."
 for dir in artifacts lib scripts; do
-  find /home/runner/workspace/"$dir" -maxdepth 3 -name "node_modules" -type d \
+  find "$WORKSPACE/$dir" -maxdepth 3 -name "node_modules" -type d \
     -exec rm -rf {} + 2>/dev/null || true
 done
 
-# 4. Delete the pnpm content-addressable store itself
-echo "[4/4] removing pnpm store..."
-rm -rf /home/runner/workspace/.local/share/pnpm/store
-rm -rf /home/runner/.local/share/pnpm/store 2>/dev/null || true
+# 4. Delete pnpm content-addressable stores (both possible locations)
+echo "[4/5] removing pnpm stores..."
+rm -rf "$WORKSPACE/.local/share/pnpm"
+rm -rf /home/runner/.local/share/pnpm 2>/dev/null || true
 
-# Remove Expo / Metro caches that aren't part of the built dist
-rm -rf /home/runner/workspace/artifacts/mobile/.expo
+# 5. Delete build caches
+echo "[5/5] removing build caches..."
+rm -rf "$WORKSPACE/.cache"
+rm -rf "$WORKSPACE/artifacts/mobile/.expo"
 rm -rf /tmp/metro-* /tmp/haste-* 2>/dev/null || true
 
 echo "=== deploy-cleanup: done ==="
-du -sh /home/runner/workspace 2>/dev/null || true
+du -sh "$WORKSPACE" 2>/dev/null || true
