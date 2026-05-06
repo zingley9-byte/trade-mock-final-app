@@ -83,10 +83,16 @@ export default function PortfolioScreen() {
     return getLivePositionPnl(pos, getBestPrice(pos));
   }
 
-  const unrealizedPnL = positions.reduce((sum, pos) => sum + getPosPnl(pos), 0);
-  const realizedPnL   = tradeHistory.reduce((sum, t) => sum + t.pnl, 0);
-  const totalPnL      = unrealizedPnL + realizedPnL;
-  const totalValue    = INITIAL_BALANCE + totalPnL;
+  // Unrealized = sum of live open-position rows only (no history)
+  const unrealizedPnL   = positions.reduce((sum, pos) => sum + getPosPnl(pos), 0);
+  // Open margins locked in current positions
+  const openMarginTotal = positions.reduce((sum, p) => sum + (parseFloat(String(p.margin)) || 0), 0);
+  // Portfolio value: balance (already includes all realized P&L from closePosition())
+  //   + margins returned conceptually + current unrealized P&L
+  // This avoids double-counting realized P&L via tradeHistory.
+  const totalValue = balance + openMarginTotal + unrealizedPnL;
+  // Card PNL = unrealized only → always matches the sum of open position rows
+  const totalPnL = unrealizedPnL;
 
   // Pass the best available live price — recomputed fresh on every render from context
   const detailLivePrice = detailPos ? getBestPrice(detailPos) : 0;
