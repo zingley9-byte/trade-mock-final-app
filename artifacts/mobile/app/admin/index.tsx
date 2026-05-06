@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAdmin } from "@/context/AdminContext";
+import { PositionSnapshot, useAdmin } from "@/context/AdminContext";
 import { SYMBOLS } from "@/context/TradingContext";
 
 const ADMIN_BG = "#0a0e1a";
@@ -23,11 +23,40 @@ const BEAR     = "#ff4d4d";
 const BULL     = "#00c896";
 const GOLD     = "#f59e0b";
 
+const USD_TO_INR = 95;
+
+function calcPosPnl(pos: PositionSnapshot, price: number): number {
+  if (!price || price <= 0) return 0;
+  const entry = parseFloat(String(pos.entryPrice));
+  const qty   = parseFloat(String(pos.quantity));
+  if (!entry || !qty) return 0;
+  return pos.side === "buy" ? (price - entry) * qty : (entry - price) * qty;
+}
+
 export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const { isAdmin, loading, users, announcements, blockedUids, refreshUsers, appConfig } = useAdmin();
+  const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
 
   useEffect(() => { refreshUsers(); }, []);
+
+  // Fetch live prices every 5 s — used for unrealized PNL of all open positions
+  useEffect(() => {
+    async function fetchPrices() {
+      try {
+        const res  = await fetch("/api/market/prices");
+        const map: Record<string, { price: number }> = await res.json();
+        const next: Record<string, number> = {};
+        for (const [k, v] of Object.entries(map)) {
+          if (v?.price > 0) next[k] = v.price;
+        }
+        setSymbolPrices(next);
+      } catch {}
+    }
+    fetchPrices();
+    const iv = setInterval(fetchPrices, 5000);
+    return () => clearInterval(iv);
+  }, []);
 
   if (loading) {
     return (
@@ -51,19 +80,44 @@ export default function AdminDashboard() {
     );
   }
 
-  const totalTrades  = users.reduce((s, u) => s + u.tradeCount, 0);
-  const totalPnl     = users.reduce((s, u) => s + u.totalPnl, 0);
-  const activeUsers  = users.filter((u) => !u.blocked).length;
-  const blockedCount = blockedUids.length;
+  const activeUsers       = users.filter((u) => !u.blocked).length;
+  const blockedCount      = blockedUids.length;
+  const totalClosedTrades = users.reduce((s, u) => s + u.tradeCount, 0);
+  const totalOpenTrades   = users.reduce((s, u) => s + (u.openPositions?.length ?? 0), 0);
+
+  // Realized PNL = sum of all closed trade PNLs stored per user in Firestore (USD)
+  const realizedPnlUsd = users.reduce((s, u) => s + u.totalPnl, 0);
+  // Unrealized PNL = live formula over all open positions × current market price (USD)
+  const unrealizedPnlUsd = users.reduce(
+    (s, u) => s + (u.openPositions ?? []).reduce(
+      (ps, pos) => ps + calcPosPnl(pos, symbolPrices[pos.symbolId] ?? 0), 0
+    ), 0
+  );
+  const totalPnlInr = (realizedPnlUsd + unrealizedPnlUsd) * USD_TO_INR;
+
+  // Per-user combined PNL to classify profit vs loss users
+  const profitUsers = users.filter((u) => {
+    const unreal = (u.openPositions ?? []).reduce((ps, pos) => ps + calcPosPnl(pos, symbolPrices[pos.symbolId] ?? 0), 0);
+    return (u.totalPnl + unreal) > 0;
+  }).length;
+  const lossUsers = users.filter((u) => {
+    const unreal = (u.openPositions ?? []).reduce((ps, pos) => ps + calcPosPnl(pos, symbolPrices[pos.symbolId] ?? 0), 0);
+    return (u.totalPnl + unreal) < 0;
+  }).length;
+
+  const pnlStr = `${totalPnlInr >= 0 ? "+" : ""}₹${Math.abs(totalPnlInr / 1000).toFixed(1)}K`;
 
   const stats = [
-    { label: "Total Users",    value: users.length.toString(),      icon: "people-outline",          color: "#3b82f6", route: "/admin/users" },
-    { label: "Active",         value: activeUsers.toString(),        icon: "person-add-outline",      color: BULL,      route: "/admin/users?filter=active" },
-    { label: "Blocked",        value: blockedCount.toString(),       icon: "person-remove-outline",   color: BEAR,      route: "/admin/users?filter=blocked" },
-    { label: "Total Trades",   value: totalTrades.toString(),        icon: "swap-horizontal-outline", color: GOLD,      route: "/admin/trades" },
-    { label: "Total P&L",      value: `${totalPnl >= 0 ? "+" : ""}₹${Math.abs(totalPnl / 1000).toFixed(0)}K`, icon: "trending-up-outline", color: totalPnl >= 0 ? BULL : BEAR, route: null },
+    { label: "Total Users",    value: users.length.toString(),         icon: "people-outline",            color: "#3b82f6", route: "/admin/users" },
+    { label: "Active",         value: activeUsers.toString(),           icon: "person-add-outline",        color: BULL,      route: "/admin/users?filter=active" },
+    { label: "Blocked",        value: blockedCount.toString(),          icon: "person-remove-outline",     color: BEAR,      route: "/admin/users?filter=blocked" },
+    { label: "Open Trades",    value: totalOpenTrades.toString(),       icon: "pulse-outline",             color: "#3b82f6", route: "/admin/trades" },
+    { label: "Closed Trades",  value: totalClosedTrades.toString(),     icon: "swap-horizontal-outline",   color: GOLD,      route: "/admin/trades" },
+    { label: "Total P&L",      value: pnlStr,                           icon: "trending-up-outline",       color: totalPnlInr >= 0 ? BULL : BEAR, route: null },
+    { label: "Profit Users",   value: profitUsers.toString(),           icon: "arrow-up-circle-outline",   color: BULL,      route: null },
+    { label: "Loss Users",     value: lossUsers.toString(),             icon: "arrow-down-circle-outline", color: BEAR,      route: null },
     { label: "Announcements",  value: announcements.filter((a) => a.active).length.toString(), icon: "notifications-outline", color: "#8b5cf6", route: "/admin/announcements" },
-    { label: "Coins Listed",   value: SYMBOLS.length.toString(),     icon: "layers-outline",          color: GOLD,      route: "/admin/coins" },
+    { label: "Coins Listed",   value: SYMBOLS.length.toString(),        icon: "layers-outline",            color: GOLD,      route: "/admin/coins" },
   ];
 
   const menuItems = [

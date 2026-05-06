@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { Appearance } from "react-native";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 
 export type MarketType = "crypto";
@@ -338,6 +339,38 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     loadState();
   }, []);
+
+  // Track auth state so position sync fires correctly even when auth resolves after positions load
+  const [authUid, setAuthUid] = useState<string | null>(null);
+  useEffect(() => {
+    const auth = getFirebaseAuth();
+    setAuthUid(auth.currentUser?.uid ?? null);
+    const unsub = onAuthStateChanged(auth, (u) => setAuthUid(u?.uid ?? null));
+    return unsub;
+  }, []);
+
+  // Sync open positions to Firestore for real-time admin visibility
+  useEffect(() => {
+    if (!authUid) return;
+    const db = getFirebaseDb();
+    const snapshots = positions.map((p) => ({
+      id:          p.id,
+      symbolId:    p.symbol.id,
+      symbolLabel: p.symbol.label,
+      symbolName:  p.symbol.name,
+      side:        p.side,
+      entryPrice:  p.entryPrice,
+      quantity:    p.quantity,
+      margin:      p.margin,
+      openedAt:    p.openedAt,
+      leverage:    p.leverage,
+    }));
+    setDoc(
+      doc(db, "users", authUid),
+      { openPositions: snapshots, openTradeCount: snapshots.length },
+      { merge: true }
+    ).catch(() => {});
+  }, [positions, authUid]);
 
   useEffect(() => {
     if (currentPrice > 0) {

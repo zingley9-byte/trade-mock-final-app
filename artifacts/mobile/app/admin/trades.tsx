@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AdminUser, useAdmin } from "@/context/AdminContext";
+import { AdminUser, PositionSnapshot, useAdmin } from "@/context/AdminContext";
 
 const ADMIN_BG = "#0a0e1a";
 const SURFACE  = "#111827";
@@ -23,12 +23,42 @@ const BEAR     = "#ff4d4d";
 const BULL     = "#00c896";
 const GOLD     = "#f59e0b";
 
+const USD_TO_INR = 95;
+
+function calcPosPnl(pos: PositionSnapshot, price: number): number {
+  if (!price || price <= 0) return 0;
+  const entry = parseFloat(String(pos.entryPrice));
+  const qty   = parseFloat(String(pos.quantity));
+  if (!entry || !qty) return 0;
+  return pos.side === "buy" ? (price - entry) * qty : (entry - price) * qty;
+}
+
 export default function AdminTrades() {
   const insets = useSafeAreaInsets();
   const { users, refreshUsers, isAdmin, loading: authLoading } = useAdmin();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<"trades" | "pnl">("trades");
+  const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
+
+  // Fetch live prices every 5 s for unrealized PNL on open positions
+  const fetchPrices = useCallback(async () => {
+    try {
+      const res  = await fetch("/api/market/prices");
+      const map: Record<string, { price: number }> = await res.json();
+      const next: Record<string, number> = {};
+      for (const [k, v] of Object.entries(map)) {
+        if (v?.price > 0) next[k] = v.price;
+      }
+      setSymbolPrices(next);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchPrices();
+    const iv = setInterval(fetchPrices, 5000);
+    return () => clearInterval(iv);
+  }, [fetchPrices]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -46,13 +76,25 @@ export default function AdminTrades() {
 
   if (!isAdmin) { router.replace("/admin"); return null; }
 
-  const traders = users.filter((u) => u.tradeCount > 0);
-  const totalTrades = users.reduce((s, u) => s + u.tradeCount, 0);
-  const totalPnl    = users.reduce((s, u) => s + u.totalPnl, 0);
-  const activeTraders = traders.length;
+  // Show users who have any trade activity (open or closed)
+  const traders = users.filter((u) => u.tradeCount > 0 || (u.openPositions?.length ?? 0) > 0);
+  const totalClosedTrades = users.reduce((s, u) => s + u.tradeCount, 0);
+  const totalOpenTrades   = users.reduce((s, u) => s + (u.openPositions?.length ?? 0), 0);
+  const activeTraders     = traders.length;
+
+  // Combined PNL per user = realized (closed) + unrealized (open positions at live prices)
+  function userTotalPnlUsd(u: AdminUser): number {
+    const unreal = (u.openPositions ?? []).reduce(
+      (ps, pos) => ps + calcPosPnl(pos, symbolPrices[pos.symbolId] ?? 0), 0
+    );
+    return u.totalPnl + unreal;
+  }
+  const totalPnlInr = users.reduce((s, u) => s + userTotalPnlUsd(u), 0) * USD_TO_INR;
 
   const sorted = [...traders].sort((a, b) =>
-    sortBy === "trades" ? b.tradeCount - a.tradeCount : b.totalPnl - a.totalPnl
+    sortBy === "trades"
+      ? (b.tradeCount + (b.openPositions?.length ?? 0)) - (a.tradeCount + (a.openPositions?.length ?? 0))
+      : userTotalPnlUsd(b) - userTotalPnlUsd(a)
   );
 
   const filtered = query.trim()
@@ -64,8 +106,12 @@ export default function AdminTrades() {
     : sorted;
 
   function renderTrader({ item: u, index }: { item: AdminUser; index: number }) {
-    const pnlColor = u.totalPnl >= 0 ? BULL : BEAR;
+    const combinedPnlUsd = userTotalPnlUsd(u);
+    const combinedPnlInr = combinedPnlUsd * USD_TO_INR;
+    const pnlColor  = combinedPnlInr >= 0 ? BULL : BEAR;
     const rankColor = index === 0 ? GOLD : index === 1 ? "#94a3b8" : index === 2 ? "#b45309" : MUTED;
+    const openCount   = u.openPositions?.length ?? 0;
+    const closedCount = u.tradeCount;
     return (
       <TouchableOpacity
         style={s.row}
@@ -83,15 +129,17 @@ export default function AdminTrades() {
             <Text style={s.name} numberOfLines={1}>{u.name}</Text>
             {u.blocked && <View style={s.blockedBadge}><Text style={s.blockedText}>BLOCKED</Text></View>}
           </View>
-          <Text style={s.email} numberOfLines={1}>{u.email}</Text>
+          <Text style={s.email} numberOfLines={1}>
+            {openCount > 0 ? `${openCount} open · ` : ""}{closedCount} closed
+          </Text>
         </View>
         <View style={{ alignItems: "flex-end", gap: 3 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <SvgIcon name="swap-horizontal-outline" size={11} color={GOLD} />
-            <Text style={[s.tradeCount, { color: GOLD }]}>{u.tradeCount} trades</Text>
+            <Text style={[s.tradeCount, { color: GOLD }]}>{openCount + closedCount} trades</Text>
           </View>
           <Text style={[s.pnl, { color: pnlColor }]}>
-            {u.totalPnl >= 0 ? "+" : ""}₹{Math.abs(u.totalPnl / 1000).toFixed(1)}K
+            {combinedPnlInr >= 0 ? "+" : ""}₹{Math.abs(combinedPnlInr / 1000).toFixed(1)}K
           </Text>
         </View>
         <SvgIcon name="chevron-forward-outline" size={14} color={MUTED} style={{ marginLeft: 4 }} />
@@ -111,8 +159,13 @@ export default function AdminTrades() {
       {/* Summary strip */}
       <View style={s.summaryRow}>
         <View style={s.summaryItem}>
-          <Text style={[s.summaryVal, { color: GOLD }]}>{totalTrades}</Text>
-          <Text style={s.summarySub}>Total Trades</Text>
+          <Text style={[s.summaryVal, { color: "#3b82f6" }]}>{totalOpenTrades}</Text>
+          <Text style={s.summarySub}>Open</Text>
+        </View>
+        <View style={s.divider} />
+        <View style={s.summaryItem}>
+          <Text style={[s.summaryVal, { color: GOLD }]}>{totalClosedTrades}</Text>
+          <Text style={s.summarySub}>Closed</Text>
         </View>
         <View style={s.divider} />
         <View style={s.summaryItem}>
@@ -121,8 +174,8 @@ export default function AdminTrades() {
         </View>
         <View style={s.divider} />
         <View style={s.summaryItem}>
-          <Text style={[s.summaryVal, { color: totalPnl >= 0 ? BULL : BEAR }]}>
-            {totalPnl >= 0 ? "+" : ""}₹{Math.abs(totalPnl / 1000).toFixed(1)}K
+          <Text style={[s.summaryVal, { color: totalPnlInr >= 0 ? BULL : BEAR }]}>
+            {totalPnlInr >= 0 ? "+" : ""}₹{Math.abs(totalPnlInr / 1000).toFixed(1)}K
           </Text>
           <Text style={s.summarySub}>Combined P&L</Text>
         </View>

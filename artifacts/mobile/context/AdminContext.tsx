@@ -10,6 +10,19 @@ export const ADMIN_EMAIL = "Zingley9@gmail.com";
 
 export type UserRole = "admin" | "user";
 
+export interface PositionSnapshot {
+  id:          string;
+  symbolId:    string;
+  symbolLabel: string;
+  symbolName:  string;
+  side:        "buy" | "sell";
+  entryPrice:  number;
+  quantity:    number;
+  margin:      number;
+  openedAt:    number;
+  leverage:    number;
+}
+
 export interface AdminTradeRecord {
   id: string;
   symbolId: string;
@@ -41,6 +54,8 @@ export interface AdminUser {
   needsReset?: boolean;
   fakeBalanceAdded?: number;
   pendingFundAdd?: number;
+  openPositions?: PositionSnapshot[];
+  openTradeCount?: number;
 }
 
 export interface Announcement {
