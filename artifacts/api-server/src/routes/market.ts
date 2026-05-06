@@ -92,15 +92,38 @@ async function fetchMexcTicker(symbol: string): Promise<TickerStats | null> {
   }
 }
 
-// All-symbol prices endpoint — MEXC-backed, returns full 24h stats
+// All-symbol prices endpoint — fetches ALL pairs from MEXC in a single bulk request
 router.get("/market/prices", async (req, res) => {
-  const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT"];
   try {
-    const results = await Promise.all(symbols.map(fetchMexcTicker));
-    const out: Record<string, TickerStats> = {};
-    for (let i = 0; i < symbols.length; i++) {
-      if (results[i]) out[symbols[i]] = results[i]!;
+    const r = await fetch(`${MEXC_BASE}/ticker/24hr`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) {
+      req.log.error({ status: r.status }, "MEXC bulk ticker failed");
+      res.status(502).json({ error: `MEXC returned ${r.status}` });
+      return;
     }
+    const allTickers = await r.json() as Array<{
+      symbol: string;
+      lastPrice: string;
+      highPrice: string;
+      lowPrice: string;
+      volume: string;
+      priceChangePercent: string;
+    }>;
+    const out: Record<string, TickerStats> = {};
+    for (const t of allTickers) {
+      const price = parseFloat(t.lastPrice ?? "0");
+      if (!price) continue;
+      out[t.symbol] = {
+        price,
+        change24h: parseFloat(t.priceChangePercent ?? "0"),
+        high24h:   parseFloat(t.highPrice ?? "0"),
+        low24h:    parseFloat(t.lowPrice  ?? "0"),
+        volume:    parseFloat(t.volume    ?? "0"),
+      };
+    }
+    req.log.info({ count: Object.keys(out).length }, "bulk ticker fetched");
     res.json(out);
   } catch (err) {
     req.log.error({ err }, "Failed to fetch prices");

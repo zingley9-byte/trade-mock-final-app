@@ -329,7 +329,15 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const CRYPTO_IDS = SYMBOLS.filter((s) => s.type === "crypto").map((s) => s.id);
-    const symbolsParam = encodeURIComponent(JSON.stringify(CRYPTO_IDS));
+
+    // Aliases for coins that were rebranded or have different symbols on MEXC
+    const SYMBOL_ALIASES: Record<string, string> = {
+      MATICUSDT: "POLUSDT", // Polygon rebranded to POL
+    };
+
+    function resolve(id: string, map: Record<string, { price: number; change24h: number; high24h?: number; low24h?: number; volume?: number }>) {
+      return map[id] ?? map[SYMBOL_ALIASES[id] ?? ""];
+    }
 
     async function fetchAllPrices() {
       try {
@@ -338,23 +346,26 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         setSymbolPrices((prev) => {
           const next = { ...prev };
           for (const id of CRYPTO_IDS) {
-            if (map[id]?.price > 0) next[id] = map[id].price;
+            const entry = resolve(id, map);
+            if (entry?.price > 0) next[id] = entry.price;
           }
           return next;
         });
         setSymbolChanges((prev) => {
           const next = { ...prev };
           for (const id of CRYPTO_IDS) {
-            if (map[id] !== undefined) next[id] = map[id].change24h;
+            const entry = resolve(id, map);
+            if (entry !== undefined) next[id] = entry.change24h;
           }
           return next;
         });
         const selId = selectedSymbolIdRef.current;
-        if (map[selId] !== undefined) {
-          setPriceChange24h(map[selId].change24h);
-          if (map[selId].high24h) setHigh24h(map[selId].high24h!);
-          if (map[selId].low24h)  setLow24h(map[selId].low24h!);
-          if (map[selId].volume)  setVolume24h(map[selId].volume!);
+        const selEntry = resolve(selId, map);
+        if (selEntry !== undefined) {
+          setPriceChange24h(selEntry.change24h);
+          if (selEntry.high24h) setHigh24h(selEntry.high24h!);
+          if (selEntry.low24h)  setLow24h(selEntry.low24h!);
+          if (selEntry.volume)  setVolume24h(selEntry.volume!);
         }
       } catch {}
     }
