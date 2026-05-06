@@ -20,7 +20,7 @@ export default function AboutUs() {
           items: [
             "Live market data from 100+ crypto coins",
             "Real-time TradingView-style charts",
-            "Mock trading with ₹10,00,000 virtual balance",
+            "Mock trading with $50,000 virtual balance",
             "Long & Short positions with leverage",
             "Stop Loss & Take Profit automation",
             "Complete trade history & P&L tracking",

@@ -168,7 +168,7 @@ export const SYMBOLS: MarketSymbol[] = [
 export const TIMEFRAMES: Timeframe[] = ["1m", "5m", "15m", "30m", "1h", "1D"];
 export const LEVERAGES = [1, 5, 10, 25, 50, 80, 100];
 
-const INITIAL_BALANCE = 1000000;
+const INITIAL_BALANCE = 50000;
 const STORAGE_KEY = "trademock_state_v4";
 
 interface TradingContextType {
@@ -634,8 +634,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       if (usePrice <= 0)
         return { success: false, message: "Invalid entry price" };
 
-      const priceForMargin = usePrice * usdToInr;
-      const margin = (priceForMargin * params.quantity) / leverage;
+      const margin = (usePrice * params.quantity) / leverage;
       if (margin > balance)
         return { success: false, message: "Insufficient balance" };
 
@@ -679,8 +678,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
       const exitPrice = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id) || pos.entryPrice;
       const pnlRaw   = calcPnL(pos, exitPrice);
-      const pnl      = pnlRaw * usdToInr;
-      const clampedPnl = Math.max(-pos.margin, pnl);
+      const clampedPnl = Math.max(-pos.margin, pnlRaw);
       const exitValue  = pos.margin + clampedPnl;
       const pnlPct     = (clampedPnl / pos.margin) * 100;
 
@@ -755,9 +753,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       const price = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id);
       if (!price) return sum;
       const pnlRaw = calcPnL(pos, price);
-      const pnlInr = pnlRaw * usdToInr;
       // Safety: single position can't lose more than its margin
-      const clampedPnl = Math.max(-pos.margin, pnlInr);
+      const clampedPnl = Math.max(-pos.margin, pnlRaw);
       return sum + clampedPnl;
     }, 0);
   }, [positions, currentPrice, symbolPrices, selectedSymbol.id, usdToInr]);

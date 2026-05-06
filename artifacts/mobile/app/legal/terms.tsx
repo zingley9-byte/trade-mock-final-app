@@ -26,7 +26,7 @@ export default function TermsConditions() {
         },
         {
           heading: "Virtual Funds",
-          body: "The ₹10,00,000 starting balance and all trades within Trade Mock Pro use virtual funds only. No real money is involved at any point. Profits or losses are simulated and have no real-world monetary value.",
+          body: "The $50,000 starting balance and all trades within Trade Mock Pro use virtual funds only. No real money is involved at any point. Profits or losses are simulated and have no real-world monetary value.",
         },
         {
           heading: "Changes to the App",

@@ -218,7 +218,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   async function resetUserFund(uid: string) {
     const db = getFirebaseDb();
     await updateDoc(doc(db, "users", uid), {
-      balance: 1000000,
+      balance: 50000,
       tradeCount: 0,
       totalPnl: 0,
       fakeBalanceAdded: 0,

@@ -39,19 +39,18 @@ export default function OrderPanel() {
   const effectivePrice = priceMode === "manual" && manualPrice
     ? parseFloat(manualPrice) || currentPrice
     : currentPrice;
-  const priceForMargin = effectivePrice * usdToInr;
-  const margin  = qty > 0 && priceForMargin > 0
-    ? (priceForMargin * qty) / leverage
+  const margin  = qty > 0 && effectivePrice > 0
+    ? (effectivePrice * qty) / leverage
     : 0;
   const symbol = "$";
 
   // ── Formatters ───────────────────────────────────────────────────────────
   function formatBalance(amount: number): string {
     if (currencyMode === "usd") {
-      const usd = amount / usdToInr;
-      return `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
-    return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const inr = amount * usdToInr;
+    return `₹${inr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   function formatNum(n: number): string {

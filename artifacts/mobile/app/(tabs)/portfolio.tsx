@@ -24,7 +24,7 @@ import { usePrivacy } from "@/context/PrivacyContext";
 import CoinLogo from "@/components/CoinLogo";
 import TradeDetailModal from "@/components/TradeDetailModal";
 
-const INITIAL_BALANCE = 1000000;
+const INITIAL_BALANCE = 50000;
 const { height: SCREEN_H } = Dimensions.get("window");
 
 export default function PortfolioScreen() {
@@ -76,10 +76,10 @@ export default function PortfolioScreen() {
 
   function fmt(amount: number, decimals = 2): string {
     if (isUSD) {
-      const usd = amount / usdToInr;
-      return `$${usd.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+      return `$${amount.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
     }
-    return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+    const inr = amount * usdToInr;
+    return `₹${inr.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
   }
 
   function fmtPrice(p: number) {
@@ -135,7 +135,7 @@ export default function PortfolioScreen() {
   function handleReset() {
     Alert.alert(
       "Reset Fund",
-      "Balance will be restored to ₹10,00,000 and all positions & trade history will be cleared.",
+      "Balance will be restored to $50,000 and all positions & trade history will be cleared.",
       [
         { text: "Cancel", style: "cancel" },
         {

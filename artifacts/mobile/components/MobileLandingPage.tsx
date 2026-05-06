@@ -381,7 +381,7 @@ export default function MobileLandingPage() {
           <View style={s.ctaBannerLeft}>
             <Text style={s.ctaBannerIcon}>🎁</Text>
             <View>
-              <Text style={s.ctaBannerTitle}>Up to ₹10L Mock Balance Today!</Text>
+              <Text style={s.ctaBannerTitle}>$50,000 Demo Balance — Start Free!</Text>
               <Text style={s.ctaBannerSub}>Start your trading journey risk-free.</Text>
             </View>
           </View>

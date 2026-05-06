@@ -34,8 +34,8 @@ const SLIDES = [
     id: "2",
     type: "emoji",
     emoji: "💰",
-    title: "₹10,00,000 Virtual Fund",
-    desc: "Start with a ₹10 lakh virtual balance. Trade BTC, ETH, SOL, BNB, DOGE and more.",
+    title: "$50,000 Virtual Fund",
+    desc: "Start with a $50,000 virtual balance. Trade BTC, ETH, SOL, BNB, DOGE and more.",
     accent: "#10b981",
   },
   {

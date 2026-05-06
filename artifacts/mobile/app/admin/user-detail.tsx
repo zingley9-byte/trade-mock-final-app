@@ -109,7 +109,7 @@ export default function UserDetail() {
   function handleFundReset() {
     Alert.alert(
       "Reset Fund",
-      `Reset ${user!.name}'s account to ₹10,00,000?\n\nThis will clear their trade history and P&L. Takes effect when they reopen the app.`,
+      `Reset ${user!.name}'s account to $50,000?\n\nThis will clear their trade history and P&L. Takes effect when they reopen the app.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -119,7 +119,7 @@ export default function UserDetail() {
             setActionLoading(true);
             try {
               await resetUserFund(user!.uid);
-              Alert.alert("Fund Reset", `${user!.name}'s balance reset to ₹10,00,000.\n\nChange will apply when they reopen the app.`);
+              Alert.alert("Fund Reset", `${user!.name}'s balance reset to $50,000.\n\nChange will apply when they reopen the app.`);
             } catch {
               Alert.alert("Error", "Could not reset fund. Try again.");
             } finally {
@@ -198,7 +198,7 @@ export default function UserDetail() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.actionLabel, { color: GOLD }]}>Reset Fund</Text>
-              <Text style={s.actionSub}>Reset balance to ₹10,00,000 · clears history</Text>
+              <Text style={s.actionSub}>Reset balance to $50,000 · clears history</Text>
             </View>
             <SvgIcon name="chevron-forward-outline" size={16} color={MUTED} />
           </TouchableOpacity>

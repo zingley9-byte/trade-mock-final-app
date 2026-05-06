@@ -69,7 +69,7 @@ const STATIC_ANNOUNCEMENTS = [
     icon: "gift-outline",
     color: "#ec4899",
     title: "Welcome to Trade Mock Pro",
-    body: "Practice crypto futures trading risk-free with ₹10,00,000 virtual balance. No real money involved.",
+    body: "Practice crypto futures trading risk-free with $50,000 virtual balance. No real money involved.",
     date: "Apr 10, 2026",
     isNew: false,
   },
@@ -193,7 +193,7 @@ export default function AppHeader() {
   }
 
   async function handleShare() {
-    const shareText = "🔥 Trade Mock Pro — Practice trading FREE with ₹10,00,000 virtual money!\nLearn crypto trading without any risk 🚀";
+    const shareText = "🔥 Trade Mock Pro — Practice trading FREE with $50,000 virtual money!\nLearn crypto trading without any risk 🚀";
     const shareUrl  = Platform.OS === "web" && typeof window !== "undefined"
       ? window.location.href
       : "https://trademock.app";

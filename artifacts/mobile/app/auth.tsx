@@ -39,7 +39,7 @@ async function ensureFirestoreUser(uid: string, email: string, name: string) {
     if (!existing.exists()) {
       const isAdmin = email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
       await setDoc(userRef, {
-        uid, email, name, balance: 1000000,
+        uid, email, name, balance: 50000,
         tradeCount: 0, totalPnl: 0,
         blocked: false, role: isAdmin ? "admin" : "user",
         createdAt: Date.now(), lastSeen: Date.now(),

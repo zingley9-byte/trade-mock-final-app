@@ -356,7 +356,7 @@ export default function SettingsScreen() {
   function handleResetFund() {
     Alert.alert(
       "Reset Fund",
-      "Your balance will be restored to ₹10,00,000 and all open positions & trade history will be cleared.",
+      "Your balance will be restored to $50,000 and all open positions & trade history will be cleared.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -364,7 +364,7 @@ export default function SettingsScreen() {
           style: "destructive",
           onPress: () => {
             resetAccount();
-            Alert.alert("Fund Reset", "Your balance has been restored to ₹10,00,000.");
+            Alert.alert("Fund Reset", "Your balance has been restored to $50,000.");
           },
         },
       ]
@@ -535,7 +535,7 @@ export default function SettingsScreen() {
           colors={colors} showChevron onPress={handleBackup} isFirst />
         <RowItem
           icon="refresh-outline" iconBg="#ef4444" label="Reset Fund"
-          sub="Restore balance to ₹10,00,000 · Clears all trades"
+          sub="Restore balance to $50,000 · Clears all trades"
           colors={colors} showChevron
           onPress={handleResetFund}
           right={

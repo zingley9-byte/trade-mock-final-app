@@ -51,7 +51,7 @@ const NEWS = [
 const FEATURES = [
   { icon: "📊", title: "Real Market Data",    desc: "Live prices from top exchanges" },
   { icon: "📈", title: "Advanced Charts",     desc: "Professional TradingView-style charts" },
-  { icon: "💰", title: "Mock Trading",        desc: "Practice with ₹10,00,000 virtual funds" },
+  { icon: "💰", title: "Mock Trading",        desc: "Practice with $50,000 virtual funds" },
   { icon: "🗂",  title: "Portfolio Tracking", desc: "Track performance & history" },
   { icon: "🔒", title: "Secure & Private",    desc: "Your data is encrypted & safe" },
 ];
