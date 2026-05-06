@@ -1281,7 +1281,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           {/* Capture div — only intercepts pointer events when a draw tool is active */}
           {isDrawActive && (
             <div
-              style={{ position:"absolute", inset:0, cursor:"crosshair", touchAction:"none", zIndex:11 }}
+              style={{ position:"absolute", inset:0, cursor:"default", touchAction:"none", zIndex:11 }}
               onPointerDown={onSvgPointerDown}
               onPointerMove={onSvgPointerMove}
               onPointerUp={onSvgPointerUp}
