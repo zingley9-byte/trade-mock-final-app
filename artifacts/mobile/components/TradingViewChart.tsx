@@ -125,6 +125,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [floatMenu,    setFloatMenu]   = useState<{x:number;y:number;id:string}|null>(null);
   const [subMenu,      setSubMenu]     = useState<string|null>(null);
   const [openSubGroup, setOpenSubGroup]= useState<string|null>(null);
+  const [subGroupY,    setSubGroupY]   = useState(0);
   const [isWebFS,      setIsWebFS]     = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const wrapperRef  = useRef<HTMLDivElement>(null);
@@ -434,11 +435,9 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     return 2;
   }
 
-  function getSvgXY(e: React.MouseEvent | React.TouchEvent | Touch, isTouchObj=false) {
+  function getSvgXY(e: { clientX: number; clientY: number }) {
     const rect = svgRef.current?.getBoundingClientRect() ?? {left:0,top:0};
-    const clientX = isTouchObj ? (e as Touch).clientX : (e as React.MouseEvent).clientX;
-    const clientY = isTouchObj ? (e as Touch).clientY : (e as React.MouseEvent).clientY;
-    return { x: clientX - rect.left, y: clientY - rect.top };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
   function svgToData(x: number, y: number) {
     const time = chartRef.current?.timeScale().coordinateToTime(x) ?? null;
@@ -461,6 +460,9 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     if (id==="lock") {
       setWebDrawings(ds=>{ const allLk=ds.every(d=>d.locked); return ds.map(d=>({...d,locked:!allLk})); });
       return;
+    }
+    if (id==="delete") {
+      setWebDrawings([]); setSelectedDrwId(null); setFloatMenu(null); return;
     }
     setActiveTool(prev => prev===id ? null : id);
     setSelectedDrwId(null); setFloatMenu(null);
@@ -631,18 +633,6 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       }
     }
   }
-  function handleSvgDown(e: React.MouseEvent<SVGSVGElement>) { onSvgPointerDown(e as any); }
-  function handleSvgMove(e: React.MouseEvent<SVGSVGElement>) { onSvgPointerMove(e as any); }
-  function handleSvgUp(e: React.MouseEvent<SVGSVGElement>)   { onSvgPointerUp(e as any); }
-  function handleSvgTouchStart(e: React.TouchEvent<SVGSVGElement>) {
-    e.preventDefault(); const t=e.changedTouches[0]; onSvgPointerDown({clientX:t.clientX,clientY:t.clientY,currentTarget:e.currentTarget,pointerId:0,preventDefault:()=>{}} as any);
-  }
-  function handleSvgTouchMove(e: React.TouchEvent<SVGSVGElement>) {
-    e.preventDefault(); const t=e.changedTouches[0]; onSvgPointerMove({clientX:t.clientX,clientY:t.clientY,currentTarget:e.currentTarget,preventDefault:()=>{}} as any);
-  }
-  function handleSvgTouchEnd(e: React.TouchEvent<SVGSVGElement>) {
-    e.preventDefault(); onSvgPointerUp({clientX:0,clientY:0} as any);
-  }
 
   // Show the float/settings menu for a drawing at a given screen position.
   // Called by both right-click (desktop) and 480ms long-press (touch/mobile).
@@ -696,7 +686,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     void drawTick;
     const c=d.color||C.gold, w=d.width||1.5, sc=sel?"#2962FF":c;
     const hitProps = {
-      style: { cursor: "move" } as any,
+      // pointerEvents:auto ensures drawings are clickable even when parent SVG has pointerEvents:none (cursor mode)
+      style: { cursor: "move", pointerEvents: "auto" } as any,
       // Single click: select the drawing
       onClick: (e: React.MouseEvent) => { e.stopPropagation(); onDrawingClick(d.id, e); },
       // Right-click (desktop): show settings float menu immediately
@@ -705,15 +696,15 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         if (!activeTool || activeTool === "cursor") showFloatMenuAt(d.id, e.clientX, e.clientY);
       },
       // Touch long-press (mobile browser): 480ms hold shows settings menu
-      onTouchStart: (e: React.TouchEvent) => {
-        const t = e.touches[0];
-        const cx = t.clientX, cy = t.clientY;
+      onPointerDown: (e: React.PointerEvent) => {
+        if (e.pointerType !== "touch") return;
+        const cx = e.clientX, cy = e.clientY;
         longPressRef.current = setTimeout(() => {
           if (!activeTool || activeTool === "cursor") showFloatMenuAt(d.id, cx, cy);
         }, 480);
       },
-      onTouchMove: () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; } },
-      onTouchEnd:  () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; } },
+      onPointerMove: () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; } },
+      onPointerUp:   () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; } },
     };
 
     if (d.type==="trendline"||d.type==="arrow"||d.type==="ray") {
@@ -1158,6 +1149,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           <div ref={containerRef} style={{ width:"100%", height:"100%", touchAction:"none" }}/>
 
           {/* ── SVG drawing overlay ── */}
+          {/* pointerEvents:"none" when not drawing so chart panning works; drawings inside use pointerEvents:"auto" to remain clickable */}
           <svg
             ref={svgRef}
             style={{
@@ -1166,27 +1158,37 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
               cursor: isDrawActive ? "crosshair" : "default",
               touchAction: isDrawActive ? "none" : "auto",
             }}
-            onMouseDown={handleSvgDown}
-            onMouseMove={handleSvgMove}
-            onMouseUp={handleSvgUp}
-            onTouchStart={handleSvgTouchStart}
-            onTouchMove={handleSvgTouchMove}
-            onTouchEnd={handleSvgTouchEnd}
+            onPointerDown={onSvgPointerDown}
+            onPointerMove={onSvgPointerMove}
+            onPointerUp={onSvgPointerUp}
           >
             {showWebDraw && webDrawings.map((d,i) => renderWebDraw(d,i))}
             {renderWebCurrent()}
           </svg>
-          {/* Hint text — HTML positioned over the SVG overlay */}
+          {/* Hint pill — bottom of chart (matches native style) */}
           {isDrawActive && !webCurrent && (
             <div style={{
-              position:"absolute", top:"50%", left:"50%",
-              transform:"translate(-50%,-50%)",
-              background:C.panel, border:`1px solid ${C.border}`,
-              borderRadius:6, padding:"4px 14px",
-              fontSize:11, color:C.gold, pointerEvents:"none",
-              whiteSpace:"nowrap", zIndex:20,
+              position:"absolute", bottom:10, left:"50%",
+              transform:"translateX(-50%)",
+              background:"rgba(41,98,255,0.13)", border:"1px solid rgba(41,98,255,0.45)",
+              color:"#93bbff", fontSize:11, fontWeight:"600",
+              padding:"5px 16px", borderRadius:20,
+              pointerEvents:"none", zIndex:20, letterSpacing:".3px", whiteSpace:"nowrap",
             }}>
-              {activeTool==="trendline"?"Drag to draw line":activeTool==="ruler"?"Drag to measure":activeTool==="brush"?"Drag to draw freehand":"Click to place"}
+              {activeTool==="trendline"||activeTool==="ray"||activeTool==="arrow" ? "Tap first point, drag to second" :
+               activeTool==="brush"||activeTool==="highlighter"         ? "Drag to draw freehand" :
+               activeTool==="rectangle"                                  ? "Drag to draw rectangle" :
+               activeTool==="circle"                                     ? "Drag to draw circle" :
+               activeTool==="fibretracement"                             ? "Drag to set Fib range" :
+               activeTool==="channel"                                    ? "Drag first line, tap for 3rd point" :
+               activeTool==="hline"                                      ? "Tap chart to draw horizontal line" :
+               activeTool==="vline"                                      ? "Tap chart to draw vertical line" :
+               activeTool==="text"||activeTool==="note"                  ? "Tap chart to place text" :
+               activeTool==="pricelabel"                                 ? "Tap chart to place price label" :
+               activeTool==="longposition"||activeTool==="shortposition" ? "Drag entry → target, tap for stop" :
+               activeTool==="daterange"                                  ? "Drag to mark date range" :
+               activeTool==="pricerange"                                 ? "Drag to mark price range" :
+               "Tap chart to place"}
             </div>
           )}
         </div>
