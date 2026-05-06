@@ -14,6 +14,8 @@ import {
   View,
 } from "react-native";
 import SvgIcon from "@/components/SvgIcon";
+import AdBanner from "@/components/AdBanner";
+import interstitialAd from "@/components/InterstitialAdManager";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTradingContext, Position } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
@@ -137,6 +139,8 @@ export default function PortfolioScreen() {
   function doConfirmClose() {
     if (confirmCloseId) closePosition(confirmCloseId);
     setConfirmCloseId(null);
+    // Show interstitial after position close — policy-safe (3 min cooldown)
+    interstitialAd.tryShow();
   }
 
   return (
@@ -273,6 +277,9 @@ export default function PortfolioScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Banner Ad — shown on native only, hidden on web ──────────── */}
+      <AdBanner />
 
       {/* ── Close Position Confirm Modal ──────────────────────────────── */}
       <Modal

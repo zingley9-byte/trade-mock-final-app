@@ -14,6 +14,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import interstitialAd from "@/components/InterstitialAdManager";
 import { TradingProvider } from "@/context/TradingContext";
 import { AlertsProvider } from "@/context/AlertsContext";
 import { AdminProvider } from "@/context/AdminContext";
@@ -58,6 +59,9 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
+      // Preload interstitial so it's ready after first position close
+      // No-op on web — safe to call unconditionally
+      interstitialAd.preload();
     }
   }, [fontsLoaded, fontError]);
 

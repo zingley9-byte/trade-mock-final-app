@@ -47,6 +47,23 @@ module.exports = {
         },
       ],
       "expo-web-browser",
+      // ── Google AdMob ─────────────────────────────────────────────────────
+      // These App IDs are Google's official TEST IDs (safe for development).
+      // BEFORE Play Store launch: set real IDs via environment variables:
+      //   ADMOB_ANDROID_APP_ID=ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX
+      //   ADMOB_IOS_APP_ID=ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX
+      // then rebuild with EAS: `eas build --platform android`
+      [
+        "react-native-google-mobile-ads",
+        {
+          androidAppId:
+            process.env.ADMOB_ANDROID_APP_ID ||
+            "ca-app-pub-3940256099942544~3347511713", // ← TEST ID, replace for launch
+          iosAppId:
+            process.env.ADMOB_IOS_APP_ID ||
+            "ca-app-pub-3940256099942544~1458002511", // ← TEST ID, replace for launch
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,
