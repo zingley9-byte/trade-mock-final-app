@@ -310,45 +310,80 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     });
     ro.observe(el);
 
-    // Fetch historical — route through API proxy to avoid CORS
+    // Fetch historical candles via API proxy.
+    // IMPORTANT: Expo web runs on *.expo.worf.replit.dev which is a DIFFERENT origin
+    // from the shared Replit proxy (*.worf.replit.dev) that hosts the API server.
+    // A bare relative "/api/..." path would hit the Expo dev server (404).
+    // We must build an absolute URL using EXPO_PUBLIC_DOMAIN (=$REPLIT_DEV_DOMAIN = shared proxy host).
     const binSym      = toBinanceSymbol(sym);
     const binInterval = toBinanceInterval(tf);
     if (mountedRef.current) setLoadFailed(false);
-    try {
-      console.log("[Chart] fetching history —", binSym, binInterval);
-      const res  = await fetch(`/api/market/klines?symbol=${binSym}&interval=${binInterval}&limit=1000`);
-      const data = await res.json();
-      if (Array.isArray(data) && candleRef.current) {
+
+    const apiBase = (() => {
+      const d = (process.env as any).EXPO_PUBLIC_DOMAIN as string | undefined;
+      if (d) return `https://${d}`;
+      if (typeof window !== "undefined") return window.location.origin;
+      return "";
+    })();
+
+    async function fetchCandles(attempt: number): Promise<boolean> {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 10000);
+      try {
+        const url = `${apiBase}/api/market/klines?symbol=${binSym}&interval=${binInterval}&limit=1000`;
+        console.log(`[Chart] fetching history attempt ${attempt} —`, url);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(tid);
+        console.log("[Chart] API response status:", res.status, res.statusText);
+        let data: any;
+        try { data = await res.json(); }
+        catch (pe) { console.log("[Chart] JSON parse error:", pe); return false; }
+        if (!Array.isArray(data)) {
+          console.log("[Chart] unexpected response (not array):", JSON.stringify(data).slice(0, 200));
+          return false;
+        }
+        if (!candleRef.current) return false;
         const candles = data.map((d: any[]) => ({
-          time:   Math.floor(d[0]/1000) as any,
-          open:   +d[1], high: +d[2], low: +d[3], close: +d[4], volume: +d[5],
+          time:  Math.floor(d[0] / 1000) as any,
+          open:  +d[1], high: +d[2], low: +d[3], close: +d[4], volume: +d[5],
         }));
-        console.log("[Chart] history fetched — candles:", candles.length);
+        console.log("[Chart] candles loaded — count:", candles.length);
         rawCandlesRef.current = candles;
         if (chartTypeRef.current === "line") {
           candleRef.current.setData(candles.map((c: any) => ({ time: c.time, value: c.close })));
         } else {
           candleRef.current.setData(candles);
         }
-        console.log("[Chart] setData called — candles:", candles.length);
+        console.log("[Chart] setData success — candles:", candles.length);
         if (volRef.current) {
           volRef.current.setData(candles.map((c: any) => ({
             time: c.time, value: c.volume,
-            color: c.close >= c.open ? C.bull+"60" : C.bear+"60",
+            color: c.close >= c.open ? C.bull + "60" : C.bear + "60",
           })));
         }
-        const last = candles[candles.length-1];
+        const last = candles[candles.length - 1];
         if (last) setOhlcv({ o:last.open, h:last.high, l:last.low, c:last.close, v:last.volume, ch:last.close-last.open, chp:((last.close-last.open)/last.open)*100 });
         chart.timeScale().fitContent();
-      } else {
-        console.log("[Chart] history fetch returned non-array — retrying via WebSocket only");
-        if (mountedRef.current) setLoadFailed(true);
+        return true;
+      } catch (err: any) {
+        clearTimeout(tid);
+        const msg = err?.name === "AbortError" ? "request timed out (10s)" : String(err?.message ?? err);
+        console.log(`[Chart] fetch error attempt ${attempt}:`, msg);
+        return false;
       }
-    } catch (err) {
-      console.log("[Chart] history fetch error:", err);
-      if (mountedRef.current) setLoadFailed(true);
-    } finally {
-      if (mountedRef.current) setDataLoaded(true);
+    }
+
+    let loaded = false;
+    for (let attempt = 1; attempt <= 3 && !loaded && mountedRef.current; attempt++) {
+      if (attempt > 1) await new Promise<void>(r => setTimeout(r, attempt * 1000));
+      loaded = await fetchCandles(attempt);
+    }
+    if (mountedRef.current) {
+      if (!loaded) {
+        console.log("[Chart] all 3 attempts failed — showing retry button");
+        setLoadFailed(true);
+      }
+      setDataLoaded(true);
     }
 
     // WebSocket live — stable stream.binance.com endpoint, staleness guard, REST fallback
@@ -365,7 +400,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       pollTimerRef.current = setInterval(async () => {
         if (!mountedRef.current || loadIdRef.current !== loadId) { stopPoll(); return; }
         try {
-          const r = await fetch(`/api/market/klines?symbol=${binSym}&interval=${binInterval}&limit=2`);
+          const r = await fetch(`${apiBase}/api/market/klines?symbol=${binSym}&interval=${binInterval}&limit=2`);
           if (!r.ok) return;
           const data = await r.json();
           if (!Array.isArray(data) || !candleRef.current) return;
