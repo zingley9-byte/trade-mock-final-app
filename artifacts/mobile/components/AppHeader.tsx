@@ -3,6 +3,7 @@ import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import React, { useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Keyboard,
@@ -20,6 +21,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { performLogout } from "@/lib/logout";
 import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SYMBOLS, useTradingContext } from "@/context/TradingContext";
@@ -111,6 +113,7 @@ export default function AppHeader() {
 
   const [profileOpen, setProfileOpen]   = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut]     = useState(false);
   const [searchQuery, setSearchQuery]   = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
@@ -231,11 +234,16 @@ export default function AppHeader() {
       {
         text: "Logout", style: "destructive",
         onPress: async () => {
-          setProfileImage(null);
-          await AsyncStorage.removeItem(PROFILE_KEY);
-          await AsyncStorage.removeItem("tm_auth_user");
           setProfileOpen(false);
-          router.replace("/auth");
+          setLoggingOut(true);
+          try {
+            setProfileImage(null);
+            await performLogout();
+            router.replace("/auth");
+          } catch {
+            setLoggingOut(false);
+            Alert.alert("Logout Failed", "Something went wrong. Please try again.");
+          }
         },
       },
     ]);
@@ -537,6 +545,14 @@ export default function AppHeader() {
         </View>
       </Modal>
 
+      {/* ─── Logout Loading Overlay ─── */}
+      <Modal visible={loggingOut} transparent animationType="fade">
+        <View style={styles.logoutOverlay}>
+          <ActivityIndicator size="large" color="#00c896" />
+          <Text style={styles.logoutText}>Signing out…</Text>
+        </View>
+      </Modal>
+
       {/* ─── Feedback Modal ─── */}
       <Modal visible={feedbackOpen} transparent animationType="fade" onRequestClose={() => setFeedbackOpen(false)}>
         <KeyboardAvoidingView
@@ -753,4 +769,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   announcSectionText: { fontSize: 10, fontWeight: "800" as const, letterSpacing: 1 },
+
+  // Logout loading overlay
+  logoutOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.65)",
+    alignItems: "center", justifyContent: "center", gap: 16,
+  },
+  logoutText: { color: "#fff", fontSize: 15, fontWeight: "600" as const },
 });

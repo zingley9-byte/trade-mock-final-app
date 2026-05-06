@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { TM_AUTH_KEY } from "@/constants/authKeys";
 import { BlurView } from "expo-blur";
-import { Tabs } from "expo-router";
+import { Tabs, router } from "expo-router";
 import React, { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -34,8 +34,10 @@ function UserSyncEffect() {
 
   useEffect(() => {
     const auth = getFirebaseAuth();
+    let wasLoggedIn = false;
     const unsub = onAuthStateChanged(auth, (user) => {
       if (user) {
+        wasLoggedIn = true;
         const u = {
           uid:   user.uid,
           email: user.email ?? "",
@@ -52,6 +54,10 @@ function UserSyncEffect() {
         });
       } else {
         setAuthUser(null);
+        // If session was active and now gone, force redirect to auth
+        if (wasLoggedIn) {
+          router.replace("/auth");
+        }
       }
     });
     return unsub;
