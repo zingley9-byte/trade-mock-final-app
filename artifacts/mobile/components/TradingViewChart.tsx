@@ -379,6 +379,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           candleRef.current.setData(candles);
         }
         console.log("[Chart] setData success — candles:", candles.length);
+        console.log("Candles rendered");
         if (volRef.current) {
           volRef.current.setData(candles.map((c: any) => ({
             time: c.time, value: c.volume,
@@ -465,6 +466,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         lastMsgAtRef.current = Date.now();
         stopPoll();
         armStaleness();
+        console.log("WS connected");
         console.log("[Chart] websocket connected —", binSym, binInterval);
       };
 
@@ -487,6 +489,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       ws.onerror = () => {
         if (!mountedRef.current || loadIdRef.current !== loadId) return;
         setWsStatus("error");
+        console.log("WS failed, keeping existing candles");
       };
 
       ws.onclose = () => {
@@ -494,6 +497,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         if (stalenessTimerRef.current) { clearTimeout(stalenessTimerRef.current); stalenessTimerRef.current = null; }
         setWsStatus("reconnecting");
         startPoll();   // keep chart fresh via REST while reconnecting
+        console.log("WS failed, keeping existing candles");
         const delay = retryDelayRef.current;
         retryDelayRef.current = Math.min(delay * 2, 15000);
         retryTimerRef.current = setTimeout(connectWS, delay);
@@ -1326,8 +1330,19 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           >Retry</button>
         </div>
       )}
+      {/* WS status pill — non-blocking, just shows badge; never covers candles */}
       {dataLoaded && (wsStatus === "reconnecting" || wsStatus === "error") && (
-        <LoadingCandleAnimation overlay transparent size="sm" status={wsStatus as "reconnecting" | "error"} />
+        <div style={{
+          position: "absolute", top: 8, right: 12, zIndex: 50,
+          background: wsStatus === "error" ? "rgba(239,83,80,0.18)" : "rgba(245,158,11,0.18)",
+          border: `1px solid ${wsStatus === "error" ? "#ef5350" : "#f59e0b"}`,
+          borderRadius: 6, padding: "3px 10px",
+          fontSize: 11, fontWeight: 600,
+          color: wsStatus === "error" ? "#ef5350" : "#f59e0b",
+          pointerEvents: "none",
+        }}>
+          {wsStatus === "error" ? "✕ WS Error · Retrying…" : "↻ Reconnecting…"}
+        </div>
       )}
 
       {/* ── Top toolbar — matches native NativeWebViewChart exactly ── */}

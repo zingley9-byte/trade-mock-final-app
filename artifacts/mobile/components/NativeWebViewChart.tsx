@@ -20,7 +20,7 @@ interface Props {
   height?: number;
 }
 
-function buildHtml(symbol: string, initialFS = false): string {
+function buildHtml(symbol: string, initialFS = false, apiBase = ""): string {
   const bin = symbol.replace("/","").toUpperCase().endsWith("USDT")
     ? symbol.replace("/","").toUpperCase()
     : symbol.replace("/","").toUpperCase() + "USDT";
@@ -498,6 +498,7 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 <script>
 // ── Constants ───────────────────────────────────────────────────────────────
 const SYMBOL   = '${bin}';
+const API_BASE = '${apiBase}';
 // TF_MAP: Binance WS kline stream interval (kept for WebSocket URL)
 const TF_MAP   = {
   '1m':'1m','3m':'3m','5m':'5m','15m':'15m','30m':'30m',
@@ -738,44 +739,86 @@ function toggleGrid(btn) {
 async function loadData(sym, tf) {
   const id = ++loadId;
   const mexcInterval = MEXC_TF_MAP[tf] || '5m';
-  const url = 'https://api.mexc.com/api/v3/klines?symbol='+sym+'&interval='+mexcInterval+'&limit=1000';
-  console.log('Using proxy klines API');
-  console.log('[NativeChart] fetching MEXC candles — sym:', sym, 'interval:', mexcInterval);
-  try {
-    const res = await fetch(url);
-    if (!res.ok || loadId !== id) return;
-    const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) throw new Error('MEXC empty response');
-    if (loadId !== id) return;
-    // MEXC returns Binance-compatible format: [[openTimeMs, open, high, low, close, volume, ...], ...]
-    // Already sorted ascending (oldest first)
-    console.log('Candles received count: ' + data.length);
-    var candles = data.map(function(k) { return {
-      time: Math.floor(Number(k[0])/1000),
-      open: parseFloat(k[1]), high: parseFloat(k[2]),
-      low: parseFloat(k[3]), close: parseFloat(k[4]),
-    }; });
-    var vols = data.map(function(k) { return {
-      time: Math.floor(Number(k[0])/1000),
-      value: parseFloat(k[5]),
-      color: parseFloat(k[4]) >= parseFloat(k[1]) ? '#26a69a55' : '#ef535055',
-    }; });
-    _rawCandles = candles;
-    var mappedCandles = CHART_TYPE === 'line'
-      ? candles.map(function(c){return{time:c.time,value:c.close};})
-      : candles;
-    candleSeries.setData(mappedCandles);
-    volSeries.setData(vols);
-    chart.timeScale().fitContent();
-    console.log('[NativeChart] candlestickSeries.setData success — count:', candles.length);
-    connectWS(sym, tf, id);
-  } catch(e) {
-    console.log('[NativeChart] fetch error:', e && e.message ? e.message : String(e));
-    if (loadId !== id) return;
-    setWsBadge('error');
-    retryTimer = setTimeout(() => loadData(sym, tf), retryDelay);
-    retryDelay = Math.min(retryDelay*2, 5000);
+
+  // Try API proxy first (more reliable in dev/Replit), fall back to MEXC direct
+  const proxyUrl = API_BASE
+    ? API_BASE + '/api/market/klines?symbol=' + sym + '&interval=' + mexcInterval + '&limit=1000'
+    : null;
+  const mexcUrl = 'https://api.mexc.com/api/v3/klines?symbol=' + sym + '&interval=' + mexcInterval + '&limit=1000';
+
+  console.log('[NativeChart] fetching candles — sym:', sym, 'interval:', mexcInterval);
+
+  async function tryFetch(url) {
+    const ctrl = new AbortController();
+    const tid = setTimeout(function(){ ctrl.abort(); }, 8000);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) throw new Error('empty response');
+      return data;
+    } catch(e) {
+      clearTimeout(tid);
+      throw e;
+    }
   }
+
+  let data = null;
+  try {
+    if (proxyUrl) {
+      console.log('[NativeChart] trying proxy:', proxyUrl);
+      data = await tryFetch(proxyUrl);
+      console.log('[NativeChart] proxy success — candles:', data.length);
+    }
+  } catch(e) {
+    console.log('[NativeChart] proxy failed, trying MEXC direct:', e && e.message ? e.message : String(e));
+    data = null;
+  }
+
+  if (!data) {
+    try {
+      console.log('[NativeChart] trying MEXC direct:', mexcUrl);
+      data = await tryFetch(mexcUrl);
+      console.log('[NativeChart] MEXC direct success — candles:', data.length);
+    } catch(e) {
+      console.log('[NativeChart] both sources failed:', e && e.message ? e.message : String(e));
+    }
+  }
+
+  if (loadId !== id) return;
+
+  if (!data) {
+    // REST failed — keep any existing candles visible, retry silently
+    console.log('[NativeChart] REST failed, retrying...');
+    setWsBadge('error');
+    retryTimer = setTimeout(function(){ loadData(sym, tf); }, retryDelay);
+    retryDelay = Math.min(retryDelay * 2, 8000);
+    return;
+  }
+
+  // ── Render candles immediately from REST ──────────────────────────────────
+  var candles = data.map(function(k) { return {
+    time: Math.floor(Number(k[0])/1000),
+    open: parseFloat(k[1]), high: parseFloat(k[2]),
+    low: parseFloat(k[3]), close: parseFloat(k[4]),
+  }; });
+  var vols = data.map(function(k) { return {
+    time: Math.floor(Number(k[0])/1000),
+    value: parseFloat(k[5]),
+    color: parseFloat(k[4]) >= parseFloat(k[1]) ? '#26a69a55' : '#ef535055',
+  }; });
+  _rawCandles = candles;
+  var mappedCandles = CHART_TYPE === 'line'
+    ? candles.map(function(c){return{time:c.time,value:c.close};})
+    : candles;
+  candleSeries.setData(mappedCandles);
+  volSeries.setData(vols);
+  chart.timeScale().fitContent();
+  console.log("Candles rendered");
+
+  // ── Connect WebSocket (optional — candles already visible) ────────────────
+  connectWS(sym, tf, id);
 }
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
@@ -850,6 +893,7 @@ function connectWS(sym, tf, id) {
     lastMsgAt = Date.now();
     setWsBadge('live');
     armStaleness(sym, tf, id);
+    console.log("WS connected");
     // Start the fast trade stream as soon as kline is connected
     connectTradeWS(sym, id);
   };
@@ -884,15 +928,22 @@ function connectWS(sym, tf, id) {
     } catch(_) {}
   };
 
-  ws.onerror = () => { if (loadId !== id) return; clearStaleness(); setWsBadge('error'); };
+  ws.onerror = () => {
+    if (loadId !== id) return;
+    clearStaleness();
+    setWsBadge('error');
+    console.log("WS failed, keeping existing candles");
+  };
 
   ws.onclose = () => {
     if (loadId !== id) return;
     clearStaleness();
     if (tickerWs) { try { tickerWs.close(); } catch(_){} tickerWs = null; }
     setWsBadge('reconnecting');
+    console.log("WS failed, keeping existing candles");
+    // Silently retry WS — never clear chart or call loadData
     retryTimer = setTimeout(() => connectWS(sym, tf, loadId), retryDelay);
-    retryDelay = Math.min(retryDelay*2, 5000);
+    retryDelay = Math.min(retryDelay*2, 8000);
   };
 }
 
@@ -2527,10 +2578,15 @@ export default function NativeWebViewChart({ symbol = "BTCUSDT", height = 480 }:
     ? symbol.replace("/","").toUpperCase()
     : symbol.replace("/","").toUpperCase() + "USDT";
 
+  // Compute API base URL so the WebView can reach the API proxy
+  const apiBase = process.env.EXPO_PUBLIC_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+    : "";
+
   // CRITICAL: memoize so `source={{ html }}` never changes reference between renders.
   // Without this, iOS WebView silently reloads on every parent re-render.
-  const html   = useMemo(() => buildHtml(bin, false), [bin]);
-  const htmlFS = useMemo(() => buildHtml(bin, true),  [bin]);
+  const html   = useMemo(() => buildHtml(bin, false, apiBase), [bin, apiBase]);
+  const htmlFS = useMemo(() => buildHtml(bin, true,  apiBase), [bin, apiBase]);
 
   // ── Auto-rotate: open fullscreen when device goes landscape, close when portrait ──
   // On mount: unlock orientation so the chart screen can rotate.
