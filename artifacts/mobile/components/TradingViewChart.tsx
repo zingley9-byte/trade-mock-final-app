@@ -1129,11 +1129,6 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
 
         {/* ── Drawing Sidebar ── hidden when sidebarVisible=false (chart expands via flex) */}
         <div className="tm-web-sidebar" style={{ width:44, background:C.panel, borderRight:`1px solid ${C.border}`, display: sidebarVisible ? "flex" : "none", flexDirection:"column", alignItems:"center", padding:"4px 0", gap:1, flexShrink:0, zIndex:20, overflowY:"auto", overflowX:"visible", scrollbarWidth:"none", msOverflowStyle:"none", position:"relative" } as React.CSSProperties}>
-          {/* Cursor */}
-          <button title="Cursor" onClick={()=>handleToolClick("cursor")}
-            style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(!activeTool||activeTool==="cursor")?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(!activeTool||activeTool==="cursor")?"#2962FF":"#787b86" }}>
-            <SbIcon id="cursor"/>
-          </button>
           {/* Tool groups */}
           {WEB_TOOL_GROUPS.slice(1).map(g=>{
             const isAct = g.items.some((it:any)=>it.id===activeTool);
