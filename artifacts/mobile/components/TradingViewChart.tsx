@@ -1083,7 +1083,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       )}
 
       {/* ── Top toolbar — matches native NativeWebViewChart exactly ── */}
-      <div style={{ height:TOP, display:"flex", alignItems:"center", background:C.panel, borderBottom:`1px solid ${C.border}`, paddingLeft:4, paddingRight:6, gap:2, flexShrink:0 }}>
+      <div style={{ height: isWebFS ? `calc(${TOP}px + env(safe-area-inset-top, 0px))` : `${TOP}px`, paddingTop: isWebFS ? "env(safe-area-inset-top, 0px)" : 0, display:"flex", alignItems:"center", background:C.panel, borderBottom:`1px solid ${C.border}`, paddingLeft:4, paddingRight:6, gap:2, flexShrink:0 }}>
 
         {/* 4-dot sidebar toggle */}
         <TBtn

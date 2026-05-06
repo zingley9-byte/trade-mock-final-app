@@ -34,6 +34,8 @@ export default function PortfolioScreen() {
     balance,
     positions,
     currentPrice,
+    selectedSymbol,
+    symbolPrices,
     getRunningPnL,
     getTotalPortfolioValue,
     closePosition,
@@ -215,11 +217,17 @@ export default function PortfolioScreen() {
               Open Positions ({positions.length})
             </Text>
             {positions.map((pos) => {
+              // Use per-symbol live price (same logic as getRunningPnL in context)
+              const livePrice = (symbolPrices[pos.symbol.id] && symbolPrices[pos.symbol.id] > 0)
+                ? symbolPrices[pos.symbol.id]
+                : (pos.symbol.id === selectedSymbol.id && currentPrice > 0 ? currentPrice : pos.entryPrice);
               const priceDiff = pos.side === "buy"
-                ? currentPrice - pos.entryPrice
-                : pos.entryPrice - currentPrice;
-              const posPnl = priceDiff * pos.quantity * pos.leverage;
-              const pnlPct = (posPnl / pos.margin) * 100;
+                ? livePrice - pos.entryPrice
+                : pos.entryPrice - livePrice;
+              // calcPnL returns USD; convert to INR so fmt() works correctly
+              const posPnlUsd = priceDiff * pos.quantity * pos.leverage;
+              const posPnl    = Math.max(-pos.margin, posPnlUsd * usdToInr);
+              const pnlPct    = pos.margin > 0 ? (posPnl / pos.margin) * 100 : 0;
               const isBuy  = pos.side === "buy";
               const accent = isBuy ? colors.bull : colors.bear;
 
@@ -250,7 +258,7 @@ export default function PortfolioScreen() {
                   {/* Stats grid */}
                   <View style={[styles.statsGrid, { backgroundColor: colors.muted, borderRadius: 8 }]}>
                     <StatCell label="Entry"   value={fmtPrice(pos.entryPrice)} colors={colors} />
-                    <StatCell label="Current" value={fmtPrice(currentPrice)}   colors={colors} />
+                    <StatCell label="Current" value={fmtPrice(livePrice)}      colors={colors} />
                     <StatCell label="Margin"  value={fmt(pos.margin, 0)}        colors={colors} />
                     <StatCell label="PnL"     value={`${posPnl >= 0 ? "+" : ""}${fmt(posPnl)}`} valueColor={posPnl >= 0 ? colors.bull : colors.bear} colors={colors} />
                   </View>
