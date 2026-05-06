@@ -89,6 +89,9 @@ function fmtVol(v: number) {
   return v.toFixed(0);
 }
 
+// ─── Module-level constants (used by both WebChart render and native touch handlers) ──
+const THREE_PT_TOOLS = new Set(["channel","longposition","shortposition"]);
+
 // ─── Web Chart ────────────────────────────────────────────────────────────────
 function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const { setIsChartFullscreen } = useTradingContext();
@@ -142,6 +145,9 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const drwPreview  = useRef<{x:number;y:number}|null>(null);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captureRef  = useRef<HTMLDivElement>(null);
+  // Stable refs for drawing color/width — needed by native touch handlers (can't close over state)
+  const drwColorRef = useRef("#f0b90b");
+  const drwWidthRef = useRef(1.5);
   const DRW_KEY = "tm_drw_v2";
 
   // Load drawings from localStorage on mount
@@ -491,6 +497,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   function genDrwId() { return "drw_"+Date.now()+"_"+Math.random().toString(36).slice(2,6); }
 
   function handleToolClick(id: string) {
+    console.log("[DrawTools] tool selected:", id);
     if (id==="hide") { setShowWebDraw(v=>!v); return; }
     if (id==="lock") {
       setWebDrawings(ds=>{ const allLk=ds.every(d=>d.locked); return ds.map(d=>({...d,locked:!allLk})); });
@@ -551,9 +558,9 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   }
 
   // ── SVG Pointer handlers — DRAG model ─────────────────────────────────────
-  const THREE_PT_TOOLS = new Set(["channel","longposition","shortposition"]);
 
   function onSvgPointerDown(e: React.PointerEvent<Element>) {
+    console.log("[DrawTools] pointerdown — tool:", activeTool, "pointerId:", e.pointerId);
     if (!activeTool || activeTool==="cursor") { setSelectedDrwId(null); setFloatMenu(null); return; }
     if (activeTool==="delete") return;
     e.preventDefault();
@@ -715,6 +722,26 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   // Sync refs used inside chart.subscribeClick (outside React lifecycle)
   useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
   useEffect(() => { webDrawingsRef.current = webDrawings; }, [webDrawings]);
+  useEffect(() => { drwColorRef.current = drwColor; }, [drwColor]);
+  useEffect(() => { drwWidthRef.current = drwWidth; }, [drwWidth]);
+
+  // Disable/enable lw-charts pointer interaction when a drawing tool is active.
+  // lw-charts installs native listeners and calls setPointerCapture which would
+  // consume our pointer events — blocking the container prevents that entirely.
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.style.pointerEvents = isDrawActive ? "none" : "";
+    }
+    if (chartRef.current) {
+      try {
+        chartRef.current.applyOptions({
+          handleScroll: !isDrawActive,
+          handleScale:  !isDrawActive,
+        });
+      } catch (_) {}
+    }
+    console.log("[DrawTools] isDrawActive:", isDrawActive, "— tool:", activeToolRef.current);
+  }, [isDrawActive]);
 
   // Keep canvasDataRef fresh so renderCanvas() always has latest state
   useEffect(() => {
@@ -722,21 +749,139 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     renderCanvas();
   }, [webDrawings, webCurrent, showWebDraw, selectedDrwId, drawTick, drwColor, drwWidth]);
 
-  // Native touch prevention — must use {passive:false} so preventDefault() works on mobile browsers
-  // React synthetic events can't prevent browser scroll; native listeners can.
+  // Native touch handler — {passive:false} required to call preventDefault on mobile browsers.
+  // This is BOTH a scroll-prevention fallback AND a full drawing fallback for browsers where
+  // React synthetic pointer events are blocked by lw-charts' own native listeners.
+  // Touch events call preventDefault which also cancels the corresponding pointer events,
+  // so there is no double-firing: touch path runs on mobile, pointer path runs on desktop.
   useEffect(() => {
     const el = captureRef.current;
     if (!el) return;
-    const prevent = (e: TouchEvent) => {
-      if (activeToolRef.current && activeToolRef.current !== "cursor") {
-        e.preventDefault();
+
+    function getXY(t: Touch) {
+      const rect = chartAreaRef.current?.getBoundingClientRect() ?? { left: 0, top: 0 };
+      return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    }
+    function toData(x: number, y: number) {
+      return {
+        time:  chartRef.current?.timeScale().coordinateToTime(x) ?? null,
+        price: candleRef.current?.coordinateToPrice(y) ?? null,
+      };
+    }
+    function makeId() { return "drw_"+Date.now()+"_"+Math.random().toString(36).slice(2,6); }
+
+    function onTouchStart(e: TouchEvent) {
+      const tool = activeToolRef.current;
+      if (!tool || tool === "cursor") return;
+      e.preventDefault();
+      console.log("[DrawTools] touchstart — tool:", tool);
+      const t = e.touches[0]; if (!t) return;
+      const { x, y } = getXY(t);
+      if (tool === "delete") return;
+      if (tool === "brush" || tool === "highlighter") {
+        drwMDown.current = true; drwFreehand.current = [x, y];
+        setWebCurrent({ type: tool, free: [x, y] });
+        console.log("[DrawTools] drawing started (freehand touch)");
+        return;
       }
-    };
-    el.addEventListener("touchstart", prevent, { passive: false });
-    el.addEventListener("touchmove",  prevent, { passive: false });
+      const pt = toData(x, y);
+      if (pt.price == null) return;
+      if (tool === "hline") {
+        setWebDrawings(ds => [...ds, { id:makeId(), type:"hline", pts:[{ price:pt.price, time:pt.time??0 }], color:drwColorRef.current, width:drwWidthRef.current, visible:true, locked:false }]);
+        console.log("[DrawTools] drawing saved (hline touch)"); return;
+      }
+      if (tool === "vline" && pt.time) {
+        setWebDrawings(ds => [...ds, { id:makeId(), type:"vline", pts:[{ price:pt.price, time:pt.time }], color:drwColorRef.current, width:drwWidthRef.current, visible:true, locked:false }]);
+        console.log("[DrawTools] drawing saved (vline touch)"); return;
+      }
+      if (tool === "pricelabel") {
+        setWebDrawings(ds => [...ds, { id:makeId(), type:"pricelabel", pts:[{ price:pt.price, time:pt.time??0 }], color:drwColorRef.current, width:drwWidthRef.current, visible:true, locked:false }]);
+        console.log("[DrawTools] drawing saved (pricelabel touch)"); return;
+      }
+      if (THREE_PT_TOOLS.has(tool) && drwCurPts.current.length === 2) {
+        const newPts = [...drwCurPts.current, pt];
+        setWebDrawings(ds => [...ds, { id:makeId(), type:tool, pts:newPts, color:drwColorRef.current, width:drwWidthRef.current, visible:true, locked:false }]);
+        drwCurPts.current = []; setWebCurrent(null);
+        console.log("[DrawTools] drawing saved (3pt touch)"); return;
+      }
+      drwMDown.current = true;
+      drwCurPts.current = [pt, pt];
+      setWebCurrent({ type: tool, pts: [pt, pt], preview: { x, y } });
+      console.log("[DrawTools] drawing started —", tool, "(touch)");
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      const tool = activeToolRef.current;
+      if (!tool || tool === "cursor") return;
+      e.preventDefault();
+      const t = e.touches[0]; if (!t || !drwMDown.current) return;
+      const { x, y } = getXY(t);
+      if (tool === "brush" || tool === "highlighter") {
+        drwFreehand.current = [...drwFreehand.current, x, y];
+        setWebCurrent((c: any) => c ? { ...c, free: [...drwFreehand.current] } : null);
+        return;
+      }
+      if (drwCurPts.current.length >= 2) {
+        const pt = toData(x, y);
+        if (pt.price != null) drwCurPts.current[1] = pt;
+        setWebCurrent((c: any) => c ? { ...c, pts: [...drwCurPts.current], preview: { x, y } } : null);
+      }
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      const tool = activeToolRef.current;
+      if (!tool || tool === "cursor") return;
+      if (!drwMDown.current) return;
+      e.preventDefault();
+      drwMDown.current = false;
+      const t = e.changedTouches[0];
+      if (!t) { drwFreehand.current = []; setWebCurrent(null); return; }
+      const { x, y } = getXY(t);
+      // Freehand finish
+      if (tool === "brush" || tool === "highlighter") {
+        const fp = drwFreehand.current;
+        if (fp.length >= 4) {
+          const pts: any[] = [];
+          for (let i = 0; i < fp.length; i += 2) {
+            const p2 = toData(fp[i], fp[i+1]);
+            if (p2.price != null) pts.push(p2);
+          }
+          if (pts.length >= 2) {
+            setWebDrawings(ds => [...ds, { id:makeId(), type:tool, pts, color:drwColorRef.current, width:drwWidthRef.current, visible:true, locked:false }]);
+            console.log("[DrawTools] drawing saved (freehand touch)");
+          }
+        }
+        drwFreehand.current = []; setWebCurrent(null); return;
+      }
+      // Drag-to-draw finish
+      if (drwCurPts.current.length >= 2) {
+        const pt = toData(x, y);
+        if (pt.price != null) drwCurPts.current[1] = pt;
+        const pts = drwCurPts.current;
+        if (THREE_PT_TOOLS.has(tool)) {
+          setWebCurrent({ type: tool, pts: [...pts], preview: null });
+        } else {
+          const sv1 = { x: chartRef.current?.timeScale().timeToCoordinate(pts[0].time) ?? null, y: candleRef.current?.priceToCoordinate(pts[0].price) ?? null };
+          const sv2 = { x: chartRef.current?.timeScale().timeToCoordinate(pts[1].time) ?? null, y: candleRef.current?.priceToCoordinate(pts[1].price) ?? null };
+          const moved = sv1.x != null && sv2.x != null && (Math.abs((sv2.x??0)-(sv1.x??0)) > 4 || Math.abs((sv2.y??0)-(sv1.y??0)) > 4);
+          if (moved) {
+            setWebDrawings(ds => [...ds, { id:makeId(), type:tool, pts:[...pts], color:drwColorRef.current, width:drwWidthRef.current, visible:true, locked:false }]);
+            console.log("[DrawTools] drawing saved —", tool, "(touch)");
+          }
+          drwCurPts.current = []; setWebCurrent(null);
+        }
+      }
+    }
+
+    el.addEventListener("touchstart",  onTouchStart, { passive: false });
+    el.addEventListener("touchmove",   onTouchMove,  { passive: false });
+    el.addEventListener("touchend",    onTouchEnd,   { passive: false });
+    el.addEventListener("touchcancel", onTouchEnd,   { passive: false });
     return () => {
-      el.removeEventListener("touchstart", prevent);
-      el.removeEventListener("touchmove",  prevent);
+      el.removeEventListener("touchstart",  onTouchStart);
+      el.removeEventListener("touchmove",   onTouchMove);
+      el.removeEventListener("touchend",    onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
     };
   }, []);
 
@@ -1162,8 +1307,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
             return (
               <div key={g.id} style={{position:"relative"}}>
                 <button title={g.label}
-                  onClick={(e)=>{ if(g.items.length===1){handleToolClick(g.items[0].id);setOpenSubGroup(null);}else{ const r=(e.currentTarget as HTMLElement).getBoundingClientRect(); setSubGroupY(r.top); setOpenSubGroup(v=>v===g.id?null:g.id);}}}
-                  style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:isAct?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:isAct?"#2962FF":"#787b86",fontSize:13,fontWeight:"bold",position:"relative" }}>
+                  onPointerDown={(e)=>{ e.currentTarget.releasePointerCapture(e.pointerId); if(g.items.length===1){handleToolClick(g.items[0].id);setOpenSubGroup(null);}else{ const r=(e.currentTarget as HTMLElement).getBoundingClientRect(); setSubGroupY(r.top); setOpenSubGroup(v=>v===g.id?null:g.id);}}}
+                  style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:isAct?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:isAct?"#2962FF":"#787b86",fontSize:13,fontWeight:"bold",position:"relative",touchAction:"manipulation" }}>
                   <SbIcon id={g.id}/>
                   {g.items.length>1&&<span style={{position:"absolute",right:3,bottom:4,width:0,height:0,borderLeft:"3px solid transparent",borderRight:"3px solid transparent",borderTop:`3px solid ${isAct?"#2962FF":"#4a4e5a"}`}}/>}
                 </button>
@@ -1171,8 +1316,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
                   <div style={{ position:"fixed",left:46,top:subGroupY,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,minWidth:180,padding:"4px 0",zIndex:500,boxShadow:"0 4px 24px #00000090" }}>
                     <div style={{padding:"4px 12px",fontSize:9,fontWeight:"700",color:C.dim,textTransform:"uppercase",letterSpacing:".6px",borderBottom:`1px solid ${C.border}`,marginBottom:2}}>{g.label}</div>
                     {g.items.map((it:any)=>(
-                      <button key={it.id} onClick={()=>{handleToolClick(it.id);setOpenSubGroup(null);}}
-                        style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 12px",fontSize:12,color:activeTool===it.id?"#2962FF":C.text,cursor:"pointer",border:"none",background:activeTool===it.id?"#2962FF18":"none",width:"100%",textAlign:"left" }}>
+                      <button key={it.id} onPointerDown={(e)=>{ e.currentTarget.releasePointerCapture(e.pointerId); handleToolClick(it.id);setOpenSubGroup(null);}}
+                        style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 12px",fontSize:12,color:activeTool===it.id?"#2962FF":C.text,cursor:"pointer",border:"none",background:activeTool===it.id?"#2962FF18":"none",width:"100%",textAlign:"left",touchAction:"manipulation" }}>
                         <span style={{width:6,height:6,borderRadius:"50%",background:activeTool===it.id?"#2962FF":"none",border:`1px solid ${activeTool===it.id?"#2962FF":"#3a3e4a"}`,flexShrink:0}}/>
                         {it.label}
                       </button>
@@ -1186,8 +1331,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           <div style={{width:28,height:1,background:C.border,margin:"3px 0"}}/>
           {/* Toggle tools */}
           {WEB_TOGGLE_TOOLS.map(t=>(
-            <button key={t.id} title={t.label} onClick={()=>handleToolClick(t.id)}
-              style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF":"#787b86" }}>
+            <button key={t.id} title={t.label} onPointerDown={(e)=>{ e.currentTarget.releasePointerCapture(e.pointerId); handleToolClick(t.id);}}
+              style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF":"#787b86",touchAction:"manipulation" }}>
               <SbIcon id={t.id}/>
             </button>
           ))}
@@ -1300,13 +1445,26 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
             ref={canvasRef}
             style={{ position:"absolute", top:0, left:0, width:"100%", height:"100%", pointerEvents:"none", zIndex:10 }}
           />
-          {/* Capture div — always in DOM so native touch listeners persist; pointer-events toggled by isDrawActive */}
+          {/* Capture div — always in DOM so native touch listeners persist.
+              z-index 200 ensures it sits above all lw-charts internal canvas layers.
+              pointer-events toggled: "all" when drawing, "none" (pass-through) when cursor.
+              lw-charts container is also set to pointerEvents:none when drawing (see isDrawActive effect),
+              so the chart can't steal capture or call stopPropagation on our events. */}
           <div
             ref={captureRef}
-            style={{ position:"absolute", inset:0, cursor: isDrawActive ? "default" : "auto", touchAction:"none", zIndex:11, pointerEvents: isDrawActive ? "all" : "none" }}
+            style={{
+              position:"absolute", inset:0,
+              zIndex: 200,
+              pointerEvents: isDrawActive ? "all" : "none",
+              touchAction: "none",
+              cursor: isDrawActive ? "crosshair" : "auto",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            } as React.CSSProperties}
             onPointerDown={onSvgPointerDown}
             onPointerMove={onSvgPointerMove}
             onPointerUp={onSvgPointerUp}
+            onPointerCancel={onSvgPointerUp}
           />
           {/* Hint pill — bottom of chart (matches native style) */}
           {isDrawActive && !webCurrent && (

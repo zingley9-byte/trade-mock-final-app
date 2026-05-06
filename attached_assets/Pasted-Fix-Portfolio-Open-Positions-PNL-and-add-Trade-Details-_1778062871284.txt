@@ -1,0 +1,70 @@
+Fix Portfolio Open Positions PNL and add Trade Details screen.
+
+Do not change chart, API, WebSocket, login, or bottom navigation.
+Only fix Portfolio position card and add details view.
+
+Problem:
+Portfolio total PNL and position card PNL are still not matching properly.
+Also user wants each open/closed position to be tappable and open a detailed trade screen like real trading apps.
+
+Requirements:
+
+1. Position Card PNL Fix:
+- Show live PNL amount
+- Show live PNL percent
+- Use same current price source as live BTC price
+- For LONG:
+  pnl = (currentPrice - entryPrice) * quantity
+- For SHORT:
+  pnl = (entryPrice - currentPrice) * quantity
+- pnlPercent = (pnl / marginUsed) * 100
+- Positive green, negative red
+- Do not show wrong -0.00
+- Top portfolio PNL must equal sum of all open position PNL
+
+2. Add tappable position:
+- When user taps any position card, open Trade Details page/modal.
+- Add route or modal: Trade Details
+- Show back button
+
+3. Trade Details screen must show:
+- Net Profit & Loss
+- Instrument
+- Status
+- Side: LONG / SHORT
+- Quantity
+- Lot size
+- Entry Price
+- Current Price
+- Exit Price if closed
+- Stop Loss
+- Take Profit
+- Leverage
+- Margin Used
+- Estimated Charges
+- Open Time
+- Close Time if closed
+- PNL %
+- Order ID / Trade ID
+
+4. UI design:
+- Make it like Groww trade details screen.
+- White/light card for light mode and dark card for dark mode.
+- Net PNL at top in rounded box.
+- Details shown in two-column rows:
+  label left, value right.
+- Red for loss, green for profit.
+- Add Close Position button for open trades.
+- Add Modify button for SL/TP.
+
+5. History:
+- Closed positions should move to History.
+- History item should also open same Trade Details screen.
+- If position is open, status = Open.
+- If closed, status = Closed.
+- If expired/validity over, status = Validity Over.
+
+Important:
+Every position card must be clickable.
+Trade details must use real stored trade data, not dummy values.
+Do not break existing portfolio UI.
