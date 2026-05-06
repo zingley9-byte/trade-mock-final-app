@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import TradeDetailModal from "@/components/TradeDetailModal";
 import {
   FlatList,
   Platform,
@@ -52,7 +53,8 @@ export default function HistoryScreen() {
     setRefreshing(true);
     try { await refreshPrices(); } finally { setRefreshing(false); }
   }, [refreshPrices]);
-  const [filter, setFilter] = useState<"all" | "win" | "loss">("all");
+  const [filter, setFilter]           = useState<"all" | "win" | "loss">("all");
+  const [detailTrade, setDetailTrade] = useState<TradeHistory | null>(null);
 
   const isUSD = currencyMode === "usd";
 
@@ -80,7 +82,9 @@ export default function HistoryScreen() {
   function renderItem({ item }: { item: TradeHistory }) {
     const isWin = item.pnl > 0;
     return (
-      <View
+      <TouchableOpacity
+        activeOpacity={0.82}
+        onPress={() => setDetailTrade(item)}
         style={[
           styles.card,
           { backgroundColor: colors.card, borderColor: isWin ? `${colors.bull}40` : `${colors.bear}40` },
@@ -113,7 +117,7 @@ export default function HistoryScreen() {
               </Text>
             </View>
           </View>
-          <View style={{ alignItems: "flex-end" }}>
+          <View style={{ alignItems: "flex-end", gap: 4 }}>
             <Text
               style={[
                 styles.pnlText,
@@ -132,6 +136,7 @@ export default function HistoryScreen() {
                 {item.pnlPct >= 0 ? "+" : ""}{item.pnlPct.toFixed(2)}%
               </Text>
             </View>
+            <Text style={[styles.detailsHint, { color: colors.mutedForeground }]}>Details ›</Text>
           </View>
         </View>
 
@@ -142,7 +147,7 @@ export default function HistoryScreen() {
           <DetailPair label="Margin" value={fmt(item.margin, 0)} colors={colors} />
           <DetailPair label="Duration" value={formatDuration(item.openedAt, item.closedAt)} colors={colors} />
         </View>
-      </View>
+      </TouchableOpacity>
     );
   }
 
@@ -260,6 +265,15 @@ export default function HistoryScreen() {
           }
         />
       )}
+
+      {/* ── Trade Detail Modal ──────────────────────────────────────────── */}
+      <TradeDetailModal
+        visible={!!detailTrade}
+        onClose={() => setDetailTrade(null)}
+        trade={detailTrade ?? undefined}
+        currencyMode={currencyMode}
+        usdToInr={usdToInr}
+      />
     </View>
   );
 }
@@ -362,6 +376,7 @@ const styles = StyleSheet.create({
   pnlText: { fontSize: 16, fontWeight: "700" as const },
   pnlBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 3 },
   pnlPct: { fontSize: 11, fontWeight: "600" as const },
+  detailsHint: { fontSize: 11, fontWeight: "600" as const, opacity: 0.65 },
   details: {
     flexDirection: "row",
     flexWrap: "wrap",

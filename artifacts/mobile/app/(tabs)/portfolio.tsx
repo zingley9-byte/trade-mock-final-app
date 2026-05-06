@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   Alert,
   Dimensions,
@@ -22,6 +22,7 @@ import { useTradingContext, Position } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import { usePrivacy } from "@/context/PrivacyContext";
 import CoinLogo from "@/components/CoinLogo";
+import TradeDetailModal from "@/components/TradeDetailModal";
 
 const INITIAL_BALANCE = 1000000;
 const { height: SCREEN_H } = Dimensions.get("window");
@@ -59,10 +60,17 @@ export default function PortfolioScreen() {
   const [modifyErr, setModifyErr]         = useState("");
   const [confirmCloseId, setConfirmCloseId]       = useState<string | null>(null);
   const [confirmCloseSymbol, setConfirmCloseSymbol] = useState("");
+  const [detailPos, setDetailPos]                 = useState<Position | null>(null);
 
   const runningPnL = getRunningPnL();
   const totalValue = getTotalPortfolioValue();
   const totalPnL   = totalValue - INITIAL_BALANCE;
+
+  const detailLivePrice = detailPos
+    ? ((symbolPrices[detailPos.symbol.id] && symbolPrices[detailPos.symbol.id] > 0)
+        ? symbolPrices[detailPos.symbol.id]
+        : (detailPos.symbol.id === selectedSymbol.id && currentPrice > 0 ? currentPrice : detailPos.entryPrice))
+    : 0;
   const totalPnLPct = (totalPnL / INITIAL_BALANCE) * 100;
   const isUSD = currencyMode === "usd";
 
@@ -235,8 +243,10 @@ export default function PortfolioScreen() {
               const accent = isBuy ? colors.bull : colors.bear;
 
               return (
-                <View
+                <TouchableOpacity
                   key={pos.id}
+                  activeOpacity={0.82}
+                  onPress={() => setDetailPos(pos)}
                   style={[styles.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                 >
                   {/* Top row: logo + badge + symbol/lev + PnL */}
@@ -253,9 +263,12 @@ export default function PortfolioScreen() {
                         <Text style={[styles.posLev, { color: colors.primary }]}>×{pos.leverage}  ·  {pos.quantity} lot</Text>
                       </View>
                     </View>
-                    <Text style={[styles.posPnlSmall, { color: posPnl >= 0 ? colors.bull : colors.bear }]}>
-                      {posPnl >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
-                    </Text>
+                    <View style={{ alignItems: "flex-end", gap: 3 }}>
+                      <Text style={[styles.posPnlSmall, { color: posPnl >= 0 ? colors.bull : colors.bear }]}>
+                        {posPnl >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
+                      </Text>
+                      <Text style={[styles.detailsHint, { color: colors.mutedForeground }]}>Details ›</Text>
+                    </View>
                   </View>
 
                   {/* Stats grid */}
@@ -298,7 +311,7 @@ export default function PortfolioScreen() {
                       <Text style={[styles.btnCloseText, { color: colors.bear }]}>Close Position</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -338,6 +351,24 @@ export default function PortfolioScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* ── Trade Detail Modal ────────────────────────────────────────── */}
+      <TradeDetailModal
+        visible={!!detailPos}
+        onClose={() => setDetailPos(null)}
+        position={detailPos ?? undefined}
+        livePrice={detailLivePrice}
+        onClosePosition={(id) => {
+          setDetailPos(null);
+          setTimeout(() => { closePosition(id); interstitialAd.tryShow(); }, 300);
+        }}
+        onModify={(pos) => {
+          setDetailPos(null);
+          setTimeout(() => openModify(pos), 350);
+        }}
+        currencyMode={currencyMode}
+        usdToInr={usdToInr}
+      />
 
       {/* ── Modify Bottom Sheet Modal ─────────────────────────────────── */}
       <Modal
@@ -501,6 +532,7 @@ const styles = StyleSheet.create({
   posSymbol: { fontSize: 14, fontWeight: "700" },
   posLev: { fontSize: 11, fontWeight: "600", marginTop: 1 },
   posPnlSmall: { fontSize: 15, fontWeight: "800" },
+  detailsHint: { fontSize: 11, fontWeight: "600", opacity: 0.65 },
 
   statsGrid: { flexDirection: "row", flexWrap: "wrap", padding: 10, gap: 0, marginBottom: 10 },
   statCell: { width: "50%", paddingVertical: 4, paddingHorizontal: 6 },
