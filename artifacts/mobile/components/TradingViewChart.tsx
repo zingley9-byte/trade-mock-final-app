@@ -37,6 +37,7 @@ function Svg({ children, size=18, viewBox="0 0 24 24" }: { children: React.React
 // Top bar icons
 const IcPlus     = () => <Svg><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></Svg>;
 const IcCandle   = () => <Svg size={17}><line x1="5" y1="3" x2="5" y2="5"/><rect x="3.5" y="5" width="3" height="6" rx="0.5"/><line x1="5" y1="11" x2="5" y2="14"/><line x1="12" y1="2" x2="12" y2="5"/><rect x="10.5" y="5" width="3" height="9" rx="0.5"/><line x1="12" y1="14" x2="12" y2="17"/><line x1="19" y1="5" x2="19" y2="8"/><rect x="17.5" y="8" width="3" height="5" rx="0.5"/><line x1="19" y1="13" x2="19" y2="16"/></Svg>;
+const IcLine     = () => <Svg size={17}><polyline points="2 17 7 10 12 13 17 6 22 9"/></Svg>;
 const IcFile     = () => <Svg><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></Svg>;
 const IcRect     = () => <Svg><rect x="3" y="3" width="18" height="18" rx="2"/></Svg>;
 const IcHex      = () => <Svg><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/></Svg>;
@@ -103,8 +104,11 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const pollTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastMsgAtRef    = useRef(0);
   const mountedRef      = useRef(true);
+  const rawCandlesRef   = useRef<any[]>([]);
+  const chartTypeRef    = useRef<"candle"|"line">("candle");
 
   const [timeframe,    setTfState]    = useState("5m");
+  const [chartType,    setChartType]  = useState<"candle"|"line">("candle");
   const [showTfMenu,   setShowTf]     = useState(false);
   const [activeTool,   setActiveTool] = useState<string | null>(null);
   const [ohlcv,        setOhlcv]      = useState<{o:number;h:number;l:number;c:number;v:number;ch:number;chp:number}|null>(null);
@@ -274,7 +278,12 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           time:   Math.floor(d[0]/1000) as any,
           open:   +d[1], high: +d[2], low: +d[3], close: +d[4], volume: +d[5],
         }));
-        candleRef.current.setData(candles);
+        rawCandlesRef.current = candles;
+        if (chartTypeRef.current === "line") {
+          candleRef.current.setData(candles.map((c: any) => ({ time: c.time, value: c.close })));
+        } else {
+          candleRef.current.setData(candles);
+        }
         if (volRef.current) {
           volRef.current.setData(candles.map((c: any) => ({
             time: c.time, value: c.volume,
@@ -458,6 +467,35 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     drwCurPts.current=[]; drwFreehand.current=[]; setWebCurrent(null);
     setOpenSubGroup(null);
   }
+  async function toggleChartType() {
+    if (!chartRef.current || !candleRef.current) return;
+    const newType = chartTypeRef.current === "candle" ? "line" : "candle";
+    chartTypeRef.current = newType;
+    setChartType(newType);
+    const lc = await import("lightweight-charts") as any;
+    const { CandlestickSeries, LineSeries } = lc;
+    try { chartRef.current.removeSeries(candleRef.current); } catch {}
+    if (newType === "line") {
+      const ls = chartRef.current.addSeries(LineSeries, {
+        color: C.bull, lineWidth: 2,
+        lastValueVisible: true, priceLineVisible: true,
+        priceLineColor: C.bull, priceLineStyle: 2, priceLineWidth: 1,
+      });
+      ls.setData(rawCandlesRef.current.map((c: any) => ({ time: c.time, value: c.close })));
+      candleRef.current = ls;
+    } else {
+      const cs = chartRef.current.addSeries(CandlestickSeries, {
+        upColor: C.bull, downColor: C.bear,
+        borderUpColor: C.bull, borderDownColor: C.bear,
+        wickUpColor: C.bull, wickDownColor: C.bear,
+        lastValueVisible: true, priceLineVisible: true,
+        priceLineColor: C.bull, priceLineStyle: 2, priceLineWidth: 1,
+      });
+      cs.setData(rawCandlesRef.current);
+      candleRef.current = cs;
+    }
+  }
+
   function handleFullscreen() {
     if (isWebFS) {
       // Exit: try native first, then fall back to CSS fullscreen toggle
@@ -901,9 +939,10 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         <LoadingCandleAnimation overlay transparent size="sm" status={wsStatus as "reconnecting" | "error"} />
       )}
 
-      {/* ── Top toolbar ── */}
-      <div style={{ height:TOP, display:"flex", alignItems:"center", background:C.panel, borderBottom:`1px solid ${C.border}`, paddingLeft:4, paddingRight:8, gap:2, flexShrink:0 }}>
-        {/* 4-dot sidebar toggle — matches native chart topbar */}
+      {/* ── Top toolbar — matches native NativeWebViewChart exactly ── */}
+      <div style={{ height:TOP, display:"flex", alignItems:"center", background:C.panel, borderBottom:`1px solid ${C.border}`, paddingLeft:4, paddingRight:6, gap:2, flexShrink:0 }}>
+
+        {/* 4-dot sidebar toggle */}
         <TBtn
           title={sidebarVisible ? "Hide drawing tools" : "Show drawing tools"}
           active={!sidebarVisible}
@@ -914,22 +953,26 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
             <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
           </svg>
         </TBtn>
-        <div style={{ width:1, height:22, background:C.border, margin:"0 3px" }}/>
-        {/* + */}
-        <TBtn title="Add indicator"><IcPlus/></TBtn>
-        <div style={{ width:1, height:22, background:C.border, margin:"0 3px" }}/>
 
-        {/* Timeframe */}
+        <div style={{ width:1, height:22, background:C.border, margin:"0 2px" }}/>
+
+        {/* Timeframe selector with dropdown arrow */}
         <div style={{ position:"relative" }}>
           <button onClick={() => setShowTf(v=>!v)} style={{
-            background:"none", border:"none", color: showTfMenu ? C.gold : C.text,
+            display:"flex", alignItems:"center", gap:4,
+            background: showTfMenu ? C.gold+"18" : "none",
+            border:"none", color: showTfMenu ? C.gold : C.text,
             padding:"4px 8px", borderRadius:4, cursor:"pointer",
             fontSize:13, fontWeight:"600", lineHeight:"1",
-            backgroundColor: showTfMenu ? C.gold+"18" : "transparent",
-          }}>{timeframe}</button>
+          }}>
+            {timeframe}
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
           {showTfMenu && (
             <div style={{
-              position:"absolute", top:32, left:0, zIndex:100,
+              position:"absolute", top:34, left:0, zIndex:100,
               background:C.panel, border:`1px solid ${C.border}`,
               borderRadius:6, padding:"4px 0", boxShadow:"0 8px 24px #00000080",
               display:"flex", flexWrap:"wrap", width:130,
@@ -946,17 +989,23 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           )}
         </div>
 
-        <div style={{ width:1, height:22, background:C.border, margin:"0 3px" }}/>
-        <TBtn title="Candle type"><IcCandle/></TBtn>
-        <TBtn title="Indicators"><span style={{fontSize:12,fontWeight:"700",letterSpacing:"-0.5px",color:"inherit"}}>fx</span></TBtn>
-        <TBtn title="Templates"><IcFile/></TBtn>
-        <TBtn title="Draw rectangle"><IcRect/></TBtn>
-        <div style={{ width:1, height:22, background:C.border, margin:"0 3px" }}/>
-        <TBtn title="Chart properties"><IcHex/></TBtn>
+        <div style={{ width:1, height:22, background:C.border, margin:"0 2px" }}/>
+
+        {/* Chart type toggle: candlestick ↔ line */}
+        <TBtn
+          title={chartType === "candle" ? "Switch to Line chart" : "Switch to Candlestick chart"}
+          onClick={toggleChartType}
+        >
+          {chartType === "candle" ? <IcCandle/> : <IcLine/>}
+        </TBtn>
+
+        {/* Spacer — pushes fullscreen to the right, matching native layout */}
+        <div style={{ flex:1 }}/>
+
+        {/* Fullscreen */}
         <TBtn title={isWebFS ? "Exit Fullscreen" : "Fullscreen"} onClick={handleFullscreen} active={isWebFS}>
           {isWebFS ? <IcMin/> : <IcMax/>}
         </TBtn>
-        <TBtn title="Reset Chart" onClick={() => chartRef.current?.timeScale().fitContent()}><IcReset/></TBtn>
       </div>
 
       {/* ── Body: sidebar + chart ── */}
