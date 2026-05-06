@@ -121,6 +121,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [wsStatus,     setWsStatus]   = useState<"connecting"|"live"|"reconnecting"|"error">("connecting");
   const [dataLoaded,   setDataLoaded]  = useState(false);
   const [loadFailed,   setLoadFailed]  = useState(false);
+  const [loadErrorMsg, setLoadErrorMsg] = useState("");
   const [webDrawings,  setWebDrawings] = useState<any[]>([]);
   const [webCurrent,   setWebCurrent]  = useState<any>(null);
   const [showWebDraw,  setShowWebDraw] = useState(true);
@@ -317,14 +318,32 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     // We must build an absolute URL using EXPO_PUBLIC_DOMAIN (=$REPLIT_DEV_DOMAIN = shared proxy host).
     const binSym      = toBinanceSymbol(sym);
     const binInterval = toBinanceInterval(tf);
-    if (mountedRef.current) setLoadFailed(false);
+    if (mountedRef.current) { setLoadFailed(false); setLoadErrorMsg(""); }
 
+    // Build absolute API base URL.
+    // Expo web runs on *.expo.worf.replit.dev — a DIFFERENT origin from the shared
+    // Replit proxy (*.worf.replit.dev) that serves /api. A relative URL would hit
+    // Metro (404). Strategy:
+    //   1. EXPO_PUBLIC_DOMAIN env var (set in workflow = $REPLIT_DEV_DOMAIN = shared proxy host)
+    //   2. Hostname stripping: "abc.expo.worf.replit.dev" → "abc.worf.replit.dev"
+    //   3. Same-origin fallback (works in production where both are on same domain)
     const apiBase = (() => {
-      const d = (process.env as any).EXPO_PUBLIC_DOMAIN as string | undefined;
-      if (d) return `https://${d}`;
-      if (typeof window !== "undefined") return window.location.origin;
+      const envD = process.env.EXPO_PUBLIC_DOMAIN;
+      if (envD) { console.log("[Chart] apiBase from env:", envD); return `https://${envD}`; }
+      if (typeof window !== "undefined") {
+        const h = window.location.hostname;
+        if (h.includes(".expo.")) {
+          const proxyHost = h.replace(".expo.", ".");
+          console.log("[Chart] apiBase derived from hostname:", proxyHost);
+          return `${window.location.protocol}//${proxyHost}`;
+        }
+        console.log("[Chart] apiBase same-origin:", window.location.origin);
+        return window.location.origin;
+      }
       return "";
     })();
+
+    let lastErrMsg = "";
 
     async function fetchCandles(attempt: number): Promise<boolean> {
       const controller = new AbortController();
@@ -337,9 +356,14 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         console.log("[Chart] API response status:", res.status, res.statusText);
         let data: any;
         try { data = await res.json(); }
-        catch (pe) { console.log("[Chart] JSON parse error:", pe); return false; }
+        catch (pe) {
+          lastErrMsg = `JSON parse error (HTTP ${res.status}): ${pe}`;
+          console.log("[Chart] JSON parse error:", pe);
+          return false;
+        }
         if (!Array.isArray(data)) {
-          console.log("[Chart] unexpected response (not array):", JSON.stringify(data).slice(0, 200));
+          lastErrMsg = data?.error ? `API error: ${data.error}` : `Unexpected response (HTTP ${res.status}): ${JSON.stringify(data).slice(0, 120)}`;
+          console.log("[Chart] unexpected response:", lastErrMsg);
           return false;
         }
         if (!candleRef.current) return false;
@@ -367,8 +391,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         return true;
       } catch (err: any) {
         clearTimeout(tid);
-        const msg = err?.name === "AbortError" ? "request timed out (10s)" : String(err?.message ?? err);
-        console.log(`[Chart] fetch error attempt ${attempt}:`, msg);
+        lastErrMsg = err?.name === "AbortError" ? "Request timed out after 10s" : `Network error: ${err?.message ?? err}`;
+        console.log(`[Chart] fetch error attempt ${attempt}:`, lastErrMsg);
         return false;
       }
     }
@@ -380,7 +404,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     }
     if (mountedRef.current) {
       if (!loaded) {
-        console.log("[Chart] all 3 attempts failed — showing retry button");
+        console.log("[Chart] all 3 attempts failed:", lastErrMsg);
+        setLoadErrorMsg(lastErrMsg || "Unknown error — check console");
         setLoadFailed(true);
       }
       setDataLoaded(true);
@@ -1276,19 +1301,26 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         <div style={{
           position:"absolute", inset:0, zIndex:300,
           display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-          background:"rgba(19,23,34,0.82)", backdropFilter:"blur(2px)",
-          gap:14, pointerEvents:"none",
+          background:"rgba(19,23,34,0.87)", backdropFilter:"blur(2px)",
+          gap:12, pointerEvents:"none", padding:24,
         }}>
-          <span style={{ color:C.bear, fontSize:13, fontWeight:"600" }}>⚠ Failed to load candle history</span>
+          <span style={{ color:C.bear, fontSize:13, fontWeight:"700" }}>⚠ Failed to load candle history</span>
+          {!!loadErrorMsg && (
+            <span style={{
+              color:"#aaa", fontSize:11, textAlign:"center", maxWidth:320,
+              fontFamily:"monospace", wordBreak:"break-word", lineHeight:1.5,
+            }}>{loadErrorMsg}</span>
+          )}
           <button
             style={{
               background:C.gold, border:"none", borderRadius:7, color:"#131722",
               fontWeight:"700", fontSize:13, padding:"8px 22px", cursor:"pointer",
-              pointerEvents:"all",
+              pointerEvents:"all", marginTop:4,
             }}
             onClick={() => {
               setDataLoaded(false);
               setLoadFailed(false);
+              setLoadErrorMsg("");
               initChart(symRef.current, tfRef.current);
             }}
           >Retry</button>

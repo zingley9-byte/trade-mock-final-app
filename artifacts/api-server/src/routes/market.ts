@@ -14,15 +14,29 @@ const COINGECKO_IDS: Record<string, string> = {
 
 router.get("/market/klines", async (req, res) => {
   const { symbol, interval, limit } = req.query;
+  const binanceUrl = `${BINANCE_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=${limit ?? 120}`;
+  req.log.info({ symbol, interval, limit }, "klines request received");
+  console.log("[API] klines request received — symbol:", symbol, "interval:", interval, "limit:", limit);
   try {
-    const response = await fetch(
-      `${BINANCE_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=${limit ?? 120}`
-    );
-    const data = await response.json();
+    const response = await fetch(binanceUrl);
+    console.log("[API] Binance response status:", response.status, response.statusText);
+    req.log.info({ status: response.status }, "Binance klines response");
+    if (!response.ok) {
+      const text = await response.text();
+      console.log("[API] Binance error body:", text.slice(0, 200));
+      res.status(502).json({ error: `Binance returned ${response.status}: ${text.slice(0, 100)}` });
+      return;
+    }
+    const data = await response.json() as unknown[];
+    const count = Array.isArray(data) ? data.length : -1;
+    console.log("[API] candles count:", count);
+    req.log.info({ count }, "klines fetched successfully");
     res.json(data);
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.log("[API] klines fetch error:", msg);
     req.log.error({ err }, "Failed to fetch klines");
-    res.status(502).json({ error: "Failed to fetch market data" });
+    res.status(502).json({ error: `Failed to fetch market data: ${msg}` });
   }
 });
 
