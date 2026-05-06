@@ -171,6 +171,14 @@ export const LEVERAGES = [1, 5, 10, 25, 50, 80, 100];
 const INITIAL_BALANCE = 50000;
 const STORAGE_KEY = "trademock_state_v4";
 
+const LEGACY_KEYS = [
+  "demoBalance",
+  "initialBalance",
+  "portfolioValue",
+  "tradeMockPortfolio",
+  "portfolioState",
+];
+
 interface TradingContextType {
   balance: number;
   positions: Position[];
@@ -381,10 +389,22 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   async function loadState() {
     try {
+      // Remove stale keys from old demo versions (browser localStorage leftovers)
+      for (const key of LEGACY_KEYS) {
+        await AsyncStorage.removeItem(key).catch(() => {});
+      }
+
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (raw) {
         const saved = JSON.parse(raw);
-        if (saved.balance !== undefined) setBalance(saved.balance);
+
+        // Migrate: clamp any old demo balance (1,000,000) back to 50,000
+        let loadedBalance: number | undefined = saved.balance;
+        if (loadedBalance !== undefined && loadedBalance >= 1_000_000) {
+          loadedBalance = INITIAL_BALANCE;
+        }
+
+        if (loadedBalance !== undefined) setBalance(loadedBalance);
         if (saved.positions) setPositions(saved.positions);
         if (saved.tradeHistory) setTradeHistory(saved.tradeHistory);
         if (saved.theme) { setTheme(saved.theme); Appearance.setColorScheme(saved.theme); }
@@ -392,6 +412,14 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         if (saved.marketFilter) setMarketFilterState(saved.marketFilter);
         if (saved.currencyMode) setCurrencyModeState(saved.currencyMode);
         if (Array.isArray(saved.resetTimestamps)) setResetTimestamps(saved.resetTimestamps);
+
+        // Persist the corrected balance immediately so next load is clean
+        if (saved.balance !== undefined && saved.balance >= 1_000_000) {
+          await AsyncStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ ...saved, balance: INITIAL_BALANCE })
+          ).catch(() => {});
+        }
       }
     } catch {}
   }
@@ -785,6 +813,10 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     setPositions([]);
     setTradeHistory([]);
     setLeverage(1);
+    // Clear any lingering legacy keys so old cached balances can't come back
+    for (const key of LEGACY_KEYS) {
+      AsyncStorage.removeItem(key).catch(() => {});
+    }
     saveState(INITIAL_BALANCE, [], [], theme, 1, marketFilter, currencyMode, newTimestamps);
     return { allowed: true, message: "Account reset successfully." };
   }, [resetTimestamps, theme, marketFilter, currencyMode]);
