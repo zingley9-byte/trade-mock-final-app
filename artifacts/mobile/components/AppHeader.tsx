@@ -239,6 +239,7 @@ export default function AppHeader() {
           try {
             setProfileImage(null);
             await performLogout();
+            setLoggingOut(false);
             router.replace("/auth");
           } catch {
             setLoggingOut(false);
