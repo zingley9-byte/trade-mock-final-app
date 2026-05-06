@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Alert,
   Dimensions,
@@ -220,96 +220,63 @@ export default function PortfolioScreen() {
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No open positions</Text>
           </View>
         ) : (
-          <View style={{ marginHorizontal: 14, marginTop: 4 }}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Open Positions ({positions.length})
-            </Text>
-            {positions.map((pos) => {
-              // Use per-symbol live price (same logic as getRunningPnL in context)
+          <View style={[styles.posList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.posListHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
+                Open Positions
+              </Text>
+              <Text style={[styles.posCount, { backgroundColor: colors.primary + "22", color: colors.primary }]}>
+                {positions.length}
+              </Text>
+            </View>
+
+            {positions.map((pos, idx) => {
+              // Live price — same logic as getRunningPnL in context
               const livePrice = (symbolPrices[pos.symbol.id] && symbolPrices[pos.symbol.id] > 0)
                 ? symbolPrices[pos.symbol.id]
                 : (pos.symbol.id === selectedSymbol.id && currentPrice > 0 ? currentPrice : pos.entryPrice);
               const priceDiff = pos.side === "buy"
                 ? livePrice - pos.entryPrice
                 : pos.entryPrice - livePrice;
-              // calcPnL returns USD; convert to INR so fmt() works correctly
-              const posPnlUsd = priceDiff * pos.quantity * pos.leverage;
-              const posPnlRaw = Math.max(-pos.margin, posPnlUsd * usdToInr);
-              // Guard against -0.00 floating-point display artifact
+              const posPnlRaw = Math.max(-pos.margin, priceDiff * pos.quantity * pos.leverage * usdToInr);
               const posPnl    = Math.abs(posPnlRaw) < 0.005 ? 0 : posPnlRaw;
-              const pnlPctRaw = pos.margin > 0 ? (posPnlRaw / pos.margin) * 100 : 0;
-              const pnlPct    = Math.abs(pnlPctRaw) < 0.005 ? 0 : pnlPctRaw;
-              const isBuy  = pos.side === "buy";
-              const accent = isBuy ? colors.bull : colors.bear;
+              const isBuy     = pos.side === "buy";
+              const pnlColor  = posPnl >= 0 ? colors.bull : colors.bear;
+              const isLast    = idx === positions.length - 1;
 
               return (
                 <TouchableOpacity
                   key={pos.id}
-                  activeOpacity={0.82}
+                  activeOpacity={0.75}
                   onPress={() => setDetailPos(pos)}
-                  style={[styles.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  style={[
+                    styles.posRow,
+                    !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+                  ]}
                 >
-                  {/* Top row: logo + badge + symbol/lev + PnL */}
-                  <View style={styles.posTop}>
-                    <View style={styles.posLeft}>
-                      <CoinLogo symbolId={pos.symbol.id} size={34} />
-                      <View style={[styles.sideBadge, { backgroundColor: isBuy ? colors.bullBg : colors.bearBg }]}>
-                        <Text style={[styles.sideText, { color: accent }]}>
-                          {isBuy ? "▲ LONG" : "▼ SHORT"}
-                        </Text>
-                      </View>
-                      <View>
-                        <Text style={[styles.posSymbol, { color: colors.foreground }]}>{pos.symbol.label}</Text>
-                        <Text style={[styles.posLev, { color: colors.primary }]}>×{pos.leverage}  ·  {pos.quantity} lot</Text>
-                      </View>
-                    </View>
-                    <View style={{ alignItems: "flex-end", gap: 3 }}>
-                      <Text style={[styles.posPnlSmall, { color: posPnl >= 0 ? colors.bull : colors.bear }]}>
-                        {posPnl >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
+                  {/* Left: logo + text */}
+                  <CoinLogo symbolId={pos.symbol.id} size={38} />
+
+                  <View style={styles.posRowMid}>
+                    <Text style={[styles.posRowSymbol, { color: colors.foreground }]}>
+                      {pos.symbol.label}
+                    </Text>
+                    <Text style={[styles.posRowSub, { color: colors.mutedForeground }]}>
+                      {pos.quantity} lot{"  ·  "}
+                      <Text style={{ color: isBuy ? colors.bull : colors.bear, fontWeight: "700" }}>
+                        {isBuy ? "LONG" : "SHORT"}
                       </Text>
-                      <Text style={[styles.detailsHint, { color: colors.mutedForeground }]}>Details ›</Text>
-                    </View>
+                      {"  ·  "}
+                      <Text style={{ color: colors.mutedForeground }}>Open</Text>
+                    </Text>
                   </View>
 
-                  {/* Stats grid */}
-                  <View style={[styles.statsGrid, { backgroundColor: colors.muted, borderRadius: 8 }]}>
-                    <StatCell label="Entry"   value={fmtPrice(pos.entryPrice)} colors={colors} />
-                    <StatCell label="Current" value={fmtPrice(livePrice)}      colors={colors} />
-                    <StatCell label="Margin"  value={fmt(pos.margin, 0)}        colors={colors} />
-                    <StatCell label="PnL"     value={`${posPnl >= 0 ? "+" : ""}${fmt(posPnl)}`} valueColor={posPnl >= 0 ? colors.bull : colors.bear} colors={colors} />
-                  </View>
-
-                  {/* SL / TP row */}
-                  <View style={styles.slTpRow}>
-                    <View style={styles.slTpItem}>
-                      <Text style={[styles.slTpLabel, { color: colors.mutedForeground }]}>Stop Loss</Text>
-                      <Text style={[styles.slTpValue, { color: pos.stopLoss ? colors.bear : colors.mutedForeground }]}>
-                        {pos.stopLoss ? fmtPrice(pos.stopLoss) : "—"}
-                      </Text>
-                    </View>
-                    <View style={[styles.slTpDivider, { backgroundColor: colors.border }]} />
-                    <View style={styles.slTpItem}>
-                      <Text style={[styles.slTpLabel, { color: colors.mutedForeground }]}>Take Profit</Text>
-                      <Text style={[styles.slTpValue, { color: pos.takeProfit ? colors.bull : colors.mutedForeground }]}>
-                        {pos.takeProfit ? fmtPrice(pos.takeProfit) : "—"}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Action buttons */}
-                  <View style={styles.actionRow}>
-                    <TouchableOpacity
-                      style={[styles.btnModify, { borderColor: colors.primary + "66", backgroundColor: colors.primary + "12" }]}
-                      onPress={() => openModify(pos)}
-                    >
-                      <Text style={[styles.btnModifyText, { color: colors.primary }]}>Modify</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.btnClose, { borderColor: colors.bear + "66", backgroundColor: colors.bear + "12" }]}
-                      onPress={() => handleClose(pos.id, pos.symbol.label)}
-                    >
-                      <Text style={[styles.btnCloseText, { color: colors.bear }]}>Close Position</Text>
-                    </TouchableOpacity>
+                  {/* Right: PnL + chevron */}
+                  <View style={styles.posRowRight}>
+                    <Text style={[styles.posRowPnl, { color: pnlColor }]}>
+                      {posPnl >= 0 ? "+" : ""}{fmt(posPnl)}
+                    </Text>
+                    <Text style={[styles.posRowChevron, { color: colors.mutedForeground }]}>›</Text>
                   </View>
                 </TouchableOpacity>
               );
@@ -491,18 +458,6 @@ export default function PortfolioScreen() {
   );
 }
 
-function StatCell({ label, value, colors, valueColor }: {
-  label: string; value: string;
-  colors: ReturnType<typeof useColors>;
-  valueColor?: string;
-}) {
-  return (
-    <View style={styles.statCell}>
-      <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{label}</Text>
-      <Text style={[styles.statValue, { color: valueColor ?? colors.foreground }]}>{value}</Text>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
@@ -524,32 +479,25 @@ const styles = StyleSheet.create({
   emptyPos: { alignItems: "center", justifyContent: "center", gap: 8, marginTop: 60 },
   emptyText: { fontSize: 15, fontWeight: "500" },
 
-  posCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 12 },
-  posTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  posLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  sideBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5 },
-  sideText: { fontSize: 11, fontWeight: "800" },
-  posSymbol: { fontSize: 14, fontWeight: "700" },
-  posLev: { fontSize: 11, fontWeight: "600", marginTop: 1 },
-  posPnlSmall: { fontSize: 15, fontWeight: "800" },
-  detailsHint: { fontSize: 11, fontWeight: "600", opacity: 0.65 },
+  // ── Open Positions list ──────────────────────────────────────────
+  posList: { marginHorizontal: 14, borderRadius: 14, borderWidth: 1, overflow: "hidden", marginBottom: 8 },
+  posListHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  posCount: { fontSize: 12, fontWeight: "700", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
 
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", padding: 10, gap: 0, marginBottom: 10 },
-  statCell: { width: "50%", paddingVertical: 4, paddingHorizontal: 6 },
-  statLabel: { fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
-  statValue: { fontSize: 13, fontWeight: "600" },
-
-  slTpRow: { flexDirection: "row", alignItems: "center", marginBottom: 12, paddingHorizontal: 2 },
-  slTpItem: { flex: 1 },
-  slTpDivider: { width: 1, height: 32, marginHorizontal: 12 },
-  slTpLabel: { fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 },
-  slTpValue: { fontSize: 13, fontWeight: "700" },
-
-  actionRow: { flexDirection: "row", gap: 10 },
-  btnModify: { flex: 1, paddingVertical: 9, borderRadius: 8, borderWidth: 1, alignItems: "center" },
-  btnModifyText: { fontSize: 13, fontWeight: "700" },
-  btnClose: { flex: 1.4, paddingVertical: 9, borderRadius: 8, borderWidth: 1, alignItems: "center" },
-  btnCloseText: { fontSize: 13, fontWeight: "700" },
+  posRow: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 13, gap: 12,
+  },
+  posRowMid: { flex: 1 },
+  posRowSymbol: { fontSize: 15, fontWeight: "700", marginBottom: 3 },
+  posRowSub: { fontSize: 12 },
+  posRowRight: { alignItems: "flex-end", gap: 2 },
+  posRowPnl: { fontSize: 15, fontWeight: "700" },
+  posRowChevron: { fontSize: 20, lineHeight: 22, fontWeight: "300", opacity: 0.5 },
 
   // Modal / Sheet
   modalOverlay: { flex: 1, justifyContent: "flex-end" },
