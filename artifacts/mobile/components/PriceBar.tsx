@@ -13,6 +13,7 @@ export default function PriceBar() {
     low24h,
     volume24h,
     isConnected,
+    dataSource,
     currencyMode,
     usdToInr,
   } = useTradingContext();
@@ -42,6 +43,11 @@ export default function PriceBar() {
           </Text>
         </View>
         {isConnected && <View style={[styles.dot, { backgroundColor: colors.bull }]} />}
+        {dataSource === "mexc" && (
+          <View style={[styles.sourceBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+            <Text style={[styles.sourceText, { color: colors.mutedForeground }]}>Data: MEXC</Text>
+          </View>
+        )}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.stats}>
@@ -70,6 +76,11 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   change: { fontSize: 12, fontWeight: "700" as const },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
+  sourceBadge: {
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  sourceText: { fontSize: 9, fontWeight: "600" as const, letterSpacing: 0.2 },
   stats: { flexDirection: "row", gap: 16 },
   stat: {},
   statLabel: { fontSize: 9, marginBottom: 1, letterSpacing: 0.3 },

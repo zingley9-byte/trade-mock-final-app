@@ -185,6 +185,7 @@ interface TradingContextType {
   chartType: "candle" | "line" | "area";
   leverage: number;
   isConnected: boolean;
+  dataSource: "binance" | "mexc";
   priceChange24h: number;
   high24h: number;
   low24h: number;
@@ -285,6 +286,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [chartType, setChartType] = useState<"candle" | "line" | "area">("candle");
   const [leverage, setLeverage] = useState(1);
   const [isConnected, setIsConnected] = useState(false);
+  const [dataSource, setDataSource] = useState<"binance" | "mexc">("mexc");
   const [priceChange24h, setPriceChange24h] = useState(0);
   const [high24h, setHigh24h] = useState(0);
   const [low24h, setLow24h] = useState(0);
@@ -501,13 +503,16 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(wsTimeout);
         if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
         setIsConnected(true);
+        setDataSource("binance");
       };
       ws.onclose = () => {
         setIsConnected(false);
+        setDataSource("mexc");
         if (!wsConnected) startPolling(symbol.id);
       };
       ws.onerror = () => {
         setIsConnected(false);
+        setDataSource("mexc");
         startPolling(symbol.id);
       };
 
@@ -826,6 +831,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         chartType,
         leverage,
         isConnected,
+        dataSource,
         priceChange24h,
         high24h,
         low24h,
