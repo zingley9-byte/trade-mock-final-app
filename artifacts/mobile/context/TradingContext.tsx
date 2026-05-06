@@ -464,88 +464,121 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       }
 
       let pollInterval: ReturnType<typeof setInterval> | null = null;
-      let wsConnected = false;
+      let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+      let reconnectDelay = 2000;
+      // Use object so onclose closure always reads the latest value
+      const state = { stopped: false };
 
       function startPolling(symbolId: string) {
         if (pollInterval) return;
+        setIsConnected(false);
+        setDataSource("mexc");
         pollInterval = setInterval(async () => {
           try {
-            const res = await fetch(`${API_BASE}/market/prices`);
-            const map: Record<string, { price: number; change24h: number }> = await res.json();
-            if (map[symbolId]?.price > 0) {
-              const price = map[symbolId].price;
+            const res = await fetch(`${API_BASE}/market/ticker24hr?symbol=${symbolId}`);
+            if (!res.ok) return;
+            const d = await res.json() as Record<string, string>;
+            const price = parseFloat(d.lastPrice ?? "0");
+            if (price > 0) {
+              setCurrentPrice(price);
+              const pct = parseFloat(d.priceChangePercent ?? "0");
+              setPriceChange24h(pct);
+              setSymbolChanges((prev) => ({ ...prev, [symbolId]: pct }));
+              const h = parseFloat(d.highPrice ?? "0");
+              const l = parseFloat(d.lowPrice  ?? "0");
+              const v = parseFloat(d.volume     ?? "0");
+              if (h > 0) setHigh24h(h);
+              if (l > 0) setLow24h(l);
+              if (v > 0) setVolume24h(v);
+              setCandles((prev) => {
+                if (prev.length === 0) return prev;
+                const last = { ...prev[prev.length - 1] };
+                last.close = price;
+                last.high  = Math.max(last.high, price);
+                last.low   = Math.min(last.low,  price);
+                return [...prev.slice(0, -1), last];
+              });
+            }
+          } catch {}
+        }, 5000);
+      }
+
+      function connect() {
+        if (state.stopped) return;
+
+        // Binance individual symbol ticker stream:
+        // c = last price, P = 24h change %, h = 24h high, l = 24h low, v = base volume
+        const stream = `${symbol.id.toLowerCase()}@ticker`;
+        const ws = new WebSocket(`${BINANCE_WS}/${stream}`);
+        wsRef.current = ws;
+        let wsConnected = false;
+
+        const wsTimeout = setTimeout(() => {
+          if (!wsConnected && !state.stopped) startPolling(symbol.id);
+        }, 5000);
+
+        ws.onopen = () => {
+          wsConnected = true;
+          reconnectDelay = 2000;
+          clearTimeout(wsTimeout);
+          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+          setIsConnected(true);
+          setDataSource("binance");
+        };
+
+        ws.onclose = () => {
+          clearTimeout(wsTimeout);
+          setIsConnected(false);
+          setDataSource("mexc");
+          if (!state.stopped) {
+            startPolling(symbol.id);
+            reconnectTimeout = setTimeout(() => {
+              if (state.stopped) return;
+              if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+              connect();
+            }, reconnectDelay);
+            reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+          }
+        };
+
+        ws.onerror = () => {
+          setIsConnected(false);
+          setDataSource("mexc");
+          if (!state.stopped) startPolling(symbol.id);
+        };
+
+        ws.onmessage = (evt) => {
+          try {
+            const msg = JSON.parse(evt.data as string) as Record<string, string>;
+            const price = parseFloat(msg.c ?? "0");
+            if (price > 0) {
               setCurrentPrice(price);
               setCandles((prev) => {
                 if (prev.length === 0) return prev;
                 const last = { ...prev[prev.length - 1] };
                 last.close = price;
-                last.high = Math.max(last.high, price);
-                last.low = Math.min(last.low, price);
-                last.time = Date.now();
+                last.high  = Math.max(last.high, price);
+                last.low   = Math.min(last.low,  price);
                 return [...prev.slice(0, -1), last];
               });
             }
+            if (msg.P !== undefined) {
+              const pct = parseFloat(msg.P);
+              setPriceChange24h(pct);
+              setSymbolChanges((prev) => ({ ...prev, [symbol.id]: pct }));
+            }
+            if (msg.h) setHigh24h(parseFloat(msg.h));
+            if (msg.l) setLow24h(parseFloat(msg.l));
+            if (msg.v) setVolume24h(parseFloat(msg.v));
           } catch {}
-        }, 8000);
-        setIsConnected(true);
+        };
       }
 
-      const stream = `${symbol.id.toLowerCase()}@kline_1m`;
-      const ws = new WebSocket(`${BINANCE_WS}/${stream}`);
-      wsRef.current = ws;
-
-      const wsTimeout = setTimeout(() => {
-        if (!wsConnected) startPolling(symbol.id);
-      }, 5000);
-
-      ws.onopen = () => {
-        wsConnected = true;
-        clearTimeout(wsTimeout);
-        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-        setIsConnected(true);
-        setDataSource("binance");
-      };
-      ws.onclose = () => {
-        setIsConnected(false);
-        setDataSource("mexc");
-        if (!wsConnected) startPolling(symbol.id);
-      };
-      ws.onerror = () => {
-        setIsConnected(false);
-        setDataSource("mexc");
-        startPolling(symbol.id);
-      };
-
-      ws.onmessage = (evt) => {
-        try {
-          const msg = JSON.parse(evt.data);
-          if (msg.k) {
-            const k = msg.k;
-            const price = parseFloat(k.c);
-            setCurrentPrice(price);
-            setCandles((prev) => {
-              if (prev.length === 0) return prev;
-              const last = prev[prev.length - 1];
-              const newCandle: Candle = {
-                time: k.t,
-                open: parseFloat(k.o),
-                high: parseFloat(k.h),
-                low: parseFloat(k.l),
-                close: price,
-                volume: parseFloat(k.v),
-              };
-              if (k.t === last.time) {
-                return [...prev.slice(0, -1), newCandle];
-              } else {
-                return [...prev, newCandle];
-              }
-            });
-          }
-        } catch {}
-      };
+      connect();
 
       return () => {
-        clearTimeout(wsTimeout);
+        state.stopped = true;
+        if (reconnectTimeout) clearTimeout(reconnectTimeout);
         if (pollInterval) clearInterval(pollInterval);
       };
     },
@@ -561,11 +594,12 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     fetch24hStats(selectedSymbol);
     const cleanup = connectWebSocket(selectedSymbol);
     return () => {
+      // Stop reconnect logic BEFORE closing so onclose doesn't trigger a new attempt
+      if (cleanup) cleanup();
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
-      if (cleanup) cleanup();
     };
   }, [selectedSymbol]);
 
