@@ -1,6 +1,6 @@
 /**
  * NativeWebViewChart — Full TradingView-style chart for Android & iOS
- * Uses react-native-webview + lightweight-charts (bundled inline) + Binance REST+WS
+ * Uses react-native-webview + lightweight-charts (bundled inline) + MEXC REST + Binance WS
  * Identical look to the web chart: dark theme, candles, volume, crosshair,
  * timeframe picker, drawing toolbar, fullscreen, OHLCV tooltip, IST clock.
  */
@@ -503,10 +503,10 @@ const TF_MAP   = {
   '1m':'1m','3m':'3m','5m':'5m','15m':'15m','30m':'30m',
   '1h':'1h','2h':'2h','4h':'4h','1D':'1d','1W':'1w',
 };
-// BYBIT_TF_MAP: Bybit REST kline interval
-const BYBIT_TF_MAP = {
-  '1m':'1','3m':'3','5m':'5','15m':'15','30m':'30',
-  '1h':'60','2h':'120','4h':'240','1D':'D','1W':'W',
+// MEXC_TF_MAP: MEXC REST kline interval (Binance-compatible format, device-accessible)
+const MEXC_TF_MAP = {
+  '1m':'1m','3m':'3m','5m':'5m','15m':'15m','30m':'30m',
+  '1h':'60m','2h':'2h','4h':'4h','1D':'1d','1W':'1W',
 };
 let currentTf  = '5m';
 let chart, candleSeries, volSeries;
@@ -737,39 +737,37 @@ function toggleGrid(btn) {
 // ── Data loading ─────────────────────────────────────────────────────────────
 async function loadData(sym, tf) {
   const id = ++loadId;
-  const bybitInterval = BYBIT_TF_MAP[tf] || '5';
-  console.log('[NativeChart] fetching candles — sym:', sym, 'bybitInterval:', bybitInterval);
+  const mexcInterval = MEXC_TF_MAP[tf] || '5m';
+  const url = 'https://api.mexc.com/api/v3/klines?symbol='+sym+'&interval='+mexcInterval+'&limit=1000';
+  console.log('Using proxy klines API');
+  console.log('[NativeChart] fetching MEXC candles — sym:', sym, 'interval:', mexcInterval);
   try {
-    const res = await fetch(
-      'https://api.bybit.com/v5/market/kline?category=linear&symbol='+sym+'&interval='+bybitInterval+'&limit=200'
-    );
+    const res = await fetch(url);
     if (!res.ok || loadId !== id) return;
-    const json = await res.json();
-    if (json.retCode !== 0) throw new Error('Bybit error: ' + (json.retMsg || json.retCode));
-    const list = json.result && json.result.list ? json.result.list : [];
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) throw new Error('MEXC empty response');
     if (loadId !== id) return;
-    // Bybit returns newest-first — sort ascending by timestamp
-    var sorted = list.slice().sort(function(a, b){ return Number(a[0]) - Number(b[0]); });
-    console.log('[NativeChart] candles loaded:', sorted.length);
-    var candles = sorted.map(function(k) { return {
+    // MEXC returns Binance-compatible format: [[openTimeMs, open, high, low, close, volume, ...], ...]
+    // Already sorted ascending (oldest first)
+    console.log('Candles received count: ' + data.length);
+    var candles = data.map(function(k) { return {
       time: Math.floor(Number(k[0])/1000),
       open: parseFloat(k[1]), high: parseFloat(k[2]),
       low: parseFloat(k[3]), close: parseFloat(k[4]),
     }; });
-    var vols = sorted.map(function(k) { return {
+    var vols = data.map(function(k) { return {
       time: Math.floor(Number(k[0])/1000),
       value: parseFloat(k[5]),
       color: parseFloat(k[4]) >= parseFloat(k[1]) ? '#26a69a55' : '#ef535055',
     }; });
     _rawCandles = candles;
-    if (CHART_TYPE === 'line') {
-      candleSeries.setData(candles.map(function(c){return{time:c.time,value:c.close};}));
-    } else {
-      candleSeries.setData(candles);
-    }
+    var mappedCandles = CHART_TYPE === 'line'
+      ? candles.map(function(c){return{time:c.time,value:c.close};})
+      : candles;
+    candleSeries.setData(mappedCandles);
     volSeries.setData(vols);
     chart.timeScale().fitContent();
-    console.log('[NativeChart] setData success');
+    console.log('[NativeChart] candlestickSeries.setData success — count:', candles.length);
     connectWS(sym, tf, id);
   } catch(e) {
     console.log('[NativeChart] fetch error:', e && e.message ? e.message : String(e));

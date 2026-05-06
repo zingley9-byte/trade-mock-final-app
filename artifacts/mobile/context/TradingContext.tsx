@@ -263,16 +263,9 @@ function getPosPrice(
   return 0;
 }
 
-const BINANCE_REST = "https://api.binance.com/api/v3";
 const BINANCE_WS = "wss://stream.binance.com:9443/ws";
 const API_BASE = "/api";
-const BYBIT_REST = "https://api.bybit.com/v5/market";
-
-// Bybit REST interval values
-const BYBIT_INTERVAL_MAP: Record<Timeframe, string> = {
-  "1m": "1", "5m": "5", "15m": "15", "30m": "30", "1h": "60", "1D": "D",
-};
-// Binance-format intervals (kept for backend proxy fallback)
+// MEXC-compatible intervals (same as Binance, except 1h→60m handled by backend)
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
   "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h", "1D": "1d",
 };
@@ -338,58 +331,25 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
     async function fetchAllPrices() {
       try {
-        const [priceRes, statsRes] = await Promise.all([
-          fetch(`${BINANCE_REST}/ticker/price?symbols=${symbolsParam}`),
-          fetch(`${BINANCE_REST}/ticker/24hr?symbols=${symbolsParam}`),
-        ]);
-        const priceData: Array<{ symbol: string; price: string }> = await priceRes.json();
-        const statsData: Array<{ symbol: string; priceChangePercent: string }> = await statsRes.json();
-
-        if (Array.isArray(priceData)) {
-          setSymbolPrices((prev) => {
-            const next = { ...prev };
-            for (const item of priceData) {
-              const p = parseFloat(item.price);
-              if (p > 0) next[item.symbol] = p;
-            }
-            return next;
-          });
-        }
-        if (Array.isArray(statsData)) {
-          setSymbolChanges((prev) => {
-            const next = { ...prev };
-            for (const item of statsData) {
-              next[item.symbol] = parseFloat(item.priceChangePercent);
-            }
-            return next;
-          });
-          // Keep priceChange24h in sync with the same bulk data (single source of truth)
-          const selEntry = statsData.find((d) => d.symbol === selectedSymbolIdRef.current);
-          if (selEntry) setPriceChange24h(parseFloat(selEntry.priceChangePercent));
-        }
-      } catch {
-        try {
-          const res = await fetch(`${API_BASE}/market/prices`);
-          const map: Record<string, { price: number; change24h: number }> = await res.json();
-          setSymbolPrices((prev) => {
-            const next = { ...prev };
-            for (const id of CRYPTO_IDS) {
-              if (map[id]?.price > 0) next[id] = map[id].price;
-            }
-            return next;
-          });
-          setSymbolChanges((prev) => {
-            const next = { ...prev };
-            for (const id of CRYPTO_IDS) {
-              if (map[id] !== undefined) next[id] = map[id].change24h;
-            }
-            return next;
-          });
-          // Sync priceChange24h from fallback bulk data too
-          const selId = selectedSymbolIdRef.current;
-          if (map[selId] !== undefined) setPriceChange24h(map[selId].change24h);
-        } catch {}
-      }
+        const res = await fetch(`${API_BASE}/market/prices`);
+        const map: Record<string, { price: number; change24h: number }> = await res.json();
+        setSymbolPrices((prev) => {
+          const next = { ...prev };
+          for (const id of CRYPTO_IDS) {
+            if (map[id]?.price > 0) next[id] = map[id].price;
+          }
+          return next;
+        });
+        setSymbolChanges((prev) => {
+          const next = { ...prev };
+          for (const id of CRYPTO_IDS) {
+            if (map[id] !== undefined) next[id] = map[id].change24h;
+          }
+          return next;
+        });
+        const selId = selectedSymbolIdRef.current;
+        if (map[selId] !== undefined) setPriceChange24h(map[selId].change24h);
+      } catch {}
     }
     fetchAllPricesRef.current = fetchAllPrices;
     fetchAllPrices();
@@ -447,62 +407,36 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   const fetchCandles = useCallback(
     async (symbol: MarketSymbol, tf: Timeframe) => {
-      const bybitInterval = BYBIT_INTERVAL_MAP[tf] ?? "5";
-      const binInterval   = TIMEFRAME_MAP[tf];
+      const binInterval = TIMEFRAME_MAP[tf];
 
-      // Try Bybit direct first (works on native, CORS-friendly for browser too)
-      // Fall back to backend proxy (always works on web via shared proxy)
-      const tries: Array<() => Promise<Response>> = [
-        () => fetch(`${BYBIT_REST}/kline?category=linear&symbol=${symbol.id}&interval=${bybitInterval}&limit=120`),
-        () => fetch(`${API_BASE}/market/klines?symbol=${symbol.id}&interval=${binInterval}&limit=120`),
-      ];
+      // Use backend proxy only — MEXC-backed, Binance-compatible array format
+      console.log("Using proxy klines API");
+      try {
+        const res  = await fetch(`${API_BASE}/market/klines?symbol=${symbol.id}&interval=${binInterval}&limit=1000`);
+        const data = await res.json();
 
-      for (const fetchFn of tries) {
-        try {
-          const res  = await fetchFn();
-          const data = await res.json();
-
-          // Bybit format: { retCode: 0, result: { list: [[time, o, h, l, c, v], ...] } }
-          if (data?.retCode === 0 && Array.isArray(data?.result?.list)) {
-            const list = data.result.list as unknown[][];
-            // Bybit returns newest-first — sort ascending
-            const sorted = [...list].sort((a, b) => Number(a[0]) - Number(b[0]));
-            const parsed: Candle[] = sorted.map((k) => ({
-              time:   Number(k[0]),
-              open:   parseFloat(k[1] as string),
-              high:   parseFloat(k[2] as string),
-              low:    parseFloat(k[3] as string),
-              close:  parseFloat(k[4] as string),
-              volume: parseFloat(k[5] as string),
-            }));
-            setCandles(parsed);
-            if (parsed.length > 0) setCurrentPrice(parsed[parsed.length - 1].close);
-            break;
-          }
-
-          // Binance-compatible format from backend proxy: [[timeMs, o, h, l, c, v], ...]
-          if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0])) {
-            const parsed: Candle[] = data.map((k: unknown[]) => ({
-              time:   (k[0] as number),
-              open:   parseFloat(k[1] as string),
-              high:   parseFloat(k[2] as string),
-              low:    parseFloat(k[3] as string),
-              close:  parseFloat(k[4] as string),
-              volume: parseFloat(k[5] as string),
-            }));
-            setCandles(parsed);
-            if (parsed.length > 0) setCurrentPrice(parsed[parsed.length - 1].close);
-            break;
-          }
-        } catch {}
-      }
+        // Binance-compatible format: [[timeMs, o, h, l, c, v], ...]
+        if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0])) {
+          const parsed: Candle[] = data.map((k: unknown[]) => ({
+            time:   (k[0] as number),
+            open:   parseFloat(k[1] as string),
+            high:   parseFloat(k[2] as string),
+            low:    parseFloat(k[3] as string),
+            close:  parseFloat(k[4] as string),
+            volume: parseFloat(k[5] as string),
+          }));
+          console.log("Candles received count:", parsed.length);
+          setCandles(parsed);
+          if (parsed.length > 0) setCurrentPrice(parsed[parsed.length - 1].close);
+        }
+      } catch {}
     },
     []
   );
 
   const fetch24hStats = useCallback(async (symbol: MarketSymbol) => {
     try {
-      const res = await fetch(`${BINANCE_REST}/ticker/24hr?symbol=${symbol.id}`);
+      const res = await fetch(`${API_BASE}/market/ticker24hr?symbol=${symbol.id}`);
       const data = await res.json();
       if (data && data.priceChangePercent) {
         const pct = parseFloat(data.priceChangePercent);
@@ -510,23 +444,9 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         setHigh24h(parseFloat(data.highPrice));
         setLow24h(parseFloat(data.lowPrice));
         setVolume24h(parseFloat(data.volume));
-        // Keep symbolChanges in sync (same data, single source of truth)
         setSymbolChanges((prev) => ({ ...prev, [symbol.id]: pct }));
       }
-    } catch {
-      try {
-        const res = await fetch(`${API_BASE}/market/ticker24hr?symbol=${symbol.id}`);
-        const data = await res.json();
-        if (data && data.priceChangePercent) {
-          const pct = parseFloat(data.priceChangePercent);
-          setPriceChange24h(pct);
-          setHigh24h(parseFloat(data.highPrice));
-          setLow24h(parseFloat(data.lowPrice));
-          setVolume24h(parseFloat(data.volume));
-          setSymbolChanges((prev) => ({ ...prev, [symbol.id]: pct }));
-        }
-      } catch {}
-    }
+    } catch {}
   }, []);
 
   const connectWebSocket = useCallback(
