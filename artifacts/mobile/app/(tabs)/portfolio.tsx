@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Alert,
   Dimensions,
@@ -18,7 +18,7 @@ import SvgIcon from "@/components/SvgIcon";
 import AdBanner from "@/components/AdBanner";
 import interstitialAd from "@/components/InterstitialAdManager";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTradingContext, Position } from "@/context/TradingContext";
+import { useTradingContext, Position, calcPnL } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import { usePrivacy } from "@/context/PrivacyContext";
 import CoinLogo from "@/components/CoinLogo";
@@ -34,11 +34,10 @@ export default function PortfolioScreen() {
   const {
     balance,
     positions,
+    tradeHistory,
     currentPrice,
     selectedSymbol,
     symbolPrices,
-    getRunningPnL,
-    getTotalPortfolioValue,
     closePosition,
     modifyPosition,
     resetAccount,
@@ -62,10 +61,30 @@ export default function PortfolioScreen() {
   const [confirmCloseSymbol, setConfirmCloseSymbol] = useState("");
   const [detailPos, setDetailPos]                 = useState<Position | null>(null);
   const [toast, setToast]                         = useState<string | null>(null);
+  const [selectedPosId, setSelectedPosId]         = useState<string | null>(null);
 
-  const runningPnL = getRunningPnL();
-  const totalValue = getTotalPortfolioValue();
-  const totalPnL   = totalValue - INITIAL_BALANCE;
+  // Clear stale selection when a position is closed externally
+  useEffect(() => {
+    if (selectedPosId && !positions.find((p) => p.id === selectedPosId)) {
+      setSelectedPosId(null);
+    }
+  }, [positions, selectedPosId]);
+
+  // ── Shared PnL helper — identical to calcPnL + clamp used in TradingContext ──
+  function getPosPnl(pos: Position): number {
+    const livePrice = (symbolPrices[pos.symbol.id] && symbolPrices[pos.symbol.id] > 0)
+      ? symbolPrices[pos.symbol.id]
+      : (pos.symbol.id === selectedSymbol.id && currentPrice > 0 ? currentPrice : pos.entryPrice);
+    const raw = calcPnL(pos, livePrice);
+    const clamped = Math.max(-pos.margin, raw);
+    return Math.abs(clamped) < 0.00001 ? 0 : clamped;
+  }
+
+  // ── One source of truth for portfolio totals ─────────────────────────────────
+  const unrealizedPnL = positions.reduce((sum, pos) => sum + getPosPnl(pos), 0);
+  const realizedPnL   = tradeHistory.reduce((sum, t) => sum + t.pnl, 0);
+  const totalPnL      = unrealizedPnL + realizedPnL;
+  const totalValue    = INITIAL_BALANCE + totalPnL;
 
   const detailLivePrice = detailPos
     ? ((symbolPrices[detailPos.symbol.id] && symbolPrices[detailPos.symbol.id] > 0)
@@ -233,23 +252,29 @@ export default function PortfolioScreen() {
               <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>
                 Open Positions
               </Text>
-              <Text style={[styles.posCount, { backgroundColor: colors.primary + "22", color: colors.primary }]}>
-                {positions.length}
-              </Text>
+              <View style={styles.posListHeaderRight}>
+                <Text style={[styles.posCount, { backgroundColor: colors.primary + "22", color: colors.primary }]}>
+                  {positions.length}
+                </Text>
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    const target = positions.find((p) => p.id === selectedPosId) ?? positions[0];
+                    if (target) handleClose(target.id, target.symbol.label);
+                  }}
+                  style={[styles.headerCloseBtn, { borderColor: colors.bear + "66", backgroundColor: colors.bear + "11" }]}
+                >
+                  <Text style={[styles.headerCloseBtnText, { color: colors.bear }]}>Close</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {positions.map((pos, idx) => {
-              const livePrice = (symbolPrices[pos.symbol.id] && symbolPrices[pos.symbol.id] > 0)
-                ? symbolPrices[pos.symbol.id]
-                : (pos.symbol.id === selectedSymbol.id && currentPrice > 0 ? currentPrice : pos.entryPrice);
-              const priceDiff = pos.side === "buy"
-                ? livePrice - pos.entryPrice
-                : pos.entryPrice - livePrice;
-              const posPnlRaw = Math.max(-pos.margin, priceDiff * pos.quantity);
-              const posPnl    = Math.abs(posPnlRaw) < 0.00001 ? 0 : posPnlRaw;
-              const isBuy     = pos.side === "buy";
-              const pnlColor  = posPnl >= 0 ? colors.bull : colors.bear;
-              const isLast    = idx === positions.length - 1;
+              const posPnl   = getPosPnl(pos);
+              const isBuy    = pos.side === "buy";
+              const pnlColor = posPnl >= 0 ? colors.bull : colors.bear;
+              const isLast   = idx === positions.length - 1;
+              const isSelected = pos.id === (selectedPosId ?? positions[0]?.id);
 
               return (
                 <View
@@ -257,12 +282,13 @@ export default function PortfolioScreen() {
                   style={[
                     styles.posRow,
                     !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+                    isSelected && { backgroundColor: colors.primary + "0d" },
                   ]}
                 >
-                  {/* Main tappable area → opens detail modal */}
+                  {/* Tappable area → selects position + opens detail modal */}
                   <TouchableOpacity
                     activeOpacity={0.75}
-                    onPress={() => setDetailPos(pos)}
+                    onPress={() => { setSelectedPosId(pos.id); setDetailPos(pos); }}
                     style={styles.posRowTouchable}
                   >
                     <CoinLogo symbolId={pos.symbol.id} size={38} />
@@ -285,15 +311,6 @@ export default function PortfolioScreen() {
                       </Text>
                       <Text style={[styles.posRowChevron, { color: colors.mutedForeground }]}>›</Text>
                     </View>
-                  </TouchableOpacity>
-
-                  {/* Quick-exit button */}
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => handleClose(pos.id, pos.symbol.label)}
-                    style={[styles.exitBtn, { borderColor: colors.bear + "66", backgroundColor: colors.bear + "11" }]}
-                  >
-                    <Text style={[styles.exitBtnText, { color: colors.bear }]}>Exit</Text>
                   </TouchableOpacity>
                 </View>
               );
@@ -510,11 +527,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 13,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  posListHeaderRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   posCount: { fontSize: 12, fontWeight: "700", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  headerCloseBtn: {
+    paddingHorizontal: 12, paddingVertical: 5,
+    borderRadius: 8, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+  },
+  headerCloseBtnText: { fontSize: 12, fontWeight: "700" },
 
   posRow: {
     flexDirection: "row", alignItems: "center",
-    paddingRight: 10, paddingVertical: 4,
+    paddingVertical: 4,
   },
   posRowTouchable: {
     flex: 1, flexDirection: "row", alignItems: "center",
@@ -526,14 +550,6 @@ const styles = StyleSheet.create({
   posRowRight: { alignItems: "flex-end", gap: 2 },
   posRowPnl: { fontSize: 15, fontWeight: "700" },
   posRowChevron: { fontSize: 20, lineHeight: 22, fontWeight: "300", opacity: 0.5 },
-
-  exitBtn: {
-    paddingHorizontal: 10, paddingVertical: 7,
-    borderRadius: 8, borderWidth: 1,
-    alignItems: "center", justifyContent: "center",
-    marginRight: 4,
-  },
-  exitBtnText: { fontSize: 12, fontWeight: "700" },
 
   toast: {
     position: "absolute", bottom: 90, left: 24, right: 24,

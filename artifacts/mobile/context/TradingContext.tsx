@@ -249,7 +249,7 @@ function calcLiquidationPrice(
   }
 }
 
-function calcPnL(pos: Position, price: number): number {
+export function calcPnL(pos: Position, price: number): number {
   if (!price || price <= 0) return 0;
   const entry = parseFloat(String(pos.entryPrice));
   const qty   = parseFloat(String(pos.quantity));
