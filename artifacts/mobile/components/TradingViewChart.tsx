@@ -1135,13 +1135,13 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
             return (
               <div key={g.id} style={{position:"relative"}}>
                 <button title={g.label}
-                  onClick={()=>{ if(g.items.length===1){handleToolClick(g.items[0].id);setOpenSubGroup(null);}else{setOpenSubGroup(v=>v===g.id?null:g.id);}}}
+                  onClick={(e)=>{ if(g.items.length===1){handleToolClick(g.items[0].id);setOpenSubGroup(null);}else{ const r=(e.currentTarget as HTMLElement).getBoundingClientRect(); setSubGroupY(r.top); setOpenSubGroup(v=>v===g.id?null:g.id);}}}
                   style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:isAct?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:isAct?"#2962FF":"#787b86",fontSize:13,fontWeight:"bold",position:"relative" }}>
                   <SbIcon id={g.id}/>
                   {g.items.length>1&&<span style={{position:"absolute",right:3,bottom:4,width:0,height:0,borderLeft:"3px solid transparent",borderRight:"3px solid transparent",borderTop:`3px solid ${isAct?"#2962FF":"#4a4e5a"}`}}/>}
                 </button>
                 {openSubGroup===g.id&&(
-                  <div style={{ position:"fixed",left:46,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,minWidth:180,padding:"4px 0",zIndex:500,boxShadow:"0 4px 24px #00000090" }}>
+                  <div style={{ position:"fixed",left:46,top:subGroupY,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,minWidth:180,padding:"4px 0",zIndex:500,boxShadow:"0 4px 24px #00000090" }}>
                     <div style={{padding:"4px 12px",fontSize:9,fontWeight:"700",color:C.dim,textTransform:"uppercase",letterSpacing:".6px",borderBottom:`1px solid ${C.border}`,marginBottom:2}}>{g.label}</div>
                     {g.items.map((it:any)=>(
                       <button key={it.id} onClick={()=>{handleToolClick(it.id);setOpenSubGroup(null);}}
