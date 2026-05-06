@@ -128,8 +128,12 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [subGroupY,    setSubGroupY]   = useState(0);
   const [isWebFS,      setIsWebFS]     = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
-  const wrapperRef  = useRef<HTMLDivElement>(null);
-  const svgRef      = useRef<SVGSVGElement>(null);
+  const wrapperRef    = useRef<HTMLDivElement>(null);
+  const canvasRef     = useRef<HTMLCanvasElement>(null);
+  const chartAreaRef  = useRef<HTMLDivElement>(null);
+  const activeToolRef = useRef<string|null>(null);
+  const webDrawingsRef = useRef<any[]>([]);
+  const canvasDataRef = useRef({ webDrawings: [] as any[], webCurrent: null as any, showWebDraw: true, selectedDrwId: null as string|null, drwColor: "#f0b90b", drwWidth: 1.5 });
   const drwCurPts   = useRef<any[]>([]);
   const drwFreehand = useRef<number[]>([]);
   const drwMDown    = useRef(false);
@@ -243,6 +247,28 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     try {
       chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
         if (mountedRef.current) setDrawTick(t => t + 1);
+      });
+    } catch {}
+
+    // Click → select drawings in cursor mode (canvas hit-testing)
+    try {
+      chart.subscribeClick((param: any) => {
+        if (!mountedRef.current) return;
+        if (activeToolRef.current && activeToolRef.current !== "cursor") return;
+        if (!param.point) { setSelectedDrwId(null); setFloatMenu(null); return; }
+        const { x, y } = param.point as { x: number; y: number };
+        let found: string | null = null;
+        for (const d of webDrawingsRef.current) {
+          if (d.visible === false) continue;
+          if (hitTestDrawing(d, x, y)) { found = d.id; break; }
+        }
+        setSelectedDrwId(found);
+        if (found) {
+          const rect = chartAreaRef.current?.getBoundingClientRect() ?? { left:0, top:0 };
+          setFloatMenu({ x: rect.left + x, y: rect.top + Math.max(y - 50, 10), id: found });
+        } else {
+          setFloatMenu(null);
+        }
       });
     } catch {}
 
@@ -436,7 +462,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   }
 
   function getSvgXY(e: { clientX: number; clientY: number }) {
-    const rect = svgRef.current?.getBoundingClientRect() ?? {left:0,top:0};
+    const rect = chartAreaRef.current?.getBoundingClientRect() ?? {left:0,top:0};
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
   function svgToData(x: number, y: number) {
@@ -518,7 +544,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   // ── SVG Pointer handlers — DRAG model ─────────────────────────────────────
   const THREE_PT_TOOLS = new Set(["channel","longposition","shortposition"]);
 
-  function onSvgPointerDown(e: React.PointerEvent<SVGSVGElement>) {
+  function onSvgPointerDown(e: React.PointerEvent<Element>) {
     if (!activeTool || activeTool==="cursor") { setSelectedDrwId(null); setFloatMenu(null); return; }
     if (activeTool==="delete") return;
     e.preventDefault();
@@ -570,7 +596,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     try { (e.currentTarget as any).setPointerCapture(e.pointerId); } catch(_){}
   }
 
-  function onSvgPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+  function onSvgPointerMove(e: React.PointerEvent<Element>) {
     e.preventDefault();
     const {x,y}=getSvgXY(e);
 
@@ -596,7 +622,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     }
   }
 
-  function onSvgPointerUp(e: React.PointerEvent<SVGSVGElement>) {
+  function onSvgPointerUp(e: React.PointerEvent<Element>) {
     if (!drwMDown.current) return;
     drwMDown.current=false;
     const {x,y}=getSvgXY(e);
@@ -657,7 +683,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     const d=webDrawings.find(x=>x.id===did); if(!d||d.locked) return;
     setSelectedDrwId(did);
     const onMove=(ev:PointerEvent)=>{
-      const rect=svgRef.current?.getBoundingClientRect()??{left:0,top:0};
+      const rect=chartAreaRef.current?.getBoundingClientRect()??{left:0,top:0};
       const x=ev.clientX-rect.left,y=ev.clientY-rect.top;
       const pt=svgToData(x,y); if(!pt.time&&pt.time!==0) return;
       setWebDrawings(ds=>ds.map(dr=>{
@@ -676,242 +702,341 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     document.addEventListener("pointermove",onMove); document.addEventListener("pointerup",onUp);
   }
 
-  // ── Render each drawing type ────────────────────────────────────────────────
-  function H(x:any,y:any,did:string,idx:number) {
-    if (x==null||y==null||isNaN(x)||isNaN(y)) return null;
-    return <circle key={"h"+idx} cx={x} cy={y} r={5} fill="#fff" stroke="#2962FF" strokeWidth={2} style={{cursor:"move"}} onPointerDown={ev=>{ev.stopPropagation();onHandlePointerDown(did,idx,ev);}}/>;
+  // ── Canvas drawing system (replaces SVG overlay) ─────────────────────────
+  // Sync refs used inside chart.subscribeClick (outside React lifecycle)
+  useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
+  useEffect(() => { webDrawingsRef.current = webDrawings; }, [webDrawings]);
+
+  // Keep canvasDataRef fresh so renderCanvas() always has latest state
+  useEffect(() => {
+    canvasDataRef.current = { webDrawings, webCurrent, showWebDraw, selectedDrwId, drwColor, drwWidth };
+    renderCanvas();
+  }, [webDrawings, webCurrent, showWebDraw, selectedDrwId, drawTick, drwColor, drwWidth]);
+
+  // Size canvas pixels to match CSS size (ResizeObserver keeps them in sync)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+    if (!parent) return;
+    const ro = new ResizeObserver(() => {
+      if (!canvasRef.current) return;
+      canvasRef.current.width  = parent.clientWidth;
+      canvasRef.current.height = parent.clientHeight;
+      renderCanvas();
+    });
+    ro.observe(parent);
+    canvas.width  = parent.clientWidth;
+    canvas.height = parent.clientHeight;
+    return () => ro.disconnect();
+  }, []);
+
+  function renderCanvas() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const { webDrawings: wds, webCurrent: wc, showWebDraw: swd, selectedDrwId: sid, drwColor: dc, drwWidth: dw } = canvasDataRef.current;
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    if (!swd) return;
+    for (const d of wds) { if (d.visible === false) continue; drawOnCanvas(ctx, d, d.id === sid, W, H); }
+    if (wc) drawCurrentOnCanvas(ctx, wc, dc, dw, W, H);
   }
 
-  function renderOneDraw(d: any, sel: boolean) {
-    void drawTick;
-    const c=d.color||C.gold, w=d.width||1.5, sc=sel?"#2962FF":c;
-    const hitProps = {
-      // pointerEvents:auto ensures drawings are clickable even when parent SVG has pointerEvents:none (cursor mode)
-      style: { cursor: "move", pointerEvents: "auto" } as any,
-      // Single click: select the drawing
-      onClick: (e: React.MouseEvent) => { e.stopPropagation(); onDrawingClick(d.id, e); },
-      // Right-click (desktop): show settings float menu immediately
-      onContextMenu: (e: React.MouseEvent) => {
-        e.preventDefault(); e.stopPropagation();
-        if (!activeTool || activeTool === "cursor") showFloatMenuAt(d.id, e.clientX, e.clientY);
-      },
-      // Touch long-press (mobile browser): 480ms hold shows settings menu
-      onPointerDown: (e: React.PointerEvent) => {
-        if (e.pointerType !== "touch") return;
-        const cx = e.clientX, cy = e.clientY;
-        longPressRef.current = setTimeout(() => {
-          if (!activeTool || activeTool === "cursor") showFloatMenuAt(d.id, cx, cy);
-        }, 480);
-      },
-      onPointerMove: () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; } },
-      onPointerUp:   () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; } },
-    };
+  function canvHandle(ctx: CanvasRenderingContext2D, x: number|null, y: number|null) {
+    if (x==null||y==null||isNaN(x)||isNaN(y)) return;
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2);
+    ctx.fillStyle="#fff"; ctx.fill();
+    ctx.strokeStyle="#2962FF"; ctx.lineWidth=2; ctx.stroke();
+  }
+
+  function drawOnCanvas(ctx: CanvasRenderingContext2D, d: any, sel: boolean, W: number, H: number) {
+    const c=d.color||C.gold, lw=d.width||1.5, sc=sel?"#2962FF":c;
+    ctx.save(); ctx.lineCap="round"; ctx.lineJoin="round";
 
     if (d.type==="trendline"||d.type==="arrow"||d.type==="ray") {
-      if (!d.pts||d.pts.length<2) return null;
-      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
-      if (p1.x==null||p2.x==null) return null;
-      let x1=p1.x,y1=p1.y!,x2=p2.x,y2=p2.y!;
-      if (d.type==="ray") { const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1; x2=x1+(dx/len)*5000; y2=y1+(dy/len)*5000; }
-      const arrow=d.type==="arrow";
-      return <g key={d.id}>
-        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={14} {...hitProps}/>
-        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={sc} strokeWidth={w} strokeLinecap="round"/>
-        {arrow&&(()=>{const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1,nx=dx/len,ny=dy/len;return<polygon points={`${x2},${y2} ${x2-nx*10-ny*5},${y2-ny*10+nx*5} ${x2-nx*10+ny*5},${y2-ny*10-nx*5}`} fill={sc}/>;})()}
-        {sel&&[H(p1.x,p1.y,d.id,0),H(p2.x,p2.y,d.id,1)]}
-      </g>;
+      if (!d.pts||d.pts.length<2) { ctx.restore(); return; }
+      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time), p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if (p1.x==null||p2.x==null) { ctx.restore(); return; }
+      let x1=p1.x!, y1=p1.y!, x2=p2.x!, y2=p2.y!;
+      if (d.type==="ray") { const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1; x2=x1+(dx/len)*6000; y2=y1+(dy/len)*6000; }
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.strokeStyle=sc; ctx.lineWidth=lw; ctx.stroke();
+      if (d.type==="arrow") {
+        const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1,nx=dx/len,ny=dy/len;
+        ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-nx*12-ny*6,y2-ny*12+nx*6); ctx.lineTo(x2-nx*12+ny*6,y2-ny*12-nx*6);
+        ctx.closePath(); ctx.fillStyle=sc; ctx.fill();
+      }
+      if (sel) { canvHandle(ctx,p1.x,p1.y); canvHandle(ctx,p2.x,p2.y); }
+      ctx.restore(); return;
     }
+
     if (d.type==="hline") {
-      if (!d.pts||d.pts.length<1) return null;
-      const y=candleRef.current?.priceToCoordinate(d.pts[0].price);
-      if (y==null) return null;
-      const svgW=svgRef.current?.clientWidth??3000;
-      return <g key={d.id}>
-        <line x1={0} y1={y} x2={svgW} y2={y} stroke="transparent" strokeWidth={14} {...hitProps}/>
-        <line x1={0} y1={y} x2={svgW} y2={y} stroke={sc} strokeWidth={w} strokeDasharray="5 3"/>
-        <rect x={svgW-84} y={y-11} width={80} height={22} rx={3} fill={C.panel} stroke={sc} strokeWidth={1}/>
-        <text x={svgW-44} y={y+4} textAnchor="middle" style={{fontSize:10,fill:sc,fontFamily:"monospace"}}>{fmtPrc(d.pts[0].price)}</text>
-        {sel&&H(svgW/2,y,d.id,0)}
-      </g>;
+      if (!d.pts?.length) { ctx.restore(); return; }
+      const y=candleRef.current?.priceToCoordinate(d.pts[0].price); if(y==null){ctx.restore();return;}
+      ctx.setLineDash([6,3]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.strokeStyle=sc; ctx.lineWidth=lw; ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle=C.panel; ctx.strokeStyle=sc; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.roundRect(W-84,y-11,80,22,3); ctx.fill(); ctx.stroke();
+      ctx.fillStyle=sc; ctx.font="10px monospace"; ctx.textAlign="center"; ctx.fillText(fmtPrc(d.pts[0].price),W-44,y+4);
+      if (sel) canvHandle(ctx,W/2,y);
+      ctx.restore(); return;
     }
+
     if (d.type==="vline") {
-      if (!d.pts||d.pts.length<1) return null;
-      const x=chartRef.current?.timeScale().timeToCoordinate(d.pts[0].time);
-      if (x==null) return null;
-      const svgH=svgRef.current?.clientHeight??1000;
-      return <g key={d.id}>
-        <line x1={x} y1={0} x2={x} y2={svgH} stroke="transparent" strokeWidth={14} {...hitProps}/>
-        <line x1={x} y1={0} x2={x} y2={svgH} stroke={sc} strokeWidth={w} strokeDasharray="5 3"/>
-        {sel&&H(x,svgH/2,d.id,0)}
-      </g>;
+      if (!d.pts?.length) { ctx.restore(); return; }
+      const x=chartRef.current?.timeScale().timeToCoordinate(d.pts[0].time as any); if(x==null){ctx.restore();return;}
+      ctx.setLineDash([6,3]); ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.strokeStyle=sc; ctx.lineWidth=lw; ctx.stroke(); ctx.setLineDash([]);
+      if (sel) canvHandle(ctx,x,H/2);
+      ctx.restore(); return;
     }
+
     if (d.type==="channel") {
-      if (!d.pts||d.pts.length<3) return null;
+      if (!d.pts||d.pts.length<3) { ctx.restore(); return; }
       const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time),p3=dataToSvgXY(d.pts[2].price,d.pts[2].time);
-      if (p1.x==null) return null;
-      const dy=p3.y!-p1.y!, q1y=p1.y!+dy, q2y=p2.y!+dy;
-      return <g key={d.id}>
-        <polygon points={`${p1.x},${p1.y} ${p2.x},${p2.y} ${p2.x},${q2y} ${p1.x},${q1y}`} fill={sc+"22"} {...hitProps}/>
-        <line x1={p1.x} y1={p1.y!} x2={p2.x!} y2={p2.y!} stroke={sc} strokeWidth={w}/>
-        <line x1={p1.x} y1={q1y} x2={p2.x!} y2={q2y} stroke={sc} strokeWidth={w} strokeDasharray="5 3"/>
-        {sel&&[H(p1.x,p1.y,d.id,0),H(p2.x,p2.y,d.id,1),H(p3.x,p3.y,d.id,2)]}
-      </g>;
+      if (p1.x==null||p2.x==null||p3.x==null) { ctx.restore(); return; }
+      const dyo=p3.y!-p1.y!, q1y=p1.y!+dyo, q2y=p2.y!+dyo;
+      ctx.fillStyle=sc+"22"; ctx.beginPath(); ctx.moveTo(p1.x!,p1.y!); ctx.lineTo(p2.x!,p2.y!); ctx.lineTo(p2.x!,q2y); ctx.lineTo(p1.x!,q1y); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle=sc; ctx.lineWidth=lw;
+      ctx.beginPath(); ctx.moveTo(p1.x!,p1.y!); ctx.lineTo(p2.x!,p2.y!); ctx.stroke();
+      ctx.setLineDash([5,3]); ctx.beginPath(); ctx.moveTo(p1.x!,q1y); ctx.lineTo(p2.x!,q2y); ctx.stroke(); ctx.setLineDash([]);
+      if (sel) { canvHandle(ctx,p1.x,p1.y); canvHandle(ctx,p2.x,p2.y); canvHandle(ctx,p3.x,p3.y); }
+      ctx.restore(); return;
     }
+
     if (d.type==="fibretracement") {
-      if (!d.pts||d.pts.length<2) return null;
+      if (!d.pts||d.pts.length<2) { ctx.restore(); return; }
       const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
-      if (p1.x==null) return null;
-      const range=d.pts[1].price-d.pts[0].price;
-      const LEVS=[0,0.236,0.382,0.5,0.618,0.786,1];
-      const LCLR=["#26a69a","#f59e0b","#ef5350","#787b86","#3b82f6","#8b5cf6","#26a69a"];
-      const svgW=svgRef.current?.clientWidth??3000;
-      const x0=Math.min(p1.x!,p2.x!);
-      return <g key={d.id}>
-        <line x1={p1.x!} y1={p1.y!} x2={p2.x!} y2={p2.y!} stroke={sc} strokeWidth={w} {...hitProps}/>
-        {LEVS.map((lv,i)=>{
-          const price=d.pts[0].price+range*lv;
-          const fy=candleRef.current?.priceToCoordinate(price);
-          if (fy==null) return null;
-          const lc=sel?"#2962FF":LCLR[i];
-          return <g key={i}>
-            <line x1={x0} y1={fy} x2={svgW} y2={fy} stroke={lc} strokeWidth={1} strokeDasharray="4 2" opacity={0.8}/>
-            <text x={x0+4} y={fy-3} style={{fontSize:9,fill:lc,fontFamily:"monospace"}}>{(lv*100).toFixed(1)}%  {fmtPrc(price)}</text>
-          </g>;
-        })}
-        {sel&&[H(p1.x,p1.y,d.id,0),H(p2.x,p2.y,d.id,1)]}
-      </g>;
+      if (p1.x==null||p2.x==null) { ctx.restore(); return; }
+      const range=d.pts[1].price-d.pts[0].price, x0=Math.min(p1.x!,p2.x!);
+      const LEVS=[0,0.236,0.382,0.5,0.618,0.786,1], LCLR=["#26a69a","#f59e0b","#ef5350","#787b86","#3b82f6","#8b5cf6","#26a69a"];
+      LEVS.forEach((lv,i)=>{
+        const price=d.pts[0].price+range*lv, fy=candleRef.current?.priceToCoordinate(price); if(fy==null)return;
+        const lc=sel?"#2962FF":LCLR[i];
+        ctx.globalAlpha=0.8; ctx.setLineDash([4,2]); ctx.beginPath(); ctx.moveTo(x0,fy); ctx.lineTo(W,fy);
+        ctx.strokeStyle=lc; ctx.lineWidth=1; ctx.stroke(); ctx.globalAlpha=1; ctx.setLineDash([]);
+        ctx.fillStyle=lc; ctx.font="9px monospace"; ctx.textAlign="left"; ctx.fillText(`${(lv*100).toFixed(1)}%  ${fmtPrc(price)}`,x0+4,fy-3);
+      });
+      ctx.beginPath(); ctx.moveTo(p1.x!,p1.y!); ctx.lineTo(p2.x!,p2.y!); ctx.strokeStyle=sc; ctx.lineWidth=lw; ctx.stroke();
+      if (sel) { canvHandle(ctx,p1.x,p1.y); canvHandle(ctx,p2.x,p2.y); }
+      ctx.restore(); return;
     }
+
     if (d.type==="brush"||d.type==="highlighter") {
-      if (!d.pts||d.pts.length<2) return null;
-      const sw=d.type==="highlighter"?10:w, op=d.type==="highlighter"?0.4:1;
-      const ptStr=d.pts.map((pt:any)=>{const px=dataToSvgXY(pt.price,pt.time);return px.x!=null?`${px.x!.toFixed(1)},${px.y!.toFixed(1)}`:null;}).filter(Boolean).join(" ");
-      if (!ptStr) return null;
-      return <g key={d.id}>
-        <polyline points={ptStr} stroke="transparent" strokeWidth={16} fill="none" {...hitProps}/>
-        <polyline points={ptStr} stroke={sc} strokeWidth={sw} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={op}/>
-      </g>;
+      if (!d.pts||d.pts.length<2) { ctx.restore(); return; }
+      const sw=d.type==="highlighter"?10:lw, op=d.type==="highlighter"?0.35:1;
+      ctx.globalAlpha=op; ctx.lineWidth=sw; ctx.strokeStyle=sc;
+      ctx.beginPath(); const fp=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(fp.x==null){ctx.restore();return;}
+      ctx.moveTo(fp.x!,fp.y!);
+      for (let i=1;i<d.pts.length;i++){const p=dataToSvgXY(d.pts[i].price,d.pts[i].time);if(p.x!=null)ctx.lineTo(p.x!,p.y!);}
+      ctx.stroke(); ctx.restore(); return;
     }
+
     if (d.type==="rectangle") {
-      if (!d.pts||d.pts.length<2) return null;
+      if (!d.pts||d.pts.length<2) { ctx.restore(); return; }
       const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
-      if (p1.x==null) return null;
+      if (p1.x==null||p2.x==null) { ctx.restore(); return; }
       const rx=Math.min(p1.x!,p2.x!),ry=Math.min(p1.y!,p2.y!),rw=Math.abs(p2.x!-p1.x!),rh=Math.abs(p2.y!-p1.y!);
-      return <g key={d.id}>
-        <rect x={rx} y={ry} width={rw} height={rh} stroke="transparent" strokeWidth={8} fill="transparent" {...hitProps}/>
-        <rect x={rx} y={ry} width={rw} height={rh} stroke={sc} strokeWidth={w} fill={sc+"22"}/>
-        {sel&&[H(p1.x,p1.y,d.id,0),H(p2.x,p1.y,d.id,1),H(p1.x,p2.y,d.id,2),H(p2.x,p2.y,d.id,3)]}
-      </g>;
+      ctx.fillStyle=sc+"22"; ctx.fillRect(rx,ry,rw,rh); ctx.strokeStyle=sc; ctx.lineWidth=lw; ctx.strokeRect(rx,ry,rw,rh);
+      if (sel){canvHandle(ctx,p1.x,p1.y);canvHandle(ctx,p2.x,p1.y);canvHandle(ctx,p1.x,p2.y);canvHandle(ctx,p2.x,p2.y);}
+      ctx.restore(); return;
     }
+
     if (d.type==="circle") {
-      if (!d.pts||d.pts.length<2) return null;
+      if (!d.pts||d.pts.length<2) { ctx.restore(); return; }
       const ctr=dataToSvgXY(d.pts[0].price,d.pts[0].time),edg=dataToSvgXY(d.pts[1].price,d.pts[1].time);
-      if (ctr.x==null) return null;
-      const r=Math.sqrt(Math.pow(edg.x!-ctr.x!,2)+Math.pow(edg.y!-ctr.y!,2));
-      return <g key={d.id}>
-        <circle cx={ctr.x!} cy={ctr.y!} r={r} stroke="transparent" strokeWidth={10} fill="transparent" {...hitProps}/>
-        <circle cx={ctr.x!} cy={ctr.y!} r={r} stroke={sc} strokeWidth={w} fill={sc+"22"}/>
-        {sel&&[H(ctr.x,ctr.y,d.id,0),H(edg.x,edg.y,d.id,1)]}
-      </g>;
+      if (ctr.x==null||edg.x==null) { ctx.restore(); return; }
+      const r=Math.sqrt((edg.x!-ctr.x!)**2+(edg.y!-ctr.y!)**2);
+      ctx.fillStyle=sc+"22"; ctx.beginPath(); ctx.arc(ctr.x!,ctr.y!,r,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle=sc; ctx.lineWidth=lw; ctx.stroke();
+      if (sel){canvHandle(ctx,ctr.x,ctr.y);canvHandle(ctx,edg.x,edg.y);}
+      ctx.restore(); return;
     }
+
     if (d.type==="text") {
-      if (!d.pts||d.pts.length<1) return null;
-      const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null) return null;
-      const textHit={onClick:(e:React.MouseEvent)=>{e.stopPropagation();onDrawingClick(d.id,e);}};
-      return <g key={d.id}><text x={p.x!} y={p.y!} style={{fontSize:14,fill:sc,fontWeight:"bold",fontFamily:"sans-serif",cursor:"move"}} {...textHit}>{d.text||"Text"}</text>{sel&&H(p.x,p.y,d.id,0)}</g>;
+      if (!d.pts?.length){ctx.restore();return;}
+      const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null){ctx.restore();return;}
+      ctx.font="bold 14px sans-serif"; ctx.fillStyle=sc; ctx.textAlign="left"; ctx.fillText(d.text||"Text",p.x!,p.y!);
+      if (sel) canvHandle(ctx,p.x,p.y);
+      ctx.restore(); return;
     }
+
     if (d.type==="note") {
-      if (!d.pts||d.pts.length<1) return null;
-      const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null) return null;
+      if (!d.pts?.length){ctx.restore();return;}
+      const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null){ctx.restore();return;}
       const txt=d.text||"Note", bw=Math.max(60,txt.length*7+20);
-      return <g key={d.id}>
-        <rect x={p.x!} y={p.y!-22} width={bw} height={26} rx={4} fill={C.panel} stroke={sc} strokeWidth={1} {...hitProps}/>
-        <text x={p.x!+8} y={p.y!-5} style={{fontSize:12,fill:sc,fontFamily:"sans-serif"}}>{txt}</text>
-        {sel&&H(p.x!+bw/2,p.y!-9,d.id,0)}
-      </g>;
+      ctx.fillStyle=C.panel; ctx.strokeStyle=sc; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.roundRect(p.x!,p.y!-22,bw,26,4); ctx.fill(); ctx.stroke();
+      ctx.fillStyle=sc; ctx.font="12px sans-serif"; ctx.textAlign="left"; ctx.fillText(txt,p.x!+8,p.y!-5);
+      if (sel) canvHandle(ctx,p.x!+bw/2,p.y!-9);
+      ctx.restore(); return;
     }
+
     if (d.type==="pricelabel") {
-      if (!d.pts||d.pts.length<1) return null;
-      const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null) return null;
-      const svgW=svgRef.current?.clientWidth??3000;
-      return <g key={d.id}>
-        <line x1={p.x!} y1={p.y!} x2={svgW-86} y2={p.y!} stroke={sc} strokeWidth={1} strokeDasharray="3 2" {...hitProps}/>
-        <rect x={svgW-86} y={p.y!-11} width={82} height={22} rx={3} fill={sc}/>
-        <text x={svgW-45} y={p.y!+4} textAnchor="middle" style={{fontSize:10,fill:"#000",fontWeight:"bold",fontFamily:"monospace"}}>{fmtPrc(d.pts[0].price)}</text>
-        {sel&&H(p.x,p.y,d.id,0)}
-      </g>;
+      if (!d.pts?.length){ctx.restore();return;}
+      const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null){ctx.restore();return;}
+      ctx.setLineDash([3,2]); ctx.beginPath(); ctx.moveTo(p.x!,p.y!); ctx.lineTo(W-88,p.y!);
+      ctx.strokeStyle=sc; ctx.lineWidth=1; ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle=sc; ctx.beginPath(); ctx.roundRect(W-88,p.y!-11,84,22,3); ctx.fill();
+      ctx.fillStyle="#000"; ctx.font="bold 10px monospace"; ctx.textAlign="center"; ctx.fillText(fmtPrc(d.pts[0].price),W-46,p.y!+4);
+      if (sel) canvHandle(ctx,p.x,p.y);
+      ctx.restore(); return;
     }
+
     if (d.type==="longposition"||d.type==="shortposition") {
-      if (!d.pts||d.pts.length<2) return null;
+      if (!d.pts||d.pts.length<2){ctx.restore();return;}
       const entry=dataToSvgXY(d.pts[0].price,d.pts[0].time),tgt=dataToSvgXY(d.pts[1].price,d.pts[1].time);
-      if (entry.x==null) return null;
-      const svgW=svgRef.current?.clientWidth??3000;
-      const X=entry.x!,W2=svgW-X,ey=entry.y!,ty=tgt.y!;
-      const profC="#26a69a",lossC="#ef5350",fillC=ty<ey?profC:lossC;
-      return <g key={d.id}>
-        <rect x={X} y={Math.min(ey,ty)} width={W2} height={Math.abs(ty-ey)} fill={fillC+"44"} {...hitProps}/>
-        <line x1={X} y1={ey} x2={svgW} y2={ey} stroke="#d1d4dc" strokeWidth={1.5}/>
-        <line x1={X} y1={ty} x2={svgW} y2={ty} stroke={fillC} strokeWidth={1.5}/>
-        <text x={X+6} y={ey-4} style={{fontSize:9,fill:"#d1d4dc",fontFamily:"monospace"}}>Entry {fmtPrc(d.pts[0].price)}</text>
-        <text x={X+6} y={ty+12} style={{fontSize:9,fill:fillC,fontFamily:"monospace"}}>Target {fmtPrc(d.pts[1].price)}</text>
-        {d.pts.length>=3&&(()=>{const stop=dataToSvgXY(d.pts[2].price,d.pts[2].time);if(!stop.x) return null;const sy=stop.y!;return<g><rect x={X} y={Math.min(ey,sy)} width={W2} height={Math.abs(sy-ey)} fill={lossC+"44"}/><line x1={X} y1={sy} x2={svgW} y2={sy} stroke={lossC} strokeWidth={1.5}/><text x={X+6} y={sy+12} style={{fontSize:9,fill:lossC,fontFamily:"monospace"}}>Stop {fmtPrc(d.pts[2].price)}</text>{sel&&H(stop.x,stop.y,d.id,2)}</g>;})()}
-        {sel&&[H(entry.x,entry.y,d.id,0),H(tgt.x,tgt.y,d.id,1)]}
-      </g>;
+      if (entry.x==null||tgt.x==null){ctx.restore();return;}
+      const X=entry.x!, ey=entry.y!, ty=tgt.y!, RW=W-X;
+      const profC="#26a69a", lossC="#ef5350", fillC=ty<ey?profC:lossC;
+      ctx.fillStyle=fillC+"44"; ctx.fillRect(X,Math.min(ey,ty),RW,Math.abs(ty-ey));
+      ctx.strokeStyle="#d1d4dc"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(X,ey); ctx.lineTo(W,ey); ctx.stroke();
+      ctx.strokeStyle=fillC; ctx.beginPath(); ctx.moveTo(X,ty); ctx.lineTo(W,ty); ctx.stroke();
+      ctx.font="9px monospace"; ctx.textAlign="left";
+      ctx.fillStyle="#d1d4dc"; ctx.fillText("Entry "+fmtPrc(d.pts[0].price),X+6,ey-4);
+      ctx.fillStyle=fillC; ctx.fillText("Target "+fmtPrc(d.pts[1].price),X+6,ty+12);
+      if (d.pts.length>=3) {
+        const stop=dataToSvgXY(d.pts[2].price,d.pts[2].time);
+        if (stop.x!=null){
+          const sy=stop.y!;
+          ctx.fillStyle=lossC+"44"; ctx.fillRect(X,Math.min(ey,sy),RW,Math.abs(sy-ey));
+          ctx.strokeStyle=lossC; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(X,sy); ctx.lineTo(W,sy); ctx.stroke();
+          ctx.fillStyle=lossC; ctx.fillText("Stop "+fmtPrc(d.pts[2].price),X+6,sy+12);
+          if (sel) canvHandle(ctx,stop.x,stop.y);
+        }
+      }
+      if (sel){canvHandle(ctx,entry.x,entry.y);canvHandle(ctx,tgt.x,tgt.y);}
+      ctx.restore(); return;
     }
+
     if (d.type==="daterange") {
-      if (!d.pts||d.pts.length<2) return null;
+      if (!d.pts||d.pts.length<2){ctx.restore();return;}
       const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
-      if (p1.x==null) return null;
-      const svgH=svgRef.current?.clientHeight??1000, x1=Math.min(p1.x!,p2.x!),x2=Math.max(p1.x!,p2.x!);
-      return <g key={d.id}>
-        <rect x={x1} y={0} width={x2-x1} height={svgH} fill={sc+"22"} {...hitProps}/>
-        <line x1={p1.x!} y1={0} x2={p1.x!} y2={svgH} stroke={sc} strokeWidth={w} strokeDasharray="4 2"/>
-        <line x1={p2.x!} y1={0} x2={p2.x!} y2={svgH} stroke={sc} strokeWidth={w} strokeDasharray="4 2"/>
-        {sel&&[H(p1.x,svgH/2,d.id,0),H(p2.x,svgH/2,d.id,1)]}
-      </g>;
+      if (p1.x==null||p2.x==null){ctx.restore();return;}
+      const x1=Math.min(p1.x!,p2.x!),x2=Math.max(p1.x!,p2.x!);
+      ctx.fillStyle=sc+"22"; ctx.fillRect(x1,0,x2-x1,H);
+      ctx.setLineDash([4,2]); ctx.strokeStyle=sc; ctx.lineWidth=lw;
+      ctx.beginPath(); ctx.moveTo(p1.x!,0); ctx.lineTo(p1.x!,H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(p2.x!,0); ctx.lineTo(p2.x!,H); ctx.stroke(); ctx.setLineDash([]);
+      if (sel){canvHandle(ctx,p1.x,H/2);canvHandle(ctx,p2.x,H/2);}
+      ctx.restore(); return;
     }
+
     if (d.type==="pricerange") {
-      if (!d.pts||d.pts.length<2) return null;
-      const y1=candleRef.current?.priceToCoordinate(d.pts[0].price),y2=candleRef.current?.priceToCoordinate(d.pts[1].price);
-      if (y1==null||y2==null) return null;
-      const svgW=svgRef.current?.clientWidth??3000;
-      return <g key={d.id}>
-        <rect x={0} y={Math.min(y1,y2)} width={svgW} height={Math.abs(y2-y1)} fill={sc+"22"} {...hitProps}/>
-        <line x1={0} y1={y1} x2={svgW} y2={y1} stroke={sc} strokeWidth={w} strokeDasharray="4 2"/>
-        <line x1={0} y1={y2} x2={svgW} y2={y2} stroke={sc} strokeWidth={w} strokeDasharray="4 2"/>
-        {sel&&[H(svgW/2,y1,d.id,0),H(svgW/2,y2,d.id,1)]}
-      </g>;
+      if (!d.pts||d.pts.length<2){ctx.restore();return;}
+      const y1=candleRef.current?.priceToCoordinate(d.pts[0].price), y2=candleRef.current?.priceToCoordinate(d.pts[1].price);
+      if (y1==null||y2==null){ctx.restore();return;}
+      ctx.fillStyle=sc+"22"; ctx.fillRect(0,Math.min(y1,y2),W,Math.abs(y2-y1));
+      ctx.setLineDash([4,2]); ctx.strokeStyle=sc; ctx.lineWidth=lw;
+      ctx.beginPath(); ctx.moveTo(0,y1); ctx.lineTo(W,y1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,y2); ctx.lineTo(W,y2); ctx.stroke(); ctx.setLineDash([]);
+      if (sel){canvHandle(ctx,W/2,y1);canvHandle(ctx,W/2,y2);}
+      ctx.restore(); return;
     }
-    return null;
+
+    ctx.restore();
   }
 
-  function renderWebDraw(d: any, i: number) {
-    void drawTick;
-    if (d.visible===false) return null;
-    return renderOneDraw(d, d.id===selectedDrwId);
-  }
-  function renderWebCurrent() {
-    if (!webCurrent) return null;
-    const {type, pts, preview, free} = webCurrent;
-    // freehand in progress
+  function drawCurrentOnCanvas(ctx: CanvasRenderingContext2D, cur: any, color: string, lineWidth: number, W: number, _H: number) {
+    void W;
+    const { type, pts, preview, free } = cur;
+    ctx.save(); ctx.lineCap="round"; ctx.lineJoin="round"; ctx.strokeStyle=color; ctx.lineWidth=lineWidth;
     if (type==="brush"||type==="highlighter") {
-      if (!free||free.length<4) return null;
-      const sw=type==="highlighter"?10:drwWidth, op=type==="highlighter"?0.4:1;
-      let ptStr="";
-      for (let i=0;i<free.length;i+=2) ptStr+=`${free[i].toFixed(1)},${free[i+1].toFixed(1)} `;
-      return <polyline points={ptStr} stroke={drwColor} strokeWidth={sw} fill="none" strokeLinecap="round" opacity={op}/>;
+      if (!free||free.length<4){ctx.restore();return;}
+      const sw=type==="highlighter"?10:lineWidth, op=type==="highlighter"?0.35:1;
+      ctx.globalAlpha=op; ctx.lineWidth=sw; ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(free[0],free[1]);
+      for (let i=2;i<free.length;i+=2) ctx.lineTo(free[i],free[i+1]);
+      ctx.stroke(); ctx.restore(); return;
     }
-    // multi-point in progress
-    if (!pts||pts.length===0) return null;
-    const lines:React.ReactNode[]=[];
+    if (!pts||pts.length===0){ctx.restore();return;}
+    ctx.setLineDash([5,3]);
     for (let i=0;i<pts.length-1;i++) {
       const a=dataToSvgXY(pts[i].price,pts[i].time),b=dataToSvgXY(pts[i+1].price,pts[i+1].time);
-      if (a.x!=null&&b.x!=null) lines.push(<line key={i} x1={a.x!} y1={a.y!} x2={b.x!} y2={b.y!} stroke={drwColor} strokeWidth={drwWidth} strokeDasharray="4 2"/>);
+      if (a.x!=null&&b.x!=null){ctx.beginPath();ctx.moveTo(a.x!,a.y!);ctx.lineTo(b.x!,b.y!);ctx.stroke();}
     }
-    if (preview && pts.length>0) {
-      const last=pts[pts.length-1], lp=dataToSvgXY(last.price,last.time);
-      if (lp.x!=null) lines.push(<line key="prev" x1={lp.x!} y1={lp.y!} x2={preview.x} y2={preview.y} stroke={drwColor} strokeWidth={drwWidth} strokeDasharray="4 2" opacity={0.6}/>);
+    if (preview&&pts.length>0) {
+      const last=pts[pts.length-1],lp=dataToSvgXY(last.price,last.time);
+      if (lp.x!=null){ctx.globalAlpha=0.6;ctx.beginPath();ctx.moveTo(lp.x!,lp.y!);ctx.lineTo(preview.x,preview.y);ctx.stroke();ctx.globalAlpha=1;}
     }
-    return <g>{lines}</g>;
+    ctx.setLineDash([]); ctx.restore();
+  }
+
+  function distSeg(px:number,py:number,ax:number,ay:number,bx:number,by:number):number{
+    const dx=bx-ax,dy=by-ay;
+    if(dx===0&&dy===0)return Math.sqrt((px-ax)**2+(py-ay)**2);
+    const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy)));
+    return Math.sqrt((px-(ax+t*dx))**2+(py-(ay+t*dy))**2);
+  }
+
+  function hitTestDrawing(d: any, px: number, py: number): boolean {
+    const T=8;
+    if (d.type==="trendline"||d.type==="arrow"){
+      if(!d.pts||d.pts.length<2)return false;
+      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if(p1.x==null||p2.x==null)return false;
+      return distSeg(px,py,p1.x!,p1.y!,p2.x!,p2.y!)<T;
+    }
+    if (d.type==="ray"){
+      if(!d.pts||d.pts.length<2)return false;
+      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if(p1.x==null||p2.x==null)return false;
+      const dx=p2.x!-p1.x!,dy=p2.y!-p1.y!,len=Math.sqrt(dx*dx+dy*dy)||1;
+      return distSeg(px,py,p1.x!,p1.y!,p1.x!+(dx/len)*6000,p1.y!+(dy/len)*6000)<T;
+    }
+    if (d.type==="hline"){if(!d.pts?.length)return false;const y=candleRef.current?.priceToCoordinate(d.pts[0].price);return y!=null&&Math.abs(py-y)<T;}
+    if (d.type==="vline"){if(!d.pts?.length)return false;const x=chartRef.current?.timeScale().timeToCoordinate(d.pts[0].time as any);return x!=null&&Math.abs(px-x)<T;}
+    if (d.type==="rectangle"){
+      if(!d.pts||d.pts.length<2)return false;
+      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if(p1.x==null||p2.x==null)return false;
+      const rx=Math.min(p1.x!,p2.x!),ry=Math.min(p1.y!,p2.y!),rw=Math.abs(p2.x!-p1.x!),rh=Math.abs(p2.y!-p1.y!);
+      return ((Math.abs(px-rx)<T||Math.abs(px-rx-rw)<T)&&py>=ry&&py<=ry+rh)||((Math.abs(py-ry)<T||Math.abs(py-ry-rh)<T)&&px>=rx&&px<=rx+rw);
+    }
+    if (d.type==="circle"){
+      if(!d.pts||d.pts.length<2)return false;
+      const ctr=dataToSvgXY(d.pts[0].price,d.pts[0].time),edg=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if(ctr.x==null||edg.x==null)return false;
+      const r=Math.sqrt((edg.x!-ctr.x!)**2+(edg.y!-ctr.y!)**2);
+      return Math.abs(Math.sqrt((px-ctr.x!)**2+(py-ctr.y!)**2)-r)<T;
+    }
+    if (d.type==="brush"||d.type==="highlighter"){
+      if(!d.pts||d.pts.length<2)return false;
+      for(let i=0;i<d.pts.length-1;i++){
+        const a=dataToSvgXY(d.pts[i].price,d.pts[i].time),b=dataToSvgXY(d.pts[i+1].price,d.pts[i+1].time);
+        if(a.x!=null&&b.x!=null&&distSeg(px,py,a.x!,a.y!,b.x!,b.y!)<T*2)return true;
+      }
+      return false;
+    }
+    if (d.type==="text"||d.type==="note"||d.type==="pricelabel"){
+      if(!d.pts?.length)return false;
+      const p=dataToSvgXY(d.pts[0].price,d.pts[0].time);if(p.x==null)return false;
+      return Math.abs(px-p.x!)<70&&Math.abs(py-p.y!)<20;
+    }
+    if (d.type==="fibretracement"||d.type==="channel"){
+      if(!d.pts||d.pts.length<2)return false;
+      const p1=dataToSvgXY(d.pts[0].price,d.pts[0].time),p2=dataToSvgXY(d.pts[1].price,d.pts[1].time);
+      if(p1.x==null||p2.x==null)return false;
+      return distSeg(px,py,p1.x!,p1.y!,p2.x!,p2.y!)<T;
+    }
+    if (d.type==="longposition"||d.type==="shortposition"){
+      if(!d.pts||d.pts.length<2)return false;
+      const ey=dataToSvgXY(d.pts[0].price,d.pts[0].time).y, ty=dataToSvgXY(d.pts[1].price,d.pts[1].time).y;
+      if(ey==null||ty==null)return false;
+      return Math.abs(py-ey)<T||Math.abs(py-ty)<T;
+    }
+    if (d.type==="daterange"){
+      if(!d.pts||d.pts.length<2)return false;
+      const x1=dataToSvgXY(d.pts[0].price,d.pts[0].time).x,x2=dataToSvgXY(d.pts[1].price,d.pts[1].time).x;
+      if(x1==null||x2==null)return false;
+      return Math.abs(px-x1)<T||Math.abs(px-x2)<T;
+    }
+    if (d.type==="pricerange"){
+      if(!d.pts||d.pts.length<2)return false;
+      const y1=candleRef.current?.priceToCoordinate(d.pts[0].price),y2=candleRef.current?.priceToCoordinate(d.pts[1].price);
+      if(y1==null||y2==null)return false;
+      return Math.abs(py-y1)<T||Math.abs(py-y2)<T;
+    }
+    return false;
   }
 
   function selectTf(tf: string) { setTfState(tf); setShowTf(false); }
@@ -1075,7 +1200,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         {openSubGroup&&<div style={{position:"fixed",inset:0,zIndex:499}} onClick={()=>setOpenSubGroup(null)}/>}
 
         {/* Chart container — fills remaining height via flex:1 */}
-        <div style={{ flex:1, position:"relative", overflow:"hidden", minHeight: 0 }}>
+        <div ref={chartAreaRef} style={{ flex:1, position:"relative", overflow:"hidden", minHeight: 0 }}>
 
           {/* OHLCV overlay */}
           {ohlcv && (
@@ -1148,23 +1273,20 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           {/* lightweight-charts mount point — touch-action:none lets lw-charts own all pointer events */}
           <div ref={containerRef} style={{ width:"100%", height:"100%", touchAction:"none" }}/>
 
-          {/* ── SVG drawing overlay ── */}
-          {/* pointerEvents:"none" when not drawing so chart panning works; drawings inside use pointerEvents:"auto" to remain clickable */}
-          <svg
-            ref={svgRef}
-            style={{
-              position:"absolute", top:0, left:0, width:"100%", height:"100%", overflow:"visible",
-              pointerEvents: isDrawActive ? "all" : "none",
-              cursor: isDrawActive ? "crosshair" : "default",
-              touchAction: isDrawActive ? "none" : "auto",
-            }}
-            onPointerDown={onSvgPointerDown}
-            onPointerMove={onSvgPointerMove}
-            onPointerUp={onSvgPointerUp}
-          >
-            {showWebDraw && webDrawings.map((d,i) => renderWebDraw(d,i))}
-            {renderWebCurrent()}
-          </svg>
+          {/* ── Canvas drawing overlay (replaces SVG for better mobile touch compatibility) ── */}
+          <canvas
+            ref={canvasRef}
+            style={{ position:"absolute", top:0, left:0, width:"100%", height:"100%", pointerEvents:"none", zIndex:10 }}
+          />
+          {/* Capture div — only intercepts pointer events when a draw tool is active */}
+          {isDrawActive && (
+            <div
+              style={{ position:"absolute", inset:0, cursor:"crosshair", touchAction:"none", zIndex:11 }}
+              onPointerDown={onSvgPointerDown}
+              onPointerMove={onSvgPointerMove}
+              onPointerUp={onSvgPointerUp}
+            />
+          )}
           {/* Hint pill — bottom of chart (matches native style) */}
           {isDrawActive && !webCurrent && (
             <div style={{
