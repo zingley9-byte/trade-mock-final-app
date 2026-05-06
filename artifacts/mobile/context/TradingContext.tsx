@@ -214,6 +214,7 @@ interface TradingContextType {
   getTotalPortfolioValue: () => number;
   resetAccount: () => { allowed: boolean; message: string };
   addAdminBonus: (amount: number) => void;
+  refreshPrices: () => Promise<void>;
 }
 
 const TradingContext = createContext<TradingContextType | null>(null);
@@ -301,6 +302,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [resetTimestamps, setResetTimestamps] = useState<number[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const fetchAllPricesRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     async function fetchRate() {
@@ -385,9 +387,14 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         } catch {}
       }
     }
+    fetchAllPricesRef.current = fetchAllPrices;
     fetchAllPrices();
     const interval = setInterval(fetchAllPrices, 5000);
     return () => clearInterval(interval);
+  }, []);
+
+  const refreshPrices = useCallback(async () => {
+    await fetchAllPricesRef.current?.();
   }, []);
 
   async function loadState() {
@@ -888,6 +895,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         getTotalPortfolioValue,
         resetAccount,
         addAdminBonus,
+        refreshPrices,
       }}
     >
       {children}

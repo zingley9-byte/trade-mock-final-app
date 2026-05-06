@@ -139,6 +139,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const drwMDown    = useRef(false);
   const drwPreview  = useRef<{x:number;y:number}|null>(null);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const captureRef  = useRef<HTMLDivElement>(null);
   const DRW_KEY = "tm_drw_v2";
 
   // Load drawings from localStorage on mount
@@ -713,6 +714,24 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     renderCanvas();
   }, [webDrawings, webCurrent, showWebDraw, selectedDrwId, drawTick, drwColor, drwWidth]);
 
+  // Native touch prevention — must use {passive:false} so preventDefault() works on mobile browsers
+  // React synthetic events can't prevent browser scroll; native listeners can.
+  useEffect(() => {
+    const el = captureRef.current;
+    if (!el) return;
+    const prevent = (e: TouchEvent) => {
+      if (activeToolRef.current && activeToolRef.current !== "cursor") {
+        e.preventDefault();
+      }
+    };
+    el.addEventListener("touchstart", prevent, { passive: false });
+    el.addEventListener("touchmove",  prevent, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", prevent);
+      el.removeEventListener("touchmove",  prevent);
+    };
+  }, []);
+
   // Size canvas pixels to match CSS size (ResizeObserver keeps them in sync)
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1273,15 +1292,14 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
             ref={canvasRef}
             style={{ position:"absolute", top:0, left:0, width:"100%", height:"100%", pointerEvents:"none", zIndex:10 }}
           />
-          {/* Capture div — only intercepts pointer events when a draw tool is active */}
-          {isDrawActive && (
-            <div
-              style={{ position:"absolute", inset:0, cursor:"default", touchAction:"none", zIndex:11 }}
-              onPointerDown={onSvgPointerDown}
-              onPointerMove={onSvgPointerMove}
-              onPointerUp={onSvgPointerUp}
-            />
-          )}
+          {/* Capture div — always in DOM so native touch listeners persist; pointer-events toggled by isDrawActive */}
+          <div
+            ref={captureRef}
+            style={{ position:"absolute", inset:0, cursor: isDrawActive ? "default" : "auto", touchAction:"none", zIndex:11, pointerEvents: isDrawActive ? "all" : "none" }}
+            onPointerDown={onSvgPointerDown}
+            onPointerMove={onSvgPointerMove}
+            onPointerUp={onSvgPointerUp}
+          />
           {/* Hint pill — bottom of chart (matches native style) */}
           {isDrawActive && !webCurrent && (
             <div style={{

@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   Dimensions,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -82,10 +83,25 @@ export default function HomeScreen() {
     selectedSymbol, setSelectedSymbol,
     symbolPrices, symbolChanges,
     currencyMode, usdToInr,
+    refreshPrices,
   } = useTradingContext();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (Platform.OS === "web") {
+        window.location.reload();
+      } else {
+        await refreshPrices();
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshPrices]);
 
   const { width: winW } = useWindowDimensions();
   // Mobile web (<768px) gets native-sized chart so watchlist stays visible
@@ -155,7 +171,19 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+        >
           {visibleSymbols.length === 0 ? (
             <View style={styles.emptySearch}>
               <SvgIcon name="search-outline" size={24} color={colors.mutedForeground} />
