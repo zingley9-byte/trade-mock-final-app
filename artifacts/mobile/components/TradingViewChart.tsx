@@ -151,6 +151,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const drwColorRef = useRef("#f0b90b");
   const drwWidthRef = useRef(1.5);
   const DRW_KEY = "tm_drw_v2";
+  // Touch-click deduplication: prevent onClick from firing ~600ms after onTouchStart
+  const lastSidebarTouchRef = useRef(0);
 
   // Load drawings from localStorage on mount
   useEffect(()=>{
@@ -575,7 +577,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   function genDrwId() { return "drw_"+Date.now()+"_"+Math.random().toString(36).slice(2,6); }
 
   function handleToolClick(id: string) {
-    console.log("[DrawTools] tool selected:", id);
+    console.log("tool selected", id);
     if (id==="hide") { setShowWebDraw(v=>!v); return; }
     if (id==="lock") {
       setWebDrawings(ds=>{ const allLk=ds.every(d=>d.locked); return ds.map(d=>({...d,locked:!allLk})); });
@@ -584,7 +586,9 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     if (id==="delete") {
       setWebDrawings([]); setSelectedDrwId(null); setFloatMenu(null); return;
     }
-    setActiveTool(prev => prev===id ? null : id);
+    const next = activeToolRef.current === id ? null : id;
+    console.log("activeTool", next);
+    setActiveTool(next);
     setSelectedDrwId(null); setFloatMenu(null);
     drwCurPts.current=[]; drwFreehand.current=[]; setWebCurrent(null);
     setOpenSubGroup(null);
@@ -1451,8 +1455,15 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
               <div key={g.id} style={{position:"relative"}}>
                 <button title={g.label}
                   onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }}
-                  onTouchStart={(e)=>{ e.preventDefault(); handleGroupInteract(e.currentTarget); }}
-                  onClick={(e)=>{ handleGroupInteract(e.currentTarget); }}
+                  onTouchStart={(e)=>{
+                    lastSidebarTouchRef.current = Date.now();
+                    e.preventDefault();
+                    handleGroupInteract(e.currentTarget);
+                  }}
+                  onClick={(e)=>{
+                    if (Date.now() - lastSidebarTouchRef.current < 600) return;
+                    handleGroupInteract(e.currentTarget);
+                  }}
                   style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:isAct?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:isAct?"#2962FF":"#787b86",fontSize:13,fontWeight:"bold",position:"relative",touchAction:"manipulation" }}>
                   <SbIcon id={g.id}/>
                   {g.items.length>1&&<span style={{position:"absolute",right:3,bottom:4,width:0,height:0,borderLeft:"3px solid transparent",borderRight:"3px solid transparent",borderTop:`3px solid ${isAct?"#2962FF":"#4a4e5a"}`}}/>}
@@ -1463,8 +1474,19 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
                     {g.items.map((it:any)=>(
                       <button key={it.id}
                         onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }}
-                        onTouchStart={(e)=>{ e.preventDefault(); console.log("tool selected", it.id); handleToolClick(it.id); setOpenSubGroup(null); }}
-                        onClick={()=>{ console.log("tool selected", it.id); handleToolClick(it.id); setOpenSubGroup(null); }}
+                        onTouchStart={(e)=>{
+                          lastSidebarTouchRef.current = Date.now();
+                          e.preventDefault();
+                          console.log("tool selected", it.id);
+                          handleToolClick(it.id);
+                          setOpenSubGroup(null);
+                        }}
+                        onClick={()=>{
+                          if (Date.now() - lastSidebarTouchRef.current < 600) return;
+                          console.log("tool selected", it.id);
+                          handleToolClick(it.id);
+                          setOpenSubGroup(null);
+                        }}
                         style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 12px",fontSize:12,color:activeTool===it.id?"#2962FF":C.text,cursor:"pointer",border:"none",background:activeTool===it.id?"#2962FF18":"none",width:"100%",textAlign:"left",touchAction:"manipulation" }}>
                         <span style={{width:6,height:6,borderRadius:"50%",background:activeTool===it.id?"#2962FF":"none",border:`1px solid ${activeTool===it.id?"#2962FF":"#3a3e4a"}`,flexShrink:0}}/>
                         {it.label}
@@ -1481,8 +1503,15 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           {WEB_TOGGLE_TOOLS.map(t=>(
             <button key={t.id} title={t.label}
               onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }}
-              onTouchStart={(e)=>{ e.preventDefault(); handleToolClick(t.id); }}
-              onClick={()=>{ handleToolClick(t.id); }}
+              onTouchStart={(e)=>{
+                lastSidebarTouchRef.current = Date.now();
+                e.preventDefault();
+                handleToolClick(t.id);
+              }}
+              onClick={()=>{
+                if (Date.now() - lastSidebarTouchRef.current < 600) return;
+                handleToolClick(t.id);
+              }}
               style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF":"#787b86",touchAction:"manipulation" }}>
               <SbIcon id={t.id}/>
             </button>

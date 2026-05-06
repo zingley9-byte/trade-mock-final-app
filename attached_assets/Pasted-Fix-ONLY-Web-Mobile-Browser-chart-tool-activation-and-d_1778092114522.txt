@@ -1,0 +1,128 @@
+Fix ONLY Web/Mobile Browser chart tool activation and drawing.
+
+IMPORTANT:
+- Expo iOS already works perfectly
+- Do NOT change Expo/native logic
+- Do NOT rewrite chart system
+- Do NOT change candles, websocket, portfolio, login, or UI
+
+==================================================
+CURRENT STATE
+==================================================
+
+WORKING:
+- Expo iOS tools work
+- Fibonacci works on Web/Mobile Browser
+- Overlay exists
+- Pointer events partially work
+
+BROKEN ONLY ON WEB/BROWSER:
+- trendline
+- horizontalLine
+- verticalLine
+- rectangle
+- brush
+- text
+- priceRange
+
+Symptoms:
+- tool tap does not activate tool
+- no drawing starts
+- Fibonacci is the ONLY working reference implementation
+
+This confirms:
+- drawing engine works
+- overlay works
+- web event layer/tool mapping is broken
+
+==================================================
+ROOT CAUSE TO CHECK
+==================================================
+
+Compare Fibonacci implementation against ALL other tools.
+
+Check for:
+- tool ID mismatch
+- enum mismatch
+- switch/case mismatch
+- wrong activeTool values
+- stale constants
+- lowercase/uppercase mismatch
+- toolbar button mapping mismatch
+- web-only event binding issues
+
+Examples:
+"horizontalLine" vs "hline"
+"trendLine" vs "trendline"
+
+==================================================
+FIX REQUIREMENTS
+==================================================
+
+1. ALL tools must use the EXACT SAME activation flow as Fibonacci.
+
+2. Every toolbar button MUST support:
+- onClick
+- onPointerDown
+- onTouchStart
+
+3. Ensure clicking/tapping a tool:
+- updates activeTool correctly
+- highlights selected tool
+- enables drawing mode
+
+4. Ensure overlay supports:
+pointer-events: auto;
+touch-action: none;
+user-select: none;
+-webkit-user-select: none;
+
+5. Use browser events:
+- pointerdown
+- pointermove
+- pointerup
+- touchstart
+- touchmove
+- touchend
+
+6. While drawing:
+- disable chart drag/pan
+- disable page scroll
+
+7. Cursor/select tool:
+- restore normal chart pan/zoom
+
+8. Verify ALL tools can:
+- select
+- draw
+- move
+- resize
+- delete
+
+9. Use getBoundingClientRect() for web coordinates.
+
+10. Add logs:
+console.log("tool selected", tool)
+console.log("activeTool", activeTool)
+console.log("drawing started", tool)
+console.log("drawing completed", tool)
+
+11. TEST every tool on:
+- desktop browser
+- mobile browser
+- Expo iOS
+
+==================================================
+VERY IMPORTANT
+==================================================
+
+Do NOT modify Expo iOS logic.
+Expo already works.
+
+Fix ONLY:
+- Web DOM interaction layer
+- tool mapping
+- browser event handling
+- activeTool synchronization
+
+Use Fibonacci web implementation as the exact reference behavior for every tool.
