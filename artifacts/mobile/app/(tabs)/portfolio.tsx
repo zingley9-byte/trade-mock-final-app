@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -40,10 +41,12 @@ export default function PortfolioScreen() {
   } = useTradingContext();
   const hideBalance = privacy.hideBalance;
 
-  const [modifyTarget, setModifyTarget] = useState<Position | null>(null);
-  const [slInput, setSlInput]           = useState("");
-  const [tpInput, setTpInput]           = useState("");
-  const [modifyErr, setModifyErr]       = useState("");
+  const [modifyTarget, setModifyTarget]   = useState<Position | null>(null);
+  const [slInput, setSlInput]             = useState("");
+  const [tpInput, setTpInput]             = useState("");
+  const [modifyErr, setModifyErr]         = useState("");
+  const [confirmCloseId, setConfirmCloseId]       = useState<string | null>(null);
+  const [confirmCloseSymbol, setConfirmCloseSymbol] = useState("");
 
   const runningPnL = getRunningPnL();
   const totalValue = getTotalPortfolioValue();
@@ -127,14 +130,13 @@ export default function PortfolioScreen() {
   }
 
   function handleClose(posId: string, symbol: string) {
-    Alert.alert(
-      "Close Position",
-      `Close ${symbol} position at market price?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Close", style: "destructive", onPress: () => closePosition(posId) },
-      ]
-    );
+    setConfirmCloseId(posId);
+    setConfirmCloseSymbol(symbol);
+  }
+
+  function doConfirmClose() {
+    if (confirmCloseId) closePosition(confirmCloseId);
+    setConfirmCloseId(null);
   }
 
   return (
@@ -271,6 +273,37 @@ export default function PortfolioScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Close Position Confirm Modal ──────────────────────────────── */}
+      <Modal
+        visible={!!confirmCloseId}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmCloseId(null)}
+      >
+        <Pressable style={styles.confirmOverlay} onPress={() => setConfirmCloseId(null)}>
+          <View style={[styles.confirmBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.confirmTitle, { color: colors.foreground }]}>Close Position</Text>
+            <Text style={[styles.confirmMsg, { color: colors.mutedForeground }]}>
+              Close {confirmCloseSymbol} position at market price?
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity
+                style={[styles.confirmCancel, { borderColor: colors.border }]}
+                onPress={() => setConfirmCloseId(null)}
+              >
+                <Text style={[styles.confirmCancelTxt, { color: colors.mutedForeground }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmClose, { backgroundColor: colors.bear }]}
+                onPress={doConfirmClose}
+              >
+                <Text style={styles.confirmCloseTxt}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* ── Modify Bottom Sheet Modal ─────────────────────────────────── */}
       <Modal
@@ -476,4 +509,14 @@ const styles = StyleSheet.create({
   sheetBtnCancelText: { fontSize: 14, fontWeight: "600" },
   sheetBtnSave: { flex: 1.6, paddingVertical: 13, borderRadius: 10, alignItems: "center" },
   sheetBtnSaveText: { fontSize: 14, fontWeight: "700", color: "#fff" },
+
+  confirmOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 },
+  confirmBox: { width: "100%", maxWidth: 340, borderRadius: 16, borderWidth: 1, padding: 22 },
+  confirmTitle: { fontSize: 17, fontWeight: "700", marginBottom: 8 },
+  confirmMsg: { fontSize: 14, lineHeight: 20, marginBottom: 22 },
+  confirmBtns: { flexDirection: "row", gap: 10 },
+  confirmCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: "center" },
+  confirmCancelTxt: { fontSize: 14, fontWeight: "600" },
+  confirmClose: { flex: 1.4, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
+  confirmCloseTxt: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });
