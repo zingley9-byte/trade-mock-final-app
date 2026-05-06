@@ -215,6 +215,8 @@ interface TradingContextType {
   resetAccount: () => { allowed: boolean; message: string };
   addAdminBonus: (amount: number) => void;
   refreshPrices: () => Promise<void>;
+  isChartFullscreen: boolean;
+  setIsChartFullscreen: (v: boolean) => void;
 }
 
 const TradingContext = createContext<TradingContextType | null>(null);
@@ -300,6 +302,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
   const [symbolChanges, setSymbolChanges] = useState<Record<string, number>>({});
   const [resetTimestamps, setResetTimestamps] = useState<number[]>([]);
+  const [isChartFullscreen, setIsChartFullscreen] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const fetchAllPricesRef = useRef<(() => Promise<void>) | null>(null);
@@ -896,6 +899,8 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         resetAccount,
         addAdminBonus,
         refreshPrices,
+        isChartFullscreen,
+        setIsChartFullscreen,
       }}
     >
       {children}

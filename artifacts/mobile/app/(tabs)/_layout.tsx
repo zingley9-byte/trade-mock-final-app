@@ -96,9 +96,11 @@ export default function TabLayout() {
   const tabBarHeight    = NAV_CONTENT_H + bottomInset;
   const paddingBottom   = bottomInset + 2;
 
+  const { isChartFullscreen } = useTradingContext();
+
   return (
     <View style={{ flex: 1, backgroundColor: "#0a0e1a" }}>
-      <AppHeader />
+      {!isChartFullscreen && <AppHeader />}
       <TradeFlashOverlay />
       <UserSyncEffect />
       <Tabs
@@ -106,7 +108,7 @@ export default function TabLayout() {
           tabBarActiveTintColor:   ACTIVE_COLOR,
           tabBarInactiveTintColor: INACTIVE_COLOR,
           headerShown: false,
-          tabBarStyle: {
+          tabBarStyle: isChartFullscreen ? { display: "none" } : {
             position:              "absolute",
             left:                  0,
             right:                 0,

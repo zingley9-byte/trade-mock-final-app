@@ -3,6 +3,7 @@ import { Platform, View, Text } from "react-native";
 import MobileCandleChart from "./MobileCandleChart";
 import NativeWebViewChart from "./NativeWebViewChart";
 import LoadingCandleAnimation from "./LoadingCandleAnimation";
+import { useTradingContext } from "@/context/TradingContext";
 
 // ─── Theme ───────────────────────────────────────────────────────────────────
 const C = {
@@ -90,6 +91,7 @@ function fmtVol(v: number) {
 
 // ─── Web Chart ────────────────────────────────────────────────────────────────
 function WebChart({ symbol, height }: { symbol: string; height: number }) {
+  const { setIsChartFullscreen } = useTradingContext();
   const containerRef   = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<any>(null);
   const candleRef      = useRef<any>(null);
@@ -150,6 +152,12 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   useEffect(()=>{
     try { localStorage.setItem(DRW_KEY, JSON.stringify(webDrawings)); } catch{}
   },[webDrawings]);
+
+  // Sync chart fullscreen state into global context so the tab layout can hide AppHeader / tab bar
+  useEffect(() => {
+    setIsChartFullscreen(isWebFS);
+    return () => { if (isWebFS) setIsChartFullscreen(false); };
+  }, [isWebFS]);
 
   // Track browser fullscreen state (native API) + inject sidebar scroll CSS
   useEffect(() => {
