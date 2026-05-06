@@ -266,14 +266,15 @@ function getPosPrice(
 const BINANCE_REST = "https://api.binance.com/api/v3";
 const BINANCE_WS = "wss://stream.binance.com:9443/ws";
 const API_BASE = "/api";
+const BYBIT_REST = "https://api.bybit.com/v5/market";
 
+// Bybit REST interval values
+const BYBIT_INTERVAL_MAP: Record<Timeframe, string> = {
+  "1m": "1", "5m": "5", "15m": "15", "30m": "30", "1h": "60", "1D": "D",
+};
+// Binance-format intervals (kept for backend proxy fallback)
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
-  "1m": "1m",
-  "5m": "5m",
-  "15m": "15m",
-  "30m": "30m",
-  "1h": "1h",
-  "1D": "1d",
+  "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h", "1D": "1d",
 };
 
 
@@ -446,22 +447,47 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
   const fetchCandles = useCallback(
     async (symbol: MarketSymbol, tf: Timeframe) => {
-      const interval = TIMEFRAME_MAP[tf];
-      const urls = [
-        `${BINANCE_REST}/klines?symbol=${symbol.id}&interval=${interval}&limit=120`,
-        `${API_BASE}/market/klines?symbol=${symbol.id}&interval=${interval}&limit=120`,
+      const bybitInterval = BYBIT_INTERVAL_MAP[tf] ?? "5";
+      const binInterval   = TIMEFRAME_MAP[tf];
+
+      // Try Bybit direct first (works on native, CORS-friendly for browser too)
+      // Fall back to backend proxy (always works on web via shared proxy)
+      const tries: Array<() => Promise<Response>> = [
+        () => fetch(`${BYBIT_REST}/kline?category=linear&symbol=${symbol.id}&interval=${bybitInterval}&limit=120`),
+        () => fetch(`${API_BASE}/market/klines?symbol=${symbol.id}&interval=${binInterval}&limit=120`),
       ];
-      for (const url of urls) {
+
+      for (const fetchFn of tries) {
         try {
-          const res = await fetch(url);
+          const res  = await fetchFn();
           const data = await res.json();
+
+          // Bybit format: { retCode: 0, result: { list: [[time, o, h, l, c, v], ...] } }
+          if (data?.retCode === 0 && Array.isArray(data?.result?.list)) {
+            const list = data.result.list as unknown[][];
+            // Bybit returns newest-first — sort ascending
+            const sorted = [...list].sort((a, b) => Number(a[0]) - Number(b[0]));
+            const parsed: Candle[] = sorted.map((k) => ({
+              time:   Number(k[0]),
+              open:   parseFloat(k[1] as string),
+              high:   parseFloat(k[2] as string),
+              low:    parseFloat(k[3] as string),
+              close:  parseFloat(k[4] as string),
+              volume: parseFloat(k[5] as string),
+            }));
+            setCandles(parsed);
+            if (parsed.length > 0) setCurrentPrice(parsed[parsed.length - 1].close);
+            break;
+          }
+
+          // Binance-compatible format from backend proxy: [[timeMs, o, h, l, c, v], ...]
           if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0])) {
             const parsed: Candle[] = data.map((k: unknown[]) => ({
-              time: (k[0] as number),
-              open: parseFloat(k[1] as string),
-              high: parseFloat(k[2] as string),
-              low: parseFloat(k[3] as string),
-              close: parseFloat(k[4] as string),
+              time:   (k[0] as number),
+              open:   parseFloat(k[1] as string),
+              high:   parseFloat(k[2] as string),
+              low:    parseFloat(k[3] as string),
+              close:  parseFloat(k[4] as string),
               volume: parseFloat(k[5] as string),
             }));
             setCandles(parsed);

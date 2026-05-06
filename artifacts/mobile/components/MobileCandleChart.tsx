@@ -32,10 +32,18 @@ const DEF_VIS = 80;
 
 // ─── Timeframes ────────────────────────────────────────────────────────────
 const TF_LIST = [
-  {label:"1m",bin:"1m"},{label:"3m",bin:"3m"},{label:"5m",bin:"5m"},
-  {label:"15m",bin:"15m"},{label:"30m",bin:"30m"},{label:"1h",bin:"1h"},
-  {label:"4h",bin:"4h"},{label:"1D",bin:"1d"},{label:"1W",bin:"1w"},
+  {label:"1m", bin:"1m", bybit:"1"},   {label:"3m", bin:"3m", bybit:"3"},
+  {label:"5m", bin:"5m", bybit:"5"},   {label:"15m",bin:"15m",bybit:"15"},
+  {label:"30m",bin:"30m",bybit:"30"},  {label:"1h", bin:"1h", bybit:"60"},
+  {label:"4h", bin:"4h", bybit:"240"}, {label:"1D", bin:"1d", bybit:"D"},
+  {label:"1W", bin:"1w", bybit:"W"},
 ];
+// Map Binance bin interval → Bybit interval (used in poll fallback)
+const BIN_TO_BYBIT: Record<string,string> = {
+  "1m":"1","3m":"3","5m":"5","15m":"15","30m":"30",
+  "1h":"60","4h":"240","1d":"D","1w":"W",
+};
+const BYBIT_KLINE = "https://api.bybit.com/v5/market/kline";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface Candle { time:number; open:number; high:number; low:number; close:number; volume:number; }
@@ -239,15 +247,16 @@ export default function MobileCandleChart({
     function startPoll(){
       stopPoll();
       if(!mountedRef.current||loadIdRef.current!==loadId) return;
+      const bybitInt = BIN_TO_BYBIT[binInterval] ?? "5";
       pollTimer.current=setInterval(async()=>{
         if(!mountedRef.current||loadIdRef.current!==loadId){ stopPoll(); return; }
         try {
-          const r=await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${binSym}&interval=${binInterval}&limit=2`);
+          const r=await fetch(`${BYBIT_KLINE}?category=linear&symbol=${binSym}&interval=${bybitInt}&limit=2`);
           if(!r.ok) return;
-          const data=await r.json();
-          if(!Array.isArray(data)||!data.length) return;
-          const last=data[data.length-1];
-          const nc:Candle={time:Math.floor(last[0]/1000),open:+last[1],high:+last[2],low:+last[3],close:+last[4],volume:+last[5]};
+          const json=await r.json();
+          if(json.retCode!==0||!json.result?.list?.length) return;
+          const last=json.result.list[0]; // Bybit: newest first
+          const nc:Candle={time:Math.floor(Number(last[0])/1000),open:+last[1],high:+last[2],low:+last[3],close:+last[4],volume:+last[5]};
           const arr=candlesRef.current;
           if(arr.length&&arr[arr.length-1].time===nc.time) arr[arr.length-1]=nc;
           else{ arr.push(nc); if(arr.length>1000) arr.shift(); }
@@ -306,19 +315,28 @@ export default function MobileCandleChart({
     wsRef.current?.close(); wsRef.current=null;
     retryDelay.current=3000;
     setLoading(true); setFetchError(false);
-    const binSym = toBinSym(sym);
-    const binInterval = TF_LIST.find(t=>t.label===selectedTf)?.bin??"5m";
+    const binSym      = toBinSym(sym);
+    const tfEntry     = TF_LIST.find(t=>t.label===selectedTf) ?? TF_LIST[2];
+    const binInterval = tfEntry.bin;
+    const bybitInterval = tfEntry.bybit;
     try {
-      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binSym}&interval=${binInterval}&limit=1000`);
+      console.log("[MobileChart] fetching candles — symbol:", binSym, "bybit interval:", bybitInterval);
+      const res = await fetch(`${BYBIT_KLINE}?category=linear&symbol=${binSym}&interval=${bybitInterval}&limit=1000`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (!Array.isArray(data)) throw new Error("Bad data");
+      const json = await res.json();
+      if (json.retCode !== 0) throw new Error(json.retMsg ?? `Bybit error ${json.retCode}`);
+      const list: any[][] = json.result?.list ?? [];
+      if (!list.length) throw new Error("Empty candle list from Bybit");
       if (!mountedRef.current||loadIdRef.current!==loadId) return;
-      candlesRef.current = data.map((d:any[])=>({time:Math.floor(d[0]/1000),open:+d[1],high:+d[2],low:+d[3],close:+d[4],volume:+d[5]}));
+      // Bybit returns newest-first — sort ascending
+      const sorted = [...list].sort((a, b) => Number(a[0]) - Number(b[0]));
+      candlesRef.current = sorted.map((d:any[])=>({time:Math.floor(Number(d[0])/1000),open:+d[1],high:+d[2],low:+d[3],close:+d[4],volume:+d[5]}));
+      console.log("[MobileChart] candles loaded:", candlesRef.current.length);
       offsetRef.current=0;
       if (onPrice&&candlesRef.current.length) onPrice(candlesRef.current[candlesRef.current.length-1].close);
       setLoading(false); setFetchError(false); redraw();
-    } catch {
+    } catch (e: any) {
+      console.log("[MobileChart] candle fetch error:", e?.message ?? e);
       if (mountedRef.current&&loadIdRef.current===loadId){ setLoading(false); setFetchError(true); }
       return;
     }

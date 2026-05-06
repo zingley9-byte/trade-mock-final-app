@@ -2,7 +2,21 @@ import { Router } from "express";
 
 const router = Router();
 
-const BINANCE_BASE = "https://api.binance.com/api/v3";
+// MEXC has a Binance-compatible klines API and is accessible from Replit servers.
+// Response format is identical: [[openTime, open, high, low, close, volume, ...], ...]
+const MEXC_BASE    = "https://api.mexc.com/api/v3";
+const BINANCE_BASE = "https://api.binance.com/api/v3";  // kept for ticker/price routes
+
+// Map app interval strings to MEXC interval format
+// MEXC intervals: 1m, 5m, 15m, 30m, 60m, 4h, 1d, 1W, 1M
+function toMexcInterval(interval: string): string {
+  const map: Record<string, string> = {
+    "1m":"1m",  "3m":"3m",  "5m":"5m",   "15m":"15m", "30m":"30m",
+    "1h":"60m", "2h":"2h",  "4h":"4h",
+    "1d":"1d",  "1D":"1d",  "1w":"1W",   "1W":"1W",
+  };
+  return map[interval] ?? interval;
+}
 
 const COINGECKO_IDS: Record<string, string> = {
   BTCUSDT: "bitcoin",
@@ -14,23 +28,24 @@ const COINGECKO_IDS: Record<string, string> = {
 
 router.get("/market/klines", async (req, res) => {
   const { symbol, interval, limit } = req.query;
-  const binanceUrl = `${BINANCE_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=${limit ?? 120}`;
-  req.log.info({ symbol, interval, limit }, "klines request received");
-  console.log("[API] klines request received — symbol:", symbol, "interval:", interval, "limit:", limit);
+  const mexcInterval = toMexcInterval(interval as string);
+  const mexcUrl = `${MEXC_BASE}/klines?symbol=${symbol}&interval=${mexcInterval}&limit=${limit ?? 200}`;
+  req.log.info({ symbol, interval, mexcInterval, limit }, "klines request received");
+  console.log("[API] klines request — symbol:", symbol, "mexcInterval:", mexcInterval, "limit:", limit);
   try {
-    const response = await fetch(binanceUrl);
-    console.log("[API] Binance response status:", response.status, response.statusText);
-    req.log.info({ status: response.status }, "Binance klines response");
+    const response = await fetch(mexcUrl);
+    console.log("[API] MEXC response status:", response.status, response.statusText);
+    req.log.info({ status: response.status }, "MEXC klines response");
     if (!response.ok) {
       const text = await response.text();
-      console.log("[API] Binance error body:", text.slice(0, 200));
-      res.status(502).json({ error: `Binance returned ${response.status}: ${text.slice(0, 100)}` });
+      console.log("[API] MEXC error body:", text.slice(0, 200));
+      res.status(502).json({ error: `MEXC returned ${response.status}: ${text.slice(0, 100)}` });
       return;
     }
     const data = await response.json() as unknown[];
     const count = Array.isArray(data) ? data.length : -1;
     console.log("[API] candles count:", count);
-    req.log.info({ count }, "klines fetched successfully");
+    req.log.info({ count }, "klines fetched successfully from MEXC");
     res.json(data);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

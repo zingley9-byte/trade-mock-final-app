@@ -498,9 +498,15 @@ html,body{width:100%;height:100%;background:#131722;overflow:hidden;margin:0;pad
 <script>
 // ── Constants ───────────────────────────────────────────────────────────────
 const SYMBOL   = '${bin}';
+// TF_MAP: Binance WS kline stream interval (kept for WebSocket URL)
 const TF_MAP   = {
   '1m':'1m','3m':'3m','5m':'5m','15m':'15m','30m':'30m',
   '1h':'1h','2h':'2h','4h':'4h','1D':'1d','1W':'1w',
+};
+// BYBIT_TF_MAP: Bybit REST kline interval
+const BYBIT_TF_MAP = {
+  '1m':'1','3m':'3','5m':'5','15m':'15','30m':'30',
+  '1h':'60','2h':'120','4h':'240','1D':'D','1W':'W',
 };
 let currentTf  = '5m';
 let chart, candleSeries, volSeries;
@@ -731,24 +737,30 @@ function toggleGrid(btn) {
 // ── Data loading ─────────────────────────────────────────────────────────────
 async function loadData(sym, tf) {
   const id = ++loadId;
-  const interval = TF_MAP[tf] || '5m';
+  const bybitInterval = BYBIT_TF_MAP[tf] || '5';
+  console.log('[NativeChart] fetching candles — sym:', sym, 'bybitInterval:', bybitInterval);
   try {
     const res = await fetch(
-      'https://api.binance.com/api/v3/klines?symbol='+sym+'&interval='+interval+'&limit=200'
+      'https://api.bybit.com/v5/market/kline?category=linear&symbol='+sym+'&interval='+bybitInterval+'&limit=200'
     );
     if (!res.ok || loadId !== id) return;
-    const data = await res.json();
-    const candles = data.map(k => ({
-      time: Math.floor(k[0]/1000),
+    const json = await res.json();
+    if (json.retCode !== 0) throw new Error('Bybit error: ' + (json.retMsg || json.retCode));
+    const list = json.result && json.result.list ? json.result.list : [];
+    if (loadId !== id) return;
+    // Bybit returns newest-first — sort ascending by timestamp
+    var sorted = list.slice().sort(function(a, b){ return Number(a[0]) - Number(b[0]); });
+    console.log('[NativeChart] candles loaded:', sorted.length);
+    var candles = sorted.map(function(k) { return {
+      time: Math.floor(Number(k[0])/1000),
       open: parseFloat(k[1]), high: parseFloat(k[2]),
       low: parseFloat(k[3]), close: parseFloat(k[4]),
-    }));
-    const vols = data.map(k => ({
-      time: Math.floor(k[0]/1000),
+    }; });
+    var vols = sorted.map(function(k) { return {
+      time: Math.floor(Number(k[0])/1000),
       value: parseFloat(k[5]),
       color: parseFloat(k[4]) >= parseFloat(k[1]) ? '#26a69a55' : '#ef535055',
-    }));
-    if (loadId !== id) return;
+    }; });
     _rawCandles = candles;
     if (CHART_TYPE === 'line') {
       candleSeries.setData(candles.map(function(c){return{time:c.time,value:c.close};}));
@@ -757,8 +769,10 @@ async function loadData(sym, tf) {
     }
     volSeries.setData(vols);
     chart.timeScale().fitContent();
+    console.log('[NativeChart] setData success');
     connectWS(sym, tf, id);
   } catch(e) {
+    console.log('[NativeChart] fetch error:', e && e.message ? e.message : String(e));
     if (loadId !== id) return;
     setWsBadge('error');
     retryTimer = setTimeout(() => loadData(sym, tf), retryDelay);
