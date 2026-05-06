@@ -91,10 +91,10 @@ export default function TradeDetailModal({
 
   function fmt(amount: number, decimals = 2): string {
     if (isUSD) {
-      const usd = amount / usdToInr;
-      return `$${usd.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+      return `$${amount.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
     }
-    return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+    const inr = amount * usdToInr;
+    return `₹${inr.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
   }
 
   const isOpen = !!position;
@@ -106,13 +106,13 @@ export default function TradeDetailModal({
   const margin = position?.margin    ?? trade?.margin    ?? 0;
   const entry  = position?.entryPrice ?? trade?.entryPrice ?? 0;
 
-  // ── P&L ────────────────────────────────────────────────────────────────────
+  // ── P&L (values stored in USD internally) ──────────────────────────────────
   let pnl = 0, pnlPct = 0;
   if (position) {
     const px   = livePrice > 0 ? livePrice : entry;
     const diff = isBuy ? px - entry : entry - px;
-    const raw  = diff * qty * lev * usdToInr;
-    pnl    = Math.abs(Math.max(-margin, raw)) < 0.005 ? 0 : Math.max(-margin, raw);
+    const raw  = diff * qty;
+    pnl    = Math.abs(Math.max(-margin, raw)) < 0.00001 ? 0 : Math.max(-margin, raw);
     pnlPct = margin > 0 ? (pnl / margin) * 100 : 0;
     if (Math.abs(pnlPct) < 0.005) pnlPct = 0;
   } else if (trade) {
@@ -120,9 +120,9 @@ export default function TradeDetailModal({
     pnlPct = trade.pnlPct;
   }
 
-  // ── Estimated charges: ~0.05% of notional (realistic futures fee) ──────────
-  const notional = entry * qty * lev;
-  const charges  = notional * 0.0005 * usdToInr;
+  // ── Estimated charges: ~0.05% of notional (in USD) ─────────────────────────
+  const notional = entry * qty;
+  const charges  = notional * 0.0005;
 
   const pnlColor = pnl >= 0 ? colors.bull : colors.bear;
   const pnlBg    = pnl >= 0 ? colors.bullBg : colors.bearBg;

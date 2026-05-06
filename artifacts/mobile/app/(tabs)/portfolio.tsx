@@ -61,6 +61,7 @@ export default function PortfolioScreen() {
   const [confirmCloseId, setConfirmCloseId]       = useState<string | null>(null);
   const [confirmCloseSymbol, setConfirmCloseSymbol] = useState("");
   const [detailPos, setDetailPos]                 = useState<Position | null>(null);
+  const [toast, setToast]                         = useState<string | null>(null);
 
   const runningPnL = getRunningPnL();
   const totalValue = getTotalPortfolioValue();
@@ -154,10 +155,17 @@ export default function PortfolioScreen() {
     setConfirmCloseSymbol(symbol);
   }
 
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
+
   function doConfirmClose() {
-    if (confirmCloseId) closePosition(confirmCloseId);
+    if (confirmCloseId) {
+      closePosition(confirmCloseId);
+      showToast("Position closed successfully");
+    }
     setConfirmCloseId(null);
-    // Show interstitial after position close — policy-safe (3 min cooldown)
     interstitialAd.tryShow();
   }
 
@@ -231,54 +239,63 @@ export default function PortfolioScreen() {
             </View>
 
             {positions.map((pos, idx) => {
-              // Live price — same logic as getRunningPnL in context
               const livePrice = (symbolPrices[pos.symbol.id] && symbolPrices[pos.symbol.id] > 0)
                 ? symbolPrices[pos.symbol.id]
                 : (pos.symbol.id === selectedSymbol.id && currentPrice > 0 ? currentPrice : pos.entryPrice);
               const priceDiff = pos.side === "buy"
                 ? livePrice - pos.entryPrice
                 : pos.entryPrice - livePrice;
-              const posPnlRaw = Math.max(-pos.margin, priceDiff * pos.quantity * pos.leverage * usdToInr);
-              const posPnl    = Math.abs(posPnlRaw) < 0.005 ? 0 : posPnlRaw;
+              const posPnlRaw = Math.max(-pos.margin, priceDiff * pos.quantity);
+              const posPnl    = Math.abs(posPnlRaw) < 0.00001 ? 0 : posPnlRaw;
               const isBuy     = pos.side === "buy";
               const pnlColor  = posPnl >= 0 ? colors.bull : colors.bear;
               const isLast    = idx === positions.length - 1;
 
               return (
-                <TouchableOpacity
+                <View
                   key={pos.id}
-                  activeOpacity={0.75}
-                  onPress={() => setDetailPos(pos)}
                   style={[
                     styles.posRow,
                     !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
                   ]}
                 >
-                  {/* Left: logo + text */}
-                  <CoinLogo symbolId={pos.symbol.id} size={38} />
-
-                  <View style={styles.posRowMid}>
-                    <Text style={[styles.posRowSymbol, { color: colors.foreground }]}>
-                      {pos.symbol.label}
-                    </Text>
-                    <Text style={[styles.posRowSub, { color: colors.mutedForeground }]}>
-                      {pos.quantity} lot{"  ·  "}
-                      <Text style={{ color: isBuy ? colors.bull : colors.bear, fontWeight: "700" }}>
-                        {isBuy ? "LONG" : "SHORT"}
+                  {/* Main tappable area → opens detail modal */}
+                  <TouchableOpacity
+                    activeOpacity={0.75}
+                    onPress={() => setDetailPos(pos)}
+                    style={styles.posRowTouchable}
+                  >
+                    <CoinLogo symbolId={pos.symbol.id} size={38} />
+                    <View style={styles.posRowMid}>
+                      <Text style={[styles.posRowSymbol, { color: colors.foreground }]}>
+                        {pos.symbol.label}
                       </Text>
-                      {"  ·  "}
-                      <Text style={{ color: colors.mutedForeground }}>Open</Text>
-                    </Text>
-                  </View>
+                      <Text style={[styles.posRowSub, { color: colors.mutedForeground }]}>
+                        {pos.quantity} lot{"  ·  "}
+                        <Text style={{ color: isBuy ? colors.bull : colors.bear, fontWeight: "700" }}>
+                          {isBuy ? "LONG" : "SHORT"}
+                        </Text>
+                        {"  ·  "}
+                        <Text style={{ color: colors.mutedForeground }}>Open</Text>
+                      </Text>
+                    </View>
+                    <View style={styles.posRowRight}>
+                      <Text style={[styles.posRowPnl, { color: pnlColor }]}>
+                        {posPnl >= 0 ? "+" : ""}{fmt(posPnl)}
+                      </Text>
+                      <Text style={[styles.posRowChevron, { color: colors.mutedForeground }]}>›</Text>
+                    </View>
+                  </TouchableOpacity>
 
-                  {/* Right: PnL + chevron */}
-                  <View style={styles.posRowRight}>
-                    <Text style={[styles.posRowPnl, { color: pnlColor }]}>
-                      {posPnl >= 0 ? "+" : ""}{fmt(posPnl)}
-                    </Text>
-                    <Text style={[styles.posRowChevron, { color: colors.mutedForeground }]}>›</Text>
-                  </View>
-                </TouchableOpacity>
+                  {/* Quick-exit button */}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => handleClose(pos.id, pos.symbol.label)}
+                    style={[styles.exitBtn, { borderColor: colors.bear + "66", backgroundColor: colors.bear + "11" }]}
+                  >
+                    <Text style={[styles.exitBtnText, { color: colors.bear }]}>Exit</Text>
+                  </TouchableOpacity>
+                </View>
               );
             })}
           </View>
@@ -287,6 +304,13 @@ export default function PortfolioScreen() {
 
       {/* ── Banner Ad — shown on native only, hidden on web ──────────── */}
       <AdBanner />
+
+      {/* ── Toast notification ───────────────────────────────────────── */}
+      {toast && (
+        <View style={[styles.toast, { backgroundColor: colors.bull, pointerEvents: "none" }]}>
+          <Text style={styles.toastText}>{toast}</Text>
+        </View>
+      )}
 
       {/* ── Close Position Confirm Modal ──────────────────────────────── */}
       <Modal
@@ -490,7 +514,11 @@ const styles = StyleSheet.create({
 
   posRow: {
     flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 14, paddingVertical: 13, gap: 12,
+    paddingRight: 10, paddingVertical: 4,
+  },
+  posRowTouchable: {
+    flex: 1, flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 10, gap: 12,
   },
   posRowMid: { flex: 1 },
   posRowSymbol: { fontSize: 15, fontWeight: "700", marginBottom: 3 },
@@ -498,6 +526,23 @@ const styles = StyleSheet.create({
   posRowRight: { alignItems: "flex-end", gap: 2 },
   posRowPnl: { fontSize: 15, fontWeight: "700" },
   posRowChevron: { fontSize: 20, lineHeight: 22, fontWeight: "300", opacity: 0.5 },
+
+  exitBtn: {
+    paddingHorizontal: 10, paddingVertical: 7,
+    borderRadius: 8, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+    marginRight: 4,
+  },
+  exitBtnText: { fontSize: 12, fontWeight: "700" },
+
+  toast: {
+    position: "absolute", bottom: 90, left: 24, right: 24,
+    paddingVertical: 12, paddingHorizontal: 18,
+    borderRadius: 12, alignItems: "center",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25, shadowRadius: 6, elevation: 8,
+  },
+  toastText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 
   // Modal / Sheet
   modalOverlay: { flex: 1, justifyContent: "flex-end" },

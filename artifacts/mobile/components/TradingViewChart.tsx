@@ -648,6 +648,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     if (activeTool==="brush"||activeTool==="highlighter") {
       drwMDown.current=true; drwFreehand.current=[x,y];
       setWebCurrent({type:activeTool,free:[x,y]});
+      console.log("drawing started", activeTool);
       try { (e.currentTarget as any).setPointerCapture(e.pointerId); } catch(_){}
       return;
     }
@@ -664,22 +665,30 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
 
     // Single-click tools
     if (activeTool==="hline") {
+      console.log("drawing started", activeTool);
       setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"hline",pts:[{price:pt.price,time:pt.time??0}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
+      console.log("drawing completed", activeTool);
       return;
     }
     if (activeTool==="vline") {
       if (!pt.time) return;
+      console.log("drawing started", activeTool);
       setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"vline",pts:[{price:pt.price,time:pt.time}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
+      console.log("drawing completed", activeTool);
       return;
     }
     if (activeTool==="pricelabel") {
+      console.log("drawing started", activeTool);
       setWebDrawings(ds=>[...ds,{id:genDrwId(),type:"pricelabel",pts:[{price:pt.price,time:pt.time??0}],color:drwColor,width:drwWidth,visible:true,locked:false}]);
+      console.log("drawing completed", activeTool);
       return;
     }
     if (activeTool==="text"||activeTool==="note") {
       const txt = window.prompt("Enter "+(activeTool==="text"?"text":"note")+":", activeTool==="text"?"Text":"Note");
       if (txt==null) return;
+      console.log("drawing started", activeTool);
       setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts:[{price:pt.price,time:pt.time??0}],color:drwColor,width:drwWidth,text:txt,visible:true,locked:false}]);
+      console.log("drawing completed", activeTool);
       return;
     }
 
@@ -687,6 +696,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     drwMDown.current=true;
     drwCurPts.current=[pt,pt];
     setWebCurrent({type:activeTool,pts:[pt,pt],preview:{x,y}});
+    console.log("drawing started", activeTool);
     try { (e.currentTarget as any).setPointerCapture(e.pointerId); } catch(_){}
   }
 
@@ -727,7 +737,10 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       if (fp.length>=4) {
         const pts:any[]=[];
         for (let i=0;i<fp.length;i+=2) { const pt=svgToData(fp[i],fp[i+1]); if(pt.price!=null) pts.push(pt); }
-        if (pts.length>=2) setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts,color:drwColor,width:drwWidth,visible:true,locked:false}]);
+        if (pts.length>=2) {
+          setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts,color:drwColor,width:drwWidth,visible:true,locked:false}]);
+          console.log("drawing completed", activeTool);
+        }
       }
       drwFreehand.current=[]; setWebCurrent(null); return;
     }
@@ -748,6 +761,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         const moved=svgP1.x!=null&&svgP2.x!=null&&(Math.abs((svgP2.x??0)-(svgP1.x??0))>4||Math.abs((svgP2.y??0)-(svgP1.y??0))>4);
         if (moved) {
           setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts:[...pts],color:drwColor,width:drwWidth,visible:true,locked:false}]);
+          console.log("drawing completed", activeTool);
         }
         drwCurPts.current=[]; setWebCurrent(null);
       }
@@ -1422,11 +1436,23 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           {/* Tool groups */}
           {WEB_TOOL_GROUPS.slice(1).map(g=>{
             const isAct = g.items.some((it:any)=>it.id===activeTool);
+            function handleGroupInteract(el: HTMLElement) {
+              if(g.items.length===1){
+                console.log("tool selected", g.items[0].id);
+                handleToolClick(g.items[0].id);
+                setOpenSubGroup(null);
+              } else {
+                const r = el.getBoundingClientRect();
+                setSubGroupY(r.top);
+                setOpenSubGroup(v=>v===g.id?null:g.id);
+              }
+            }
             return (
               <div key={g.id} style={{position:"relative"}}>
                 <button title={g.label}
                   onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }}
-                  onClick={(e)=>{ console.log("[DrawTools] tool selected:", g.id); if(g.items.length===1){handleToolClick(g.items[0].id);setOpenSubGroup(null);}else{ const r=(e.currentTarget as HTMLElement).getBoundingClientRect(); setSubGroupY(r.top); setOpenSubGroup(v=>v===g.id?null:g.id);}}}
+                  onTouchStart={(e)=>{ e.preventDefault(); handleGroupInteract(e.currentTarget); }}
+                  onClick={(e)=>{ handleGroupInteract(e.currentTarget); }}
                   style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:isAct?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:isAct?"#2962FF":"#787b86",fontSize:13,fontWeight:"bold",position:"relative",touchAction:"manipulation" }}>
                   <SbIcon id={g.id}/>
                   {g.items.length>1&&<span style={{position:"absolute",right:3,bottom:4,width:0,height:0,borderLeft:"3px solid transparent",borderRight:"3px solid transparent",borderTop:`3px solid ${isAct?"#2962FF":"#4a4e5a"}`}}/>}
@@ -1435,7 +1461,10 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
                   <div style={{ position:"fixed",left:46,top:subGroupY,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,minWidth:180,padding:"4px 0",zIndex:500,boxShadow:"0 4px 24px #00000090" }}>
                     <div style={{padding:"4px 12px",fontSize:9,fontWeight:"700",color:C.dim,textTransform:"uppercase",letterSpacing:".6px",borderBottom:`1px solid ${C.border}`,marginBottom:2}}>{g.label}</div>
                     {g.items.map((it:any)=>(
-                      <button key={it.id} onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }} onClick={()=>{ console.log("[DrawTools] tool selected:", it.id); handleToolClick(it.id);setOpenSubGroup(null);}}
+                      <button key={it.id}
+                        onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }}
+                        onTouchStart={(e)=>{ e.preventDefault(); console.log("tool selected", it.id); handleToolClick(it.id); setOpenSubGroup(null); }}
+                        onClick={()=>{ console.log("tool selected", it.id); handleToolClick(it.id); setOpenSubGroup(null); }}
                         style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 12px",fontSize:12,color:activeTool===it.id?"#2962FF":C.text,cursor:"pointer",border:"none",background:activeTool===it.id?"#2962FF18":"none",width:"100%",textAlign:"left",touchAction:"manipulation" }}>
                         <span style={{width:6,height:6,borderRadius:"50%",background:activeTool===it.id?"#2962FF":"none",border:`1px solid ${activeTool===it.id?"#2962FF":"#3a3e4a"}`,flexShrink:0}}/>
                         {it.label}
@@ -1450,7 +1479,10 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           <div style={{width:28,height:1,background:C.border,margin:"3px 0"}}/>
           {/* Toggle tools */}
           {WEB_TOGGLE_TOOLS.map(t=>(
-            <button key={t.id} title={t.label} onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }} onClick={()=>{ handleToolClick(t.id);}}
+            <button key={t.id} title={t.label}
+              onPointerDown={(e)=>{ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_){} }}
+              onTouchStart={(e)=>{ e.preventDefault(); handleToolClick(t.id); }}
+              onClick={()=>{ handleToolClick(t.id); }}
               style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF":"#787b86",touchAction:"manipulation" }}>
               <SbIcon id={t.id}/>
             </button>

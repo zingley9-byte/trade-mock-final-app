@@ -33,10 +33,11 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - Leverage: x1, x5, x10, x25, x50, x80, x100
 - Stop Loss / Take Profit
 - Auto-liquidation at leverage threshold
-- P&L tracking (running + realized)
-- Balance system (₹1,00,000 starting)
-- Portfolio screen with stats
+- P&L formula: `priceDiff * quantity` (NO leverage multiplier); fixed rate 95 INR/USD
+- Balance system ($50,000 USD starting, displayed in USD or INR)
+- Portfolio screen: per-position Exit button with confirmation + success toast
 - Trade history with win/loss filtering
+- Web chart drawing tools: all toolbar buttons have onTouchStart for mobile browser support
 - Dark/Light theme toggle
 - Data persisted via AsyncStorage
 

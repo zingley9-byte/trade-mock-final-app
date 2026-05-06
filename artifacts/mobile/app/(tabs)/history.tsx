@@ -60,10 +60,10 @@ export default function HistoryScreen() {
 
   function fmt(amount: number, decimals = 2): string {
     if (isUSD) {
-      const usd = amount / usdToInr;
-      return `$${usd.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+      return `$${amount.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
     }
-    return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+    const inr = amount * usdToInr;
+    return `₹${inr.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
   }
 
   const filtered = tradeHistory.filter((t) => {

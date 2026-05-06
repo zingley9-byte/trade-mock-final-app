@@ -253,10 +253,9 @@ function calcPnL(pos: Position, price: number): number {
   if (!price || price <= 0) return 0;
   const entry = parseFloat(String(pos.entryPrice));
   const qty   = parseFloat(String(pos.quantity));
-  const lev   = parseFloat(String(pos.leverage));
-  if (!entry || !qty || !lev) return 0;
+  if (!entry || !qty) return 0;
   const priceDiff = pos.side === "buy" ? price - entry : entry - price;
-  return priceDiff * qty * lev;
+  return priceDiff * qty;
 }
 
 /** Returns the live price for a position's symbol, with fallback to currentPrice for the selected symbol. Returns 0 if unknown. */
@@ -302,7 +301,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const [marketFilter, setMarketFilterState] = useState<"crypto">("crypto");
   const [currencyMode, setCurrencyModeState] = useState<"usd" | "inr">("usd");
   const [tradeFlash, setTradeFlash] = useState<{ side: "buy" | "sell"; symbol: string; entryPrice: number; leverage: number; quantity: number; positionId: string } | null>(null);
-  const [usdToInr, setUsdToInr] = useState(84);
+  const [usdToInr] = useState(95);
   const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
   const [symbolChanges, setSymbolChanges] = useState<Record<string, number>>({});
   const [resetTimestamps, setResetTimestamps] = useState<number[]>([]);
@@ -311,16 +310,6 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null);
   const fetchAllPricesRef = useRef<(() => Promise<void>) | null>(null);
 
-  useEffect(() => {
-    async function fetchRate() {
-      try {
-        const res = await fetch("https://open.er-api.com/v6/latest/USD");
-        const data = await res.json();
-        if (data?.rates?.INR) setUsdToInr(data.rates.INR);
-      } catch {}
-    }
-    fetchRate();
-  }, []);
   const lastSymbolRef       = useRef<string>("");
   // always reflects the current selectedSymbol.id so interval callbacks can sync priceChange24h
   const selectedSymbolIdRef = useRef<string>(SYMBOLS[0].id);
@@ -771,7 +760,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
         return newB;
       });
     },
-    [positions, currentPrice, symbolPrices, selectedSymbol, tradeHistory, theme, leverage, usdToInr]
+    [positions, currentPrice, symbolPrices, selectedSymbol, tradeHistory, theme, leverage]
   );
 
   const modifyPosition = useCallback(
@@ -792,11 +781,10 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       const price = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id);
       if (!price) return sum;
       const pnlRaw = calcPnL(pos, price);
-      // Safety: single position can't lose more than its margin
       const clampedPnl = Math.max(-pos.margin, pnlRaw);
       return sum + clampedPnl;
     }, 0);
-  }, [positions, currentPrice, symbolPrices, selectedSymbol.id, usdToInr]);
+  }, [positions, currentPrice, symbolPrices, selectedSymbol.id]);
 
   const getTotalPortfolioValue = useCallback((): number => {
     const marginUsed = positions.reduce((s, p) => s + parseFloat(String(p.margin)), 0);
