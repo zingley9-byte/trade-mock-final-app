@@ -19,8 +19,14 @@ localPort = 18115
 run = "pnpm --filter @workspace/mobile run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/mobile", "run", "build" ]
-run = [ "pnpm", "--filter", "@workspace/mobile", "run", "serve" ]
+# Build expo app then aggressively clean up node_modules + pnpm store so
+# the deployment image stays under the 8 GiB limit.
+# Both artifacts are self-contained at runtime:
+#   - API server  → esbuild bundle (no node_modules needed)
+#   - Mobile app  → zero-dependency serve.js using Node.js built-ins only
+build = [ "bash", "-c", "pnpm --filter @workspace/mobile run build && bash scripts/deploy-cleanup.sh" ]
+# Call node directly — bypasses pnpm which needs the store (removed by cleanup)
+run = [ "node", "artifacts/mobile/server/serve.js" ]
 
 [services.env]
 PORT = "18115"
