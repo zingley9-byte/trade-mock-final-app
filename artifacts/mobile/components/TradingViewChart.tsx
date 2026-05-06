@@ -349,7 +349,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       const controller = new AbortController();
       const tid = setTimeout(() => controller.abort(), 10000);
       try {
-        const url = `${apiBase}/api/market/klines?symbol=${binSym}&interval=${binInterval}&limit=1000`;
+        const url = `${apiBase}/api/market/klines?symbol=${binSym}&interval=${binInterval}&limit=101`;
         console.log(`[Chart] fetching history attempt ${attempt} —`, url);
         const res = await fetch(url, { signal: controller.signal });
         clearTimeout(tid);

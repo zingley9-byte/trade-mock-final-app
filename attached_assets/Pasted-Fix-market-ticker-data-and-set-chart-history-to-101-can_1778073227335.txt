@@ -1,0 +1,101 @@
+Fix market ticker data and set chart history to 101 candles.
+
+Do not change:
+- chart UI
+- chart tools
+- drawing engine
+- WebSocket logic
+- portfolio
+- login
+- bottom navigation
+- app layout
+
+Only fix:
+1. Coin ticker/24h stats
+2. Historical candle count
+
+==================================================
+PART 1 — FIX MARKET TICKER DATA
+==================================================
+
+Problem:
+- BTC price shows
+- ETH, BNB, SOL show $--
+- 24h High / 24h Low / Volume / 24h% missing
+- Coin list not updating properly
+
+Requirements:
+1. Fetch ticker data separately from candle history.
+2. Use public ticker API for:
+   BTCUSDT
+   ETHUSDT
+   BNBUSDT
+   SOLUSDT
+   XRPUSDT
+   DOGEUSDT
+
+3. Show for every coin:
+- current price
+- 24h percent change
+- 24h high
+- 24h low
+- volume
+
+4. If Binance ticker fails/block occurs:
+- use backend proxy OR
+- use MEXC public ticker API fallback
+
+5. Update ticker data every 5 seconds.
+
+6. If one coin API fails:
+- other coins should still work
+
+7. Keep previous values until new values arrive.
+8. Never show $-- if old value exists.
+
+9. Top section must update correctly:
+- current price
+- 24h High
+- 24h Low
+- Volume
+- 24h %
+
+==================================================
+PART 2 — SET CHART HISTORY TO 101 CANDLES
+==================================================
+
+Requirements:
+1. Fetch exactly 101 historical candles.
+2. Change candle API limit to:
+limit=101
+
+3. Sort candles by time ascending before rendering.
+
+4. Render using:
+candlestickSeries.setData(mappedCandles)
+
+5. After history loads:
+- connect live WebSocket
+- latest candle updates live
+
+6. Do not remove previous candles during live updates.
+
+7. On timeframe change:
+- reload new 101 candles
+
+==================================================
+IMPORTANT
+==================================================
+
+- Do NOT touch chart tools
+- Do NOT break working chart
+- Do NOT modify UI
+- Do NOT remove live price
+- Do NOT change portfolio logic
+- Do NOT change navigation
+
+Only fix:
+- ticker data
+- 24h stats
+- coin list prices
+- candle history count = 101

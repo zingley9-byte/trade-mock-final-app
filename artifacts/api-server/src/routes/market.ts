@@ -2,13 +2,8 @@ import { Router } from "express";
 
 const router = Router();
 
-// MEXC has a Binance-compatible klines API and is accessible from Replit servers.
-// Response format is identical: [[openTime, open, high, low, close, volume, ...], ...]
-const MEXC_BASE    = "https://api.mexc.com/api/v3";
-const BINANCE_BASE = "https://api.binance.com/api/v3";  // kept for ticker/price routes
+const MEXC_BASE = "https://api.mexc.com/api/v3";
 
-// Map app interval strings to MEXC interval format
-// MEXC intervals: 1m, 5m, 15m, 30m, 60m, 4h, 1d, 1W, 1M
 function toMexcInterval(interval: string): string {
   const map: Record<string, string> = {
     "1m":"1m",  "3m":"3m",  "5m":"5m",   "15m":"15m", "30m":"30m",
@@ -17,14 +12,6 @@ function toMexcInterval(interval: string): string {
   };
   return map[interval] ?? interval;
 }
-
-const COINGECKO_IDS: Record<string, string> = {
-  BTCUSDT: "bitcoin",
-  ETHUSDT: "ethereum",
-  BNBUSDT: "binancecoin",
-  DOGEUSDT: "dogecoin",
-  SOLUSDT: "solana",
-};
 
 router.get("/market/klines", async (req, res) => {
   const { symbol, interval, limit } = req.query;
@@ -55,12 +42,15 @@ router.get("/market/klines", async (req, res) => {
   }
 });
 
+// Ticker 24hr — MEXC primary, no Binance dependency
 router.get("/market/ticker24hr", async (req, res) => {
   const { symbol } = req.query;
   try {
-    const response = await fetch(
-      `${BINANCE_BASE}/ticker/24hr?symbol=${symbol}`
-    );
+    const response = await fetch(`${MEXC_BASE}/ticker/24hr?symbol=${symbol}`);
+    if (!response.ok) {
+      res.status(502).json({ error: `MEXC returned ${response.status}` });
+      return;
+    }
     const data = await response.json();
     res.json(data);
   } catch (err) {
@@ -69,46 +59,49 @@ router.get("/market/ticker24hr", async (req, res) => {
   }
 });
 
-router.get("/market/price", async (req, res) => {
-  const { symbol } = req.query;
+interface TickerStats {
+  price: number;
+  change24h: number;
+  high24h: number;
+  low24h: number;
+  volume: number;
+}
+
+// Fetch a single symbol's 24hr ticker from MEXC
+async function fetchMexcTicker(symbol: string): Promise<TickerStats | null> {
   try {
-    const response = await fetch(
-      `${BINANCE_BASE}/ticker/price?symbol=${symbol}`
-    );
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    req.log.error({ err }, "Failed to fetch price");
-    res.status(502).json({ error: "Failed to fetch price" });
+    const r = await fetch(`${MEXC_BASE}/ticker/24hr?symbol=${symbol}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!r.ok) return null;
+    const d = await r.json() as {
+      lastPrice?: string; highPrice?: string; lowPrice?: string;
+      volume?: string; priceChangePercent?: string;
+    };
+    const price = parseFloat(d.lastPrice ?? "0");
+    if (!price) return null;
+    return {
+      price,
+      change24h: parseFloat(d.priceChangePercent ?? "0"),
+      high24h:   parseFloat(d.highPrice ?? "0"),
+      low24h:    parseFloat(d.lowPrice  ?? "0"),
+      volume:    parseFloat(d.volume    ?? "0"),
+    };
+  } catch {
+    return null;
   }
-});
+}
 
+// All-symbol prices endpoint — MEXC-backed, returns full 24h stats
 router.get("/market/prices", async (req, res) => {
-  const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT", "SOLUSDT"];
+  const symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT"];
   try {
-    const [priceRes, statsRes] = await Promise.all([
-      fetch(`${BINANCE_BASE}/ticker/price?symbols=${encodeURIComponent(JSON.stringify(symbols))}`),
-      fetch(`${BINANCE_BASE}/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`),
-    ]);
-
-    const priceData = await priceRes.json() as Array<{ symbol: string; price: string }>;
-    const statsData = await statsRes.json() as Array<{ symbol: string; priceChangePercent: string }>;
-
-    const changeMap: Record<string, number> = {};
-    if (Array.isArray(statsData)) {
-      for (const item of statsData) changeMap[item.symbol] = parseFloat(item.priceChangePercent);
+    const results = await Promise.all(symbols.map(fetchMexcTicker));
+    const out: Record<string, TickerStats> = {};
+    for (let i = 0; i < symbols.length; i++) {
+      if (results[i]) out[symbols[i]] = results[i]!;
     }
-
-    const result: Record<string, { price: number; change24h: number }> = {};
-    if (Array.isArray(priceData)) {
-      for (const item of priceData) {
-        result[item.symbol] = {
-          price: parseFloat(item.price),
-          change24h: changeMap[item.symbol] ?? 0,
-        };
-      }
-    }
-    res.json(result);
+    res.json(out);
   } catch (err) {
     req.log.error({ err }, "Failed to fetch prices");
     res.status(502).json({ error: "Failed to fetch prices" });

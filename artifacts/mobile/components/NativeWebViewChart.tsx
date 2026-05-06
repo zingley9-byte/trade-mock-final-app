@@ -742,9 +742,9 @@ async function loadData(sym, tf) {
 
   // Try API proxy first (more reliable in dev/Replit), fall back to MEXC direct
   const proxyUrl = API_BASE
-    ? API_BASE + '/api/market/klines?symbol=' + sym + '&interval=' + mexcInterval + '&limit=1000'
+    ? API_BASE + '/api/market/klines?symbol=' + sym + '&interval=' + mexcInterval + '&limit=101'
     : null;
-  const mexcUrl = 'https://api.mexc.com/api/v3/klines?symbol=' + sym + '&interval=' + mexcInterval + '&limit=1000';
+  const mexcUrl = 'https://api.mexc.com/api/v3/klines?symbol=' + sym + '&interval=' + mexcInterval + '&limit=101';
 
   console.log('[NativeChart] fetching candles — sym:', sym, 'interval:', mexcInterval);
 

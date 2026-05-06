@@ -332,7 +332,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     async function fetchAllPrices() {
       try {
         const res = await fetch(`${API_BASE}/market/prices`);
-        const map: Record<string, { price: number; change24h: number }> = await res.json();
+        const map: Record<string, { price: number; change24h: number; high24h?: number; low24h?: number; volume?: number }> = await res.json();
         setSymbolPrices((prev) => {
           const next = { ...prev };
           for (const id of CRYPTO_IDS) {
@@ -348,7 +348,12 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
           return next;
         });
         const selId = selectedSymbolIdRef.current;
-        if (map[selId] !== undefined) setPriceChange24h(map[selId].change24h);
+        if (map[selId] !== undefined) {
+          setPriceChange24h(map[selId].change24h);
+          if (map[selId].high24h) setHigh24h(map[selId].high24h!);
+          if (map[selId].low24h)  setLow24h(map[selId].low24h!);
+          if (map[selId].volume)  setVolume24h(map[selId].volume!);
+        }
       } catch {}
     }
     fetchAllPricesRef.current = fetchAllPrices;
@@ -412,7 +417,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       // Use backend proxy only — MEXC-backed, Binance-compatible array format
       console.log("Using proxy klines API");
       try {
-        const res  = await fetch(`${API_BASE}/market/klines?symbol=${symbol.id}&interval=${binInterval}&limit=1000`);
+        const res  = await fetch(`${API_BASE}/market/klines?symbol=${symbol.id}&interval=${binInterval}&limit=101`);
         const data = await res.json();
 
         // Binance-compatible format: [[timeMs, o, h, l, c, v], ...]
@@ -424,7 +429,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
             low:    parseFloat(k[3] as string),
             close:  parseFloat(k[4] as string),
             volume: parseFloat(k[5] as string),
-          }));
+          })).sort((a, b) => a.time - b.time);
           console.log("Candles received count:", parsed.length);
           setCandles(parsed);
           if (parsed.length > 0) setCurrentPrice(parsed[parsed.length - 1].close);
