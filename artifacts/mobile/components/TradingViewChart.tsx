@@ -122,12 +122,14 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   const [subMenu,      setSubMenu]     = useState<string|null>(null);
   const [openSubGroup, setOpenSubGroup]= useState<string|null>(null);
   const [isWebFS,      setIsWebFS]     = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
   const wrapperRef  = useRef<HTMLDivElement>(null);
   const svgRef      = useRef<SVGSVGElement>(null);
   const drwCurPts   = useRef<any[]>([]);
   const drwFreehand = useRef<number[]>([]);
   const drwMDown    = useRef(false);
   const drwPreview  = useRef<{x:number;y:number}|null>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const DRW_KEY = "tm_drw_v2";
 
   // Load drawings from localStorage on mount
@@ -604,11 +606,22 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     e.preventDefault(); onSvgPointerUp({clientX:0,clientY:0} as any);
   }
 
+  // Show the float/settings menu for a drawing at a given screen position.
+  // Called by both right-click (desktop) and 480ms long-press (touch/mobile).
+  function showFloatMenuAt(id: string, x: number, y: number) {
+    const d = webDrawings.find(xd => xd.id === id);
+    if (!d || d.locked) return;
+    setSelectedDrwId(id);
+    setFloatMenu({ x, y, id });
+  }
+
   function onDrawingClick(id: string, e: React.MouseEvent) {
     if (activeTool==="delete") { setWebDrawings(ds=>ds.filter(d=>d.id!==id)); return; }
     if (!activeTool||activeTool==="cursor") {
       const d=webDrawings.find(x=>x.id===id); if(!d||d.locked) return;
-      setSelectedDrwId(id); setFloatMenu({x:e.clientX,y:e.clientY,id});
+      setSelectedDrwId(id);
+      // Single click: select only (no menu) — right-click / long-press opens the menu
+      setFloatMenu(null);
     }
   }
   function onHandlePointerDown(did: string, idx: number, e: React.PointerEvent) {
@@ -644,7 +657,26 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   function renderOneDraw(d: any, sel: boolean) {
     void drawTick;
     const c=d.color||C.gold, w=d.width||1.5, sc=sel?"#2962FF":c;
-    const hitProps = { style:{cursor:"move"} as any, onClick:(e:React.MouseEvent)=>{e.stopPropagation();onDrawingClick(d.id,e);} };
+    const hitProps = {
+      style: { cursor: "move" } as any,
+      // Single click: select the drawing
+      onClick: (e: React.MouseEvent) => { e.stopPropagation(); onDrawingClick(d.id, e); },
+      // Right-click (desktop): show settings float menu immediately
+      onContextMenu: (e: React.MouseEvent) => {
+        e.preventDefault(); e.stopPropagation();
+        if (!activeTool || activeTool === "cursor") showFloatMenuAt(d.id, e.clientX, e.clientY);
+      },
+      // Touch long-press (mobile browser): 480ms hold shows settings menu
+      onTouchStart: (e: React.TouchEvent) => {
+        const t = e.touches[0];
+        const cx = t.clientX, cy = t.clientY;
+        longPressRef.current = setTimeout(() => {
+          if (!activeTool || activeTool === "cursor") showFloatMenuAt(d.id, cx, cy);
+        }, 480);
+      },
+      onTouchMove: () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; } },
+      onTouchEnd:  () => { if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; } },
+    };
 
     if (d.type==="trendline"||d.type==="arrow"||d.type==="ray") {
       if (!d.pts||d.pts.length<2) return null;
@@ -871,6 +903,18 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
 
       {/* ── Top toolbar ── */}
       <div style={{ height:TOP, display:"flex", alignItems:"center", background:C.panel, borderBottom:`1px solid ${C.border}`, paddingLeft:4, paddingRight:8, gap:2, flexShrink:0 }}>
+        {/* 4-dot sidebar toggle — matches native chart topbar */}
+        <TBtn
+          title={sidebarVisible ? "Hide drawing tools" : "Show drawing tools"}
+          active={!sidebarVisible}
+          onClick={() => setSidebarVisible(v => !v)}
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+        </TBtn>
+        <div style={{ width:1, height:22, background:C.border, margin:"0 3px" }}/>
         {/* + */}
         <TBtn title="Add indicator"><IcPlus/></TBtn>
         <div style={{ width:1, height:22, background:C.border, margin:"0 3px" }}/>
@@ -918,12 +962,12 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       {/* ── Body: sidebar + chart ── */}
       <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
 
-        {/* ── Drawing Sidebar ── */}
-        <div className="tm-web-sidebar" style={{ width:44, background:C.panel, borderRight:`1px solid ${C.border}`, display:"flex", flexDirection:"column", alignItems:"center", padding:"4px 0", gap:1, flexShrink:0, zIndex:20, overflowY:"auto", overflowX:"visible", scrollbarWidth:"none", msOverflowStyle:"none", position:"relative" } as React.CSSProperties}>
+        {/* ── Drawing Sidebar ── hidden when sidebarVisible=false (chart expands via flex) */}
+        <div className="tm-web-sidebar" style={{ width:44, background:C.panel, borderRight:`1px solid ${C.border}`, display: sidebarVisible ? "flex" : "none", flexDirection:"column", alignItems:"center", padding:"4px 0", gap:1, flexShrink:0, zIndex:20, overflowY:"auto", overflowX:"visible", scrollbarWidth:"none", msOverflowStyle:"none", position:"relative" } as React.CSSProperties}>
           {/* Cursor */}
           <button title="Cursor" onClick={()=>handleToolClick("cursor")}
-            style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(!activeTool||activeTool==="cursor")?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(!activeTool||activeTool==="cursor")?"#2962FF":"#787b86",fontSize:14 }}>
-            ⊕
+            style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(!activeTool||activeTool==="cursor")?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(!activeTool||activeTool==="cursor")?"#2962FF":"#787b86" }}>
+            <SbIcon id="cursor"/>
           </button>
           {/* Tool groups */}
           {WEB_TOOL_GROUPS.slice(1).map(g=>{
@@ -933,7 +977,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
                 <button title={g.label}
                   onClick={()=>{ if(g.items.length===1){handleToolClick(g.items[0].id);setOpenSubGroup(null);}else{setOpenSubGroup(v=>v===g.id?null:g.id);}}}
                   style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:isAct?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:isAct?"#2962FF":"#787b86",fontSize:13,fontWeight:"bold",position:"relative" }}>
-                  {g.icon}
+                  <SbIcon id={g.id}/>
                   {g.items.length>1&&<span style={{position:"absolute",right:3,bottom:4,width:0,height:0,borderLeft:"3px solid transparent",borderRight:"3px solid transparent",borderTop:`3px solid ${isAct?"#2962FF":"#4a4e5a"}`}}/>}
                 </button>
                 {openSubGroup===g.id&&(
@@ -956,8 +1000,8 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           {/* Toggle tools */}
           {WEB_TOGGLE_TOOLS.map(t=>(
             <button key={t.id} title={t.label} onClick={()=>handleToolClick(t.id)}
-              style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF":"#787b86",fontSize:13 }}>
-              {t.icon}
+              style={{ width:34,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF22":"none",border:"none",borderRadius:5,cursor:"pointer",color:(activeTool===t.id||(t.id==="hide"&&!showWebDraw))?"#2962FF":"#787b86" }}>
+              <SbIcon id={t.id}/>
             </button>
           ))}
         </div>
@@ -965,15 +1009,25 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         {/* Float menu for selected drawing */}
         {floatMenu&&(()=>{
           const d=webDrawings.find(x=>x.id===floatMenu.id);
-          return d?<div style={{position:"fixed",left:Math.min(floatMenu.x,window.innerWidth-220),top:Math.max(floatMenu.y-70,50),background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 6px",display:"flex",alignItems:"center",gap:4,zIndex:600,boxShadow:"0 4px 20px #00000090"}}>
-            <button onClick={()=>{setWebDrawings(ds=>ds.filter(x=>x.id!==floatMenu.id));setFloatMenu(null);setSelectedDrwId(null);}} style={{background:"none",border:"none",color:"#ef5350",cursor:"pointer",padding:"4px 8px",fontSize:11,borderRadius:4,display:"flex",alignItems:"center",gap:4}}>🗑 Delete</button>
-            <div style={{width:1,height:18,background:C.border}}/>
-            <input type="color" value={d.color||"#f0b90b"} onChange={e=>{setDrwColor(e.target.value);setWebDrawings(ds=>ds.map(x=>x.id===floatMenu.id?{...x,color:e.target.value}:x));}} style={{width:22,height:22,border:"2px solid #3a3e4a",borderRadius:4,cursor:"pointer",padding:0,background:"none"}}/>
-            <div style={{width:1,height:18,background:C.border}}/>
-            <button onClick={()=>{setWebDrawings(ds=>ds.map(x=>x.id===floatMenu.id?{...x,locked:!x.locked}:x));setFloatMenu(null);setSelectedDrwId(null);}} style={{background:"none",border:"none",color:"#f59e0b",cursor:"pointer",padding:"4px 8px",fontSize:11,borderRadius:4}}>
-              {d.locked?"🔓 Unlock":"🔒 Lock"}
+          const fmBtnStyle = (clr: string): React.CSSProperties => ({background:"none",border:"none",color:clr,cursor:"pointer",padding:"5px 7px",borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center"});
+          return d?<div style={{position:"fixed",left:Math.min(floatMenu.x,window.innerWidth-240),top:Math.max(floatMenu.y-50,50),background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"4px 5px",display:"flex",alignItems:"center",gap:2,zIndex:600,boxShadow:"0 4px 20px #00000090"}}>
+            {/* Color */}
+            <input type="color" value={d.color||"#f0b90b"} onChange={e=>{setDrwColor(e.target.value);setWebDrawings(ds=>ds.map(x=>x.id===floatMenu.id?{...x,color:e.target.value}:x));}} title="Color" style={{width:24,height:24,border:"2px solid #3a3e4a",borderRadius:4,cursor:"pointer",padding:0,background:"none"}}/>
+            <div style={{width:1,height:18,background:C.border,margin:"0 1px"}}/>
+            {/* Lock / Unlock */}
+            <button title={d.locked?"Unlock":"Lock"} onClick={()=>{setWebDrawings(ds=>ds.map(x=>x.id===floatMenu.id?{...x,locked:!x.locked}:x));setFloatMenu(null);setSelectedDrwId(null);}} style={fmBtnStyle("#f59e0b")}>
+              <SbIcon id="lock"/>
             </button>
-            <button onClick={()=>{setFloatMenu(null);setSelectedDrwId(null);}} style={{background:"none",border:"none",color:"#787b86",cursor:"pointer",padding:"4px 8px",fontSize:12}}>✕</button>
+            <div style={{width:1,height:18,background:C.border,margin:"0 1px"}}/>
+            {/* Delete */}
+            <button title="Delete" onClick={()=>{setWebDrawings(ds=>ds.filter(x=>x.id!==floatMenu.id));setFloatMenu(null);setSelectedDrwId(null);}} style={fmBtnStyle("#ef5350")}>
+              <SbIcon id="delete"/>
+            </button>
+            <div style={{width:1,height:18,background:C.border,margin:"0 1px"}}/>
+            {/* Close */}
+            <button title="Deselect" onClick={()=>{setFloatMenu(null);setSelectedDrwId(null);}} style={fmBtnStyle("#787b86")}>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
           </div>:null;
         })()}
 
@@ -1122,6 +1176,35 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       )}
     </div>
   );
+}
+
+// ── Sidebar SVG icon set (matches native NativeWebViewChart icons) ────────────
+function SbIcon({ id }: { id: string }) {
+  const s = { stroke:"currentColor", strokeWidth:"1.8", strokeLinecap:"round" as const, strokeLinejoin:"round" as const, fill:"none" };
+  switch (id) {
+    case "cursor":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><path d="M5 3l14 9-7 1-3 7z" fill="currentColor" stroke="none"/></svg>;
+    case "lines":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><line x1="5" y1="19" x2="19" y2="5"/><circle cx="5" cy="19" r="2.5" fill="currentColor" stroke="none"/><circle cx="19" cy="5" r="1.5"/></svg>;
+    case "fib":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>;
+    case "shapes":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><rect x="3" y="6" width="18" height="12" rx="1.5"/></svg>;
+    case "brush":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><path d="M3 14 C5.5 8 7.5 17 10 12 C12.5 7 14.5 16 17 11 C18.5 8 20.5 10 21 10"/></svg>;
+    case "text":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><line x1="4" y1="6" x2="20" y2="6"/><line x1="12" y1="6" x2="12" y2="20"/></svg>;
+    case "measure":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><line x1="4" y1="12" x2="20" y2="12"/><polyline points="8 7 12 3 16 7" stroke="#22C55E" fill="none"/><line x1="12" y1="3" x2="12" y2="12" stroke="#22C55E"/><polyline points="8 17 12 21 16 17" stroke="#EF4444" fill="none"/><line x1="12" y1="12" x2="12" y2="21" stroke="#EF4444"/></svg>;
+    case "hide":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>;
+    case "lock":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+    case "delete":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>;
+    default:
+      return <span style={{fontSize:12,fontWeight:"bold"}}>{id[0]?.toUpperCase()??""}</span>;
+  }
 }
 
 // ── small reusable button ────────────────────────────────────────────────────
