@@ -234,7 +234,7 @@ function Footer() {
         <View style={ft.brand}>
           <View style={ft.brandRow}>
             <Image source={require("@/assets/images/logo.png")} style={ft.logo} />
-            <Text style={ft.brandName}>TRADE MOCK</Text>
+            <Text style={ft.brandName}>TRADE MOCK PRO</Text>
           </View>
           <Text style={ft.tagline}>Practice crypto trading without risk.{"\n"}Build confidence before real markets.</Text>
           <Text style={ft.trust}>Trusted by traders worldwide</Text>

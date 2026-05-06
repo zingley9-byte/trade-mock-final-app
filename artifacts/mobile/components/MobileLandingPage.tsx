@@ -191,7 +191,7 @@ export default function MobileLandingPage() {
         <View style={s.navInner}>
           <View style={s.navLogo}>
             <Image source={require("@/assets/images/logo.png")} style={s.navLogoImg} />
-            <Text style={s.navLogoTxt}>TRADE MOCK</Text>
+            <Text style={s.navLogoTxt}>TRADE MOCK PRO</Text>
           </View>
           <TouchableOpacity style={s.hamburger} onPress={() => setMenuOpen(!menuOpen)}>
             <View style={s.hLine} />
