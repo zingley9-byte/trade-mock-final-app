@@ -530,20 +530,18 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
 
   // ── Drawing helpers ───────────────────────────────────────────────────────
   const isDrawActive = !!(activeTool && activeTool !== "cursor" && activeTool !== "delete");
+  // Each group has exactly 1 item so handleGroupInteract activates the tool directly
+  // (same as Fibonacci) — no submenus, no z-index race, works on desktop + mobile browser.
   const WEB_TOOL_GROUPS = [
-    { id:"cursor", label:"Cursor", icon:"⊕", items:[] },
-    { id:"lines",  label:"Lines",  icon:"⟋", items:[
-      {id:"trendline",label:"Trend Line"},{id:"arrow",label:"Arrow"},{id:"ray",label:"Ray"},
-      {id:"hline",label:"Horizontal Line"},{id:"vline",label:"Vertical Line"},{id:"channel",label:"Parallel Channel"},
-    ]},
-    { id:"fib",    label:"Fib",    icon:"≡", items:[{id:"fibretracement",label:"Fib Retracement"}] },
-    { id:"shapes", label:"Shapes", icon:"□", items:[{id:"rectangle",label:"Rectangle"},{id:"circle",label:"Circle"}] },
-    { id:"brush",  label:"Brush",  icon:"✏", items:[{id:"brush",label:"Brush"},{id:"highlighter",label:"Highlighter"}] },
-    { id:"text",   label:"Text",   icon:"T", items:[{id:"text",label:"Text"},{id:"note",label:"Note"},{id:"pricelabel",label:"Price Label"}] },
-    { id:"measure",label:"Measure",icon:"⊙", items:[
-      {id:"longposition",label:"Long Position"},{id:"shortposition",label:"Short Position"},
-      {id:"daterange",label:"Date Range"},{id:"pricerange",label:"Price Range"},
-    ]},
+    { id:"cursor",     label:"Cursor",       icon:"cursor",  items:[] },
+    { id:"trendline",  label:"Trend Line",   icon:"lines",   items:[{id:"trendline",      label:"Trend Line"}] },
+    { id:"hline",      label:"H. Line",      icon:"hline",   items:[{id:"hline",          label:"Horizontal Line"}] },
+    { id:"vline",      label:"V. Line",      icon:"vline",   items:[{id:"vline",          label:"Vertical Line"}] },
+    { id:"fib",        label:"Fibonacci",    icon:"fib",     items:[{id:"fibretracement", label:"Fib Retracement"}] },
+    { id:"rectangle",  label:"Rectangle",    icon:"shapes",  items:[{id:"rectangle",      label:"Rectangle"}] },
+    { id:"brush",      label:"Brush",        icon:"brush",   items:[{id:"brush",          label:"Brush"}] },
+    { id:"text",       label:"Text",         icon:"text",    items:[{id:"text",           label:"Text"}] },
+    { id:"pricerange", label:"Price Range",  icon:"measure", items:[{id:"pricerange",     label:"Price Range"}] },
   ];
   const WEB_TOGGLE_TOOLS = [
     { id:"hide",   label:"Hide/Show", icon:"👁" },
@@ -1718,6 +1716,10 @@ function SbIcon({ id }: { id: string }) {
       return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><path d="M5 3l14 9-7 1-3 7z" fill="currentColor" stroke="none"/></svg>;
     case "lines":
       return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><line x1="5" y1="19" x2="19" y2="5"/><circle cx="5" cy="19" r="2.5" fill="currentColor" stroke="none"/><circle cx="19" cy="5" r="1.5"/></svg>;
+    case "hline":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><line x1="3" y1="12" x2="21" y2="12" strokeDasharray="3 2"/><circle cx="3" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg>;
+    case "vline":
+      return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><line x1="12" y1="3" x2="12" y2="21" strokeDasharray="3 2"/><circle cx="12" cy="3" r="1.5" fill="currentColor" stroke="none"/></svg>;
     case "fib":
       return <svg viewBox="0 0 24 24" width="16" height="16" {...s}><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>;
     case "shapes":
