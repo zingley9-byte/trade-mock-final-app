@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import CoinLogo from "./CoinLogo";
 import { useColors } from "@/hooks/useColors";
-import { Position, TradeHistory } from "@/context/TradingContext";
+import { getLivePositionPnl, Position, TradeHistory } from "@/context/TradingContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface TradeDetailModalProps {
@@ -106,13 +106,11 @@ export default function TradeDetailModal({
   const margin = position?.margin    ?? trade?.margin    ?? 0;
   const entry  = position?.entryPrice ?? trade?.entryPrice ?? 0;
 
-  // ── P&L (values stored in USD internally) ──────────────────────────────────
+  // ── P&L — uses shared getLivePositionPnl so result always matches portfolio row ──
   let pnl = 0, pnlPct = 0;
   if (position) {
-    const px   = livePrice > 0 ? livePrice : entry;
-    const diff = isBuy ? px - entry : entry - px;
-    const raw  = diff * qty;
-    pnl    = Math.abs(Math.max(-margin, raw)) < 0.00001 ? 0 : Math.max(-margin, raw);
+    // livePrice is getBestPrice(position) passed from portfolio.tsx — same source as the row
+    pnl    = getLivePositionPnl(position, livePrice);
     pnlPct = margin > 0 ? (pnl / margin) * 100 : 0;
     if (Math.abs(pnlPct) < 0.005) pnlPct = 0;
   } else if (trade) {

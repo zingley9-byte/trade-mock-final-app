@@ -18,7 +18,7 @@ import SvgIcon from "@/components/SvgIcon";
 import AdBanner from "@/components/AdBanner";
 import interstitialAd from "@/components/InterstitialAdManager";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTradingContext, Position, calcPnL } from "@/context/TradingContext";
+import { useTradingContext, Position, getLivePositionPnl } from "@/context/TradingContext";
 import { useColors } from "@/hooks/useColors";
 import { usePrivacy } from "@/context/PrivacyContext";
 import CoinLogo from "@/components/CoinLogo";
@@ -70,27 +70,26 @@ export default function PortfolioScreen() {
     }
   }, [positions, selectedPosId]);
 
-  // ── Shared PnL helper — identical to calcPnL + clamp used in TradingContext ──
-  function getPosPnl(pos: Position): number {
-    const livePrice = (symbolPrices[pos.symbol.id] && symbolPrices[pos.symbol.id] > 0)
-      ? symbolPrices[pos.symbol.id]
-      : (pos.symbol.id === selectedSymbol.id && currentPrice > 0 ? currentPrice : pos.entryPrice);
-    const raw = calcPnL(pos, livePrice);
-    const clamped = Math.max(-pos.margin, raw);
-    return Math.abs(clamped) < 0.00001 ? 0 : clamped;
+  // ── Single price-resolver: symbolPrices first, then currentPrice for selected symbol, else 0 ──
+  function getBestPrice(pos: Position): number {
+    const sp = symbolPrices[pos.symbol.id];
+    if (sp && sp > 0) return sp;
+    if (pos.symbol.id === selectedSymbol.id && currentPrice > 0) return currentPrice;
+    return 0;
   }
 
-  // ── One source of truth for portfolio totals ─────────────────────────────────
+  // ── One source of truth for all PNL display — uses shared getLivePositionPnl ─
+  function getPosPnl(pos: Position): number {
+    return getLivePositionPnl(pos, getBestPrice(pos));
+  }
+
   const unrealizedPnL = positions.reduce((sum, pos) => sum + getPosPnl(pos), 0);
   const realizedPnL   = tradeHistory.reduce((sum, t) => sum + t.pnl, 0);
   const totalPnL      = unrealizedPnL + realizedPnL;
   const totalValue    = INITIAL_BALANCE + totalPnL;
 
-  const detailLivePrice = detailPos
-    ? ((symbolPrices[detailPos.symbol.id] && symbolPrices[detailPos.symbol.id] > 0)
-        ? symbolPrices[detailPos.symbol.id]
-        : (detailPos.symbol.id === selectedSymbol.id && currentPrice > 0 ? currentPrice : detailPos.entryPrice))
-    : 0;
+  // Pass the best available live price — recomputed fresh on every render from context
+  const detailLivePrice = detailPos ? getBestPrice(detailPos) : 0;
   const totalPnLPct = (totalPnL / INITIAL_BALANCE) * 100;
   const isUSD = currencyMode === "usd";
 

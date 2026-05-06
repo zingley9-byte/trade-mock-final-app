@@ -177,6 +177,11 @@ const LEGACY_KEYS = [
   "portfolioValue",
   "tradeMockPortfolio",
   "portfolioState",
+  "currentPnl",
+  "openPositionPnl",
+  "pnlCache",
+  "positionPnl",
+  "livePnl",
 ];
 
 interface TradingContextType {
@@ -256,6 +261,22 @@ export function calcPnL(pos: Position, price: number): number {
   if (!entry || !qty) return 0;
   const priceDiff = pos.side === "buy" ? price - entry : entry - price;
   return priceDiff * qty;
+}
+
+/**
+ * Shared live PNL function used by every display surface (portfolio row, trade detail, totals).
+ * Formula: LONG (currentPrice - entryPrice) * quantity
+ *          SHORT (entryPrice - currentPrice) * quantity
+ * Returns 0 when currentPrice is unavailable (≤ 0). No stale cache, no fallback to entryPrice.
+ */
+export function getLivePositionPnl(pos: Position, currentPrice: number): number {
+  if (!currentPrice || currentPrice <= 0) return 0;
+  const entry = parseFloat(String(pos.entryPrice));
+  const qty   = parseFloat(String(pos.quantity));
+  if (!entry || !qty) return 0;
+  return pos.side === "buy"
+    ? (currentPrice - entry) * qty
+    : (entry - currentPrice) * qty;
 }
 
 /** Returns the live price for a position's symbol, with fallback to currentPrice for the selected symbol. Returns 0 if unknown. */
