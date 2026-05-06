@@ -19,6 +19,7 @@ import { TradingProvider } from "@/context/TradingContext";
 import { AlertsProvider } from "@/context/AlertsContext";
 import { AdminProvider } from "@/context/AdminContext";
 import { PrivacyProvider, usePrivacy } from "@/context/PrivacyContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import PinLockScreen from "@/components/PinLockScreen";
 
 SplashScreen.preventAutoHideAsync();
@@ -75,6 +76,7 @@ export default function RootLayout() {
             <AlertsProvider>
               <AdminProvider>
                 <PrivacyProvider>
+                  <NotificationProvider>
                   <GestureHandlerRootView style={{ flex: 1 }}>
                     <AppProviders>
                       <LockGate>
@@ -89,6 +91,7 @@ export default function RootLayout() {
                       </LockGate>
                     </AppProviders>
                   </GestureHandlerRootView>
+                  </NotificationProvider>
                 </PrivacyProvider>
               </AdminProvider>
             </AlertsProvider>

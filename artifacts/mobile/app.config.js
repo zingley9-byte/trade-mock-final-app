@@ -47,6 +47,15 @@ module.exports = {
         },
       ],
       "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/images/logo.png",
+          color: "#2962FF",
+          defaultChannel: "daily-reminders",
+          sounds: [],
+        },
+      ],
       // ── Google AdMob ─────────────────────────────────────────────────────
       // These App IDs are Google's official TEST IDs (safe for development).
       // BEFORE Play Store launch: set real IDs via environment variables:

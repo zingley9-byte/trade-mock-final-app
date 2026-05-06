@@ -24,6 +24,7 @@ import { useAdmin, ADMIN_EMAIL } from "@/context/AdminContext";
 import { usePrivacy } from "@/context/PrivacyContext";
 import PinLockScreen from "@/components/PinLockScreen";
 import AlertsModal from "@/components/AlertsModal";
+import { useNotifications } from "@/context/NotificationContext";
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 const KEYS = {
@@ -226,6 +227,7 @@ export default function SettingsScreen() {
   const { theme, setTheme, resetAccount } = useTradingContext();
   const { isAdmin } = useAdmin();
   const isDark = theme === "dark";
+  const { dailyNotifEnabled, setDailyNotifEnabled, permissionStatus } = useNotifications();
 
   const {
     privacy,
@@ -440,6 +442,32 @@ export default function SettingsScreen() {
           <Text style={[styles.editBtnText, { color: colors.primary }]}>Edit</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ─── Daily Notifications (mobile only) ─── */}
+      {Platform.OS !== "web" && (
+        <>
+          <SectionHeader title="Daily Notifications" colors={colors} />
+          <View style={styles.section}>
+            <ToggleRow
+              icon="alarm-outline"
+              iconBg="#6366f1"
+              label="Enable Daily Reminders"
+              sub={
+                permissionStatus === "denied"
+                  ? "Permission denied — enable in device settings"
+                  : dailyNotifEnabled
+                  ? "9:00 AM & 7:00 PM every day"
+                  : "Turn on to receive daily practice reminders"
+              }
+              value={dailyNotifEnabled}
+              onToggle={() => setDailyNotifEnabled(!dailyNotifEnabled)}
+              colors={colors}
+              isFirst
+              isLast
+            />
+          </View>
+        </>
+      )}
 
       {/* ─── Notifications ─── */}
       <SectionHeader title="Notifications" colors={colors} />
