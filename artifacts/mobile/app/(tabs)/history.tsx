@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   FlatList,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -43,7 +44,14 @@ export default function HistoryScreen() {
     getRunningPnL,
     currencyMode,
     usdToInr,
+    refreshPrices,
   } = useTradingContext();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await refreshPrices(); } finally { setRefreshing(false); }
+  }, [refreshPrices]);
   const [filter, setFilter] = useState<"all" | "win" | "loss">("all");
 
   const isUSD = currencyMode === "usd";
@@ -242,6 +250,14 @@ export default function HistoryScreen() {
             paddingHorizontal: 14,
             paddingBottom: Platform.OS === "web" ? 80 : insets.bottom + 90,
           }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={["#00c896"]}
+              tintColor="#00c896"
+            />
+          }
         />
       )}
     </View>

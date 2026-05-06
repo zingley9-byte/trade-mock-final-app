@@ -509,6 +509,7 @@ export default function ChartsScreen() {
     currencyMode, usdToInr,
     openPosition,
     symbolPrices, symbolChanges,
+    isChartFullscreen,
   } = useTradingContext();
 
   const subTab: SubTab = "traded";
@@ -586,10 +587,10 @@ export default function ChartsScreen() {
   const isDesktopWeb = Platform.OS === "web" && winW >= 768;
 
   return (
-    <View style={[s.root, { backgroundColor: colors.background, paddingBottom: tabBarH }]}>
+    <View style={[s.root, { backgroundColor: colors.background, paddingBottom: isChartFullscreen ? 0 : tabBarH }]}>
 
-      {/* ── Coin Header (full width) ── */}
-      <View style={[s.coinHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+      {/* ── Coin Header (full width) — hidden in fullscreen so chart toolbar is visible ── */}
+      {!isChartFullscreen && <View style={[s.coinHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity style={s.coinLeft} onPress={() => setSymbolPickerVis(true)} activeOpacity={0.75}>
           <CoinLogo symbolId={selectedSymbol.id} size={28} />
           <View>
@@ -616,19 +617,18 @@ export default function ChartsScreen() {
           </View>
         </View>
 
-      </View>
-
+      </View>}
 
       {/* ── Middle Row: Chart + Desktop Crypto Panel ── */}
       <View style={{ flex: 1, flexDirection: "row" }}>
 
         {/* Chart */}
-        <View style={{ flex: 1 }} onLayout={onChartLayout}>
+        <View style={{ flex: 1 }} ref={chartContainerRef} onLayout={onChartLayout}>
           <TradingViewChart symbol={selectedSymbol.id} height={chartHeight} />
         </View>
 
         {/* Desktop-only crypto panel (right side, 768px+) */}
-        {isDesktopWeb && (
+        {isDesktopWeb && !isChartFullscreen && (
           <DesktopCryptoPanel
             colors={colors}
             symbolPrices={symbolPrices}
@@ -641,8 +641,8 @@ export default function ChartsScreen() {
         )}
       </View>
 
-      {/* ── Bottom Quick Trade Bar (full width) ── */}
-      <View style={[s.tradeBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+      {/* ── Bottom Quick Trade Bar — hidden in fullscreen ── */}
+      {!isChartFullscreen && <View style={[s.tradeBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
         <TouchableOpacity onPress={handleShort} style={[s.tradeBtn, s.shortBtn]} activeOpacity={0.82}>
           <Text style={s.tradeBtnTop}>Short</Text>
           <Text style={s.tradeBtnPrice} numberOfLines={1}>
@@ -669,7 +669,7 @@ export default function ChartsScreen() {
             {fmtP(currentPrice, currencyMode, usdToInr)}
           </Text>
         </TouchableOpacity>
-      </View>
+      </View>}
 
       {/* ── Modals ── */}
       <QuickTradeModal

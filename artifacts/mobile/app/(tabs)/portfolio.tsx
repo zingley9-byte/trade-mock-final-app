@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Alert,
   Dimensions,
@@ -6,6 +6,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -40,7 +41,14 @@ export default function PortfolioScreen() {
     resetAccount,
     currencyMode,
     usdToInr,
+    refreshPrices,
   } = useTradingContext();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await refreshPrices(); } finally { setRefreshing(false); }
+  }, [refreshPrices]);
   const hideBalance = privacy.hideBalance;
 
   const [modifyTarget, setModifyTarget]   = useState<Position | null>(null);
@@ -148,6 +156,14 @@ export default function PortfolioScreen() {
       <ScrollView
         style={[styles.root, { backgroundColor: colors.background }]}
         contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 80 : insets.bottom + 90 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={["#00c896"]}
+            tintColor="#00c896"
+          />
+        }
       >
         {/* ── Header ───────────────────────────────────────────────────── */}
         <View style={styles.headerRow}>
