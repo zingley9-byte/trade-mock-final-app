@@ -11,3 +11,9 @@ id = "54oKGUUfqr26ZUxv1Ebif"
 uri = "file://artifacts/mobile/assets/expo_qr.png"
 type = "image"
 title = "Expo Go QR — Scan karo"
+
+[[outputs]]
+id = "w3DivlwhWw8OjcZC2kd66"
+uri = "file://artifacts/mobile/FIRESTORE_RULES.txt"
+type = "text"
+title = "Firestore Security Rules — apply in Firebase Console"

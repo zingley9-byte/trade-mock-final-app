@@ -229,30 +229,37 @@ export default function AppHeader() {
     setTimeout(() => setFeedbackOpen(false), 1800);
   }
 
+  async function _doLogout() {
+    setProfileOpen(false);
+    setLoggingOut(true);
+    setProfileImage(null);
+    try {
+      await performLogout();
+      setLogoutDone(true);
+      await new Promise((r) => setTimeout(r, 900));
+      setLoggingOut(false);
+      setLogoutDone(false);
+      router.replace("/auth");
+    } catch {
+      setLoggingOut(false);
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined") window.alert("Logout failed. Please try again.");
+      } else {
+        Alert.alert("Logout Failed", "Something went wrong. Please try again.");
+      }
+    }
+  }
+
   function handleLogout() {
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm("Are you sure you want to logout?")) {
+        _doLogout();
+      }
+      return;
+    }
     Alert.alert("Logout", "Are you sure you want to logout?", [
       { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout", style: "destructive",
-        onPress: async () => {
-          setProfileOpen(false);
-          setLoggingOut(true);
-          setProfileImage(null);
-          try {
-            await performLogout();
-            setLogoutDone(true);
-            // Show "Logged out successfully" briefly before navigating
-            await new Promise((r) => setTimeout(r, 900));
-            setLoggingOut(false);
-            setLogoutDone(false);
-            // replace so back-button cannot return to app
-            router.replace("/auth");
-          } catch {
-            setLoggingOut(false);
-            Alert.alert("Logout Failed", "Something went wrong. Please try again.");
-          }
-        },
-      },
+      { text: "Logout", style: "destructive", onPress: _doLogout },
     ]);
   }
 

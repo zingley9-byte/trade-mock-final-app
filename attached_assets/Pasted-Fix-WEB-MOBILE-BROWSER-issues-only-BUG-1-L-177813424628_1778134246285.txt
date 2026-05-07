@@ -1,0 +1,89 @@
+Fix WEB/MOBILE BROWSER issues only.
+
+==================================================
+BUG 1 — Logout button not working on Web/Safari
+==================================================
+
+Current issue:
+On mobile browser and web browser, tapping Logout does nothing.
+
+Requirements:
+- Fix logout handler for web/mobile browser.
+- Clear Firebase auth session correctly.
+- Clear local storage/session storage safely.
+- Redirect to login screen after logout.
+- Must work on:
+  - Safari iPhone
+  - Chrome Android
+  - Desktop browser
+  - Expo unchanged
+
+Use:
+await signOut(auth)
+
+Also clear:
+- persisted auth state
+- cached user data
+- portfolio cache
+- websocket subscriptions
+
+No UI changes.
+
+==================================================
+BUG 2 — Admin panel Firestore permissions
+==================================================
+
+Current issue:
+Adding coins and publishing announcements shows:
+“Missing or insufficient permissions.”
+
+Fix Firebase admin access logic.
+
+Requirements:
+- Admin users can:
+  - add/remove coins
+  - publish announcements
+  - manage users
+- Normal users CANNOT access admin write actions.
+
+Use authenticated admin email check.
+
+Admin email:
+zingley9@gmail.com
+
+==================================================
+Firestore Rules requirements:
+==================================================
+
+Allow authenticated admin to:
+- read/write admin_config
+- read/write announcements
+- read/write listed_coins
+
+Allow authenticated users to:
+- read announcements
+- read listed_coins
+
+Do NOT open full public write access.
+
+==================================================
+BUG 3 — Web browser interaction fixes
+==================================================
+
+Fix tap/click handling on:
+- logout button
+- admin buttons
+- modal buttons
+- coin add form
+
+Ensure:
+- pointerEvents work
+- z-index is correct
+- overlays do not block taps
+- Safari touch events work
+
+Do not change:
+- chart
+- websocket
+- UI design
+- expo behavior

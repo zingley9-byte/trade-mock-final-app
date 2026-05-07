@@ -98,6 +98,12 @@ export default function AdminAnnouncements() {
   }
 
   function handleDelete(a: Announcement) {
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`Delete "${a.title}"?`)) {
+        deleteAnnouncement(a.id).catch(() => {});
+      }
+      return;
+    }
     Alert.alert("Delete", `Delete "${a.title}"?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: () => deleteAnnouncement(a.id).catch(() => {}) },

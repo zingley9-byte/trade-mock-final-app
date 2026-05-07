@@ -1,24 +1,50 @@
-// Paste these rules into:
-// Firebase Console → Firestore Database → Rules tab → Publish
+// ═══════════════════════════════════════════════════════════════
+//  HOW TO APPLY THESE RULES
+// ═══════════════════════════════════════════════════════════════
+//  1. Go to https://console.firebase.google.com
+//  2. Select project: trademock-webs
+//  3. Click "Firestore Database" in the left sidebar
+//  4. Click the "Rules" tab at the top
+//  5. Select ALL existing text and replace with the rules below
+//  6. Click "Publish"
+// ═══════════════════════════════════════════════════════════════
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Admin config (announcements, coins, app settings)
-    // Any authenticated user can read; only the admin email can write
+    // ── Admin config ──────────────────────────────────────────
+    // Paths written by the admin panel:
+    //   admin_config/announcements  (items array)
+    //   admin_config/coins          (items array)
+    //   admin_config/app            (app settings)
+    //
+    // Any logged-in user can READ (announcements are shown to all users).
+    // Only the admin email can WRITE.
     match /admin_config/{doc} {
-      allow read: if request.auth != null;
+      allow read:  if request.auth != null;
       allow write: if request.auth != null
                    && request.auth.token.email == 'Zingley9@gmail.com';
     }
 
-    // User documents — each user can only access their own data
+    // ── User documents ────────────────────────────────────────
+    // Each user can read/write only their own data.
+    // Admin can read any user doc (for the users panel).
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read:  if request.auth != null
+                   && (request.auth.uid == uid
+                       || request.auth.token.email == 'Zingley9@gmail.com');
+      allow write: if request.auth != null
+                   && (request.auth.uid == uid
+                       || request.auth.token.email == 'Zingley9@gmail.com');
 
       match /trades/{tradeId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read:  if request.auth != null
+                     && (request.auth.uid == uid
+                         || request.auth.token.email == 'Zingley9@gmail.com');
+        allow write: if request.auth != null
+                     && (request.auth.uid == uid
+                         || request.auth.token.email == 'Zingley9@gmail.com');
       }
     }
   }

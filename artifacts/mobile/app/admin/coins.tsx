@@ -110,7 +110,9 @@ export default function AdminCoins() {
       Keyboard.dismiss();
       setAddModal(false);
       setNewSymbol(""); setNewName("");
-      Alert.alert("Coin Added Successfully", `${nm} (${label}) has been added.\nLive market data will be used automatically.`);
+      if (Platform.OS !== "web") {
+        Alert.alert("Coin Added Successfully", `${nm} (${label}) has been added.\nLive market data will be used automatically.`);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setAddErr(msg);
@@ -121,7 +123,17 @@ export default function AdminCoins() {
 
   function handleRemove(id: string, name: string) {
     if (SYMBOLS.find((s) => s.id === id)) {
-      Alert.alert("Cannot Remove", "Built-in coins cannot be removed from this panel.\nThey are part of the core app.");
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined") window.alert("Built-in coins cannot be removed from this panel. They are part of the core app.");
+      } else {
+        Alert.alert("Cannot Remove", "Built-in coins cannot be removed from this panel.\nThey are part of the core app.");
+      }
+      return;
+    }
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`Remove ${name}?`)) {
+        removeCustomCoin(id).catch(() => { if (typeof window !== "undefined") window.alert("Could not remove coin."); });
+      }
       return;
     }
     Alert.alert("Remove Coin", `Remove ${name}?`, [
