@@ -389,7 +389,10 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           })));
         }
         const last = candles[candles.length - 1];
-        if (last) setOhlcv({ o:last.open, h:last.high, l:last.low, c:last.close, v:last.volume, ch:last.close-last.open, chp:((last.close-last.open)/last.open)*100 });
+        if (last) {
+          setOhlcv({ o:last.open, h:last.high, l:last.low, c:last.close, v:last.volume, ch:last.close-last.open, chp:((last.close-last.open)/last.open)*100 });
+          if (candleRef.current) candleRef.current.applyOptions({ priceLineColor: last.close >= last.open ? C.bull : C.bear });
+        }
         chart.timeScale().fitContent();
         return true;
       } catch (err: any) {
@@ -435,6 +438,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           const last = data[data.length - 1];
           const c = { time: Math.floor(last[0]/1000) as any, open:+last[1], high:+last[2], low:+last[3], close:+last[4], volume:+last[5] };
           candleRef.current.update(c);
+          candleRef.current.applyOptions({ priceLineColor: c.close >= c.open ? C.bull : C.bear });
           if (volRef.current) volRef.current.update({ time: c.time, value: c.volume, color: c.close >= c.open ? C.bull+"60" : C.bear+"60" });
         } catch {}
       }, 3000);
@@ -481,6 +485,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           if (!candleRef.current) return;
           const c = { time: Math.floor(k.t/1000) as any, open:+k.o, high:+k.h, low:+k.l, close:+k.c, volume:+k.v };
           candleRef.current.update(c);
+          candleRef.current.applyOptions({ priceLineColor: c.close >= c.open ? C.bull : C.bear });
           if (volRef.current) {
             volRef.current.update({ time: c.time, value: c.volume, color: c.close >= c.open ? C.bull+"60" : C.bear+"60" });
           }
@@ -997,6 +1002,26 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     return () => ro.disconnect();
   }, []);
 
+  // ctx.roundRect is not available in all mobile browsers (added Chrome 99, Safari 15.4).
+  // This polyfill calls the native method when available and falls back to arcTo segments.
+  function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+    ctx.beginPath();
+    if (typeof (ctx as any).roundRect === "function") {
+      (ctx as any).roundRect(x, y, w, h, r);
+      return;
+    }
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+
   function renderCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1042,7 +1067,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       const y=candleRef.current?.priceToCoordinate(d.pts[0].price); if(y==null){ctx.restore();return;}
       ctx.setLineDash([6,3]); ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.strokeStyle=sc; ctx.lineWidth=lw; ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle=C.panel; ctx.strokeStyle=sc; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.roundRect(W-84,y-11,80,22,3); ctx.fill(); ctx.stroke();
+      rrect(ctx,W-84,y-11,80,22,3); ctx.fill(); ctx.stroke();
       ctx.fillStyle=sc; ctx.font="10px monospace"; ctx.textAlign="center"; ctx.fillText(fmtPrc(d.pts[0].price),W-44,y+4);
       if (sel) canvHandle(ctx,W/2,y);
       ctx.restore(); return;
@@ -1131,7 +1156,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null){ctx.restore();return;}
       const txt=d.text||"Note", bw=Math.max(60,txt.length*7+20);
       ctx.fillStyle=C.panel; ctx.strokeStyle=sc; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.roundRect(p.x!,p.y!-22,bw,26,4); ctx.fill(); ctx.stroke();
+      rrect(ctx,p.x!,p.y!-22,bw,26,4); ctx.fill(); ctx.stroke();
       ctx.fillStyle=sc; ctx.font="12px sans-serif"; ctx.textAlign="left"; ctx.fillText(txt,p.x!+8,p.y!-5);
       if (sel) canvHandle(ctx,p.x!+bw/2,p.y!-9);
       ctx.restore(); return;
@@ -1142,7 +1167,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       const p=dataToSvgXY(d.pts[0].price,d.pts[0].time); if(p.x==null){ctx.restore();return;}
       ctx.setLineDash([3,2]); ctx.beginPath(); ctx.moveTo(p.x!,p.y!); ctx.lineTo(W-88,p.y!);
       ctx.strokeStyle=sc; ctx.lineWidth=1; ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle=sc; ctx.beginPath(); ctx.roundRect(W-88,p.y!-11,84,22,3); ctx.fill();
+      ctx.fillStyle=sc; rrect(ctx,W-88,p.y!-11,84,22,3); ctx.fill();
       ctx.fillStyle="#000"; ctx.font="bold 10px monospace"; ctx.textAlign="center"; ctx.fillText(fmtPrc(d.pts[0].price),W-46,p.y!+4);
       if (sel) canvHandle(ctx,p.x,p.y);
       ctx.restore(); return;
