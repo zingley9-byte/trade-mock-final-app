@@ -60,41 +60,55 @@ export default function AuthScreen() {
   const [name, setName] = useState("");
   const [showPass, setShowPass] = useState(false);
 
-  // If Firebase already has an active session (restored from persistence),
-  // skip the auth screen and go directly to the app
+  // Redirect to the app only when BOTH conditions are true:
+  //   1. TM_AUTH_KEY exists in AsyncStorage (proves a session was saved)
+  //   2. Firebase has an active user (confirms session is valid)
+  //
+  // Checking AsyncStorage FIRST prevents the race condition where
+  // fbAuth.currentUser is briefly non-null right after performLogout()
+  // calls signOut() — because performLogout() removes TM_AUTH_KEY BEFORE
+  // calling signOut(), so by the time auth.tsx mounts, the key is gone.
   useEffect(() => {
-    try {
-      const fbAuth = getFirebaseAuth();
-      const current = fbAuth.currentUser;
-      if (current) {
-        const u = {
-          uid:   current.uid,
-          email: current.email ?? "",
-          name:  current.displayName ?? current.email?.split("@")[0] ?? "User",
-        };
-        AsyncStorage.setItem(TM_AUTH_KEY, JSON.stringify(u))
-          .catch(() => {})
-          .finally(() => router.replace("/(tabs)"));
-        return;
-      }
-      // Firebase may not have restored the session yet — subscribe once
-      const unsub = fbAuth.onAuthStateChanged((user) => {
-        if (user) {
-          const u = {
-            uid:   user.uid,
-            email: user.email ?? "",
-            name:  user.displayName ?? user.email?.split("@")[0] ?? "User",
-          };
-          AsyncStorage.setItem(TM_AUTH_KEY, JSON.stringify(u))
-            .catch(() => {})
-            .finally(() => router.replace("/(tabs)"));
-          unsub();
+    let active = true;
+    let unsub: (() => void) | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    async function checkSession() {
+      try {
+        // Guard: if no saved session key, show login form immediately
+        const saved = await AsyncStorage.getItem(TM_AUTH_KEY);
+        if (!active || !saved) return;
+
+        const fbAuth = getFirebaseAuth();
+
+        // Fast path: Firebase already has the user restored
+        if (fbAuth.currentUser) {
+          if (active) router.replace("/(tabs)");
+          return;
         }
-      });
-      // Only wait briefly — if Firebase doesn't restore quickly, show login form
-      const t = setTimeout(unsub, 2500);
-      return () => { clearTimeout(t); unsub(); };
-    } catch {}
+
+        // Slow path: Firebase is still restoring the session from persistence
+        unsub = fbAuth.onAuthStateChanged((user) => {
+          if (!active) return;
+          if (user) {
+            router.replace("/(tabs)");
+            if (unsub) unsub();
+          }
+        });
+
+        // Give Firebase 2.5 s to restore — if nothing, show the login form
+        timer = setTimeout(() => {
+          if (unsub) unsub();
+        }, 2500);
+      } catch {}
+    }
+
+    checkSession();
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+      if (unsub) unsub();
+    };
   }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

@@ -114,6 +114,7 @@ export default function AppHeader() {
   const [profileOpen, setProfileOpen]   = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [loggingOut, setLoggingOut]     = useState(false);
+  const [logoutDone, setLogoutDone]     = useState(false);
   const [searchQuery, setSearchQuery]   = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
@@ -236,10 +237,15 @@ export default function AppHeader() {
         onPress: async () => {
           setProfileOpen(false);
           setLoggingOut(true);
+          setProfileImage(null);
           try {
-            setProfileImage(null);
             await performLogout();
+            setLogoutDone(true);
+            // Show "Logged out successfully" briefly before navigating
+            await new Promise((r) => setTimeout(r, 900));
             setLoggingOut(false);
+            setLogoutDone(false);
+            // replace so back-button cannot return to app
             router.replace("/auth");
           } catch {
             setLoggingOut(false);
@@ -549,8 +555,21 @@ export default function AppHeader() {
       {/* ─── Logout Loading Overlay ─── */}
       <Modal visible={loggingOut} transparent animationType="fade">
         <View style={styles.logoutOverlay}>
-          <ActivityIndicator size="large" color="#00c896" />
-          <Text style={styles.logoutText}>Signing out…</Text>
+          {logoutDone ? (
+            <>
+              <View style={styles.logoutCheckCircle}>
+                <SvgIcon name="checkmark-outline" size={28} color="#00c896" />
+              </View>
+              <Text style={[styles.logoutText, { color: "#00c896", fontWeight: "700" as const }]}>
+                Logged out successfully
+              </Text>
+            </>
+          ) : (
+            <>
+              <ActivityIndicator size="large" color="#00c896" />
+              <Text style={styles.logoutText}>Signing out…</Text>
+            </>
+          )}
         </View>
       </Modal>
 
@@ -772,6 +791,13 @@ const styles = StyleSheet.create({
   announcSectionText: { fontSize: 10, fontWeight: "800" as const, letterSpacing: 1 },
 
   // Logout loading overlay
+  logoutCheckCircle: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: "#00c89620",
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 4,
+    borderWidth: 1.5, borderColor: "#00c89650",
+  },
   logoutOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.65)",
     alignItems: "center", justifyContent: "center", gap: 16,
