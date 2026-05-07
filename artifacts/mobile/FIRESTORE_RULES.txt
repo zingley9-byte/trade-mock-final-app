@@ -7,44 +7,50 @@
 //  4. Click the "Rules" tab at the top
 //  5. Select ALL existing text and replace with the rules below
 //  6. Click "Publish"
+//
+//  IMPORTANT: Firebase Auth stores all email addresses in LOWERCASE.
+//  The admin email 'Zingley9@gmail.com' is stored as 'zingley9@gmail.com'
+//  in the auth token. Rules use lowercase to match this exactly.
 // ═══════════════════════════════════════════════════════════════
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Admin config ──────────────────────────────────────────
-    // Paths written by the admin panel:
-    //   admin_config/announcements  (items array)
-    //   admin_config/coins          (items array)
-    //   admin_config/app            (app settings)
-    //
-    // Any logged-in user can READ (announcements are shown to all users).
-    // Only the admin email can WRITE.
-    match /admin_config/{doc} {
-      allow read:  if request.auth != null;
-      allow write: if request.auth != null
-                   && request.auth.token.email == 'Zingley9@gmail.com';
+    // ── Helper: is the requesting user the admin? ──────────────
+    function isAdmin() {
+      return request.auth != null
+          && request.auth.token.email == 'zingley9@gmail.com';
     }
 
-    // ── User documents ────────────────────────────────────────
-    // Each user can read/write only their own data.
-    // Admin can read any user doc (for the users panel).
+    // ── Admin config ──────────────────────────────────────────
+    // Docs used by the code:
+    //   admin_config/announcements  (items[] array of announcements)
+    //   admin_config/coins          (items[] array of custom coins)
+    //   admin_config/app            (app-wide settings / maintenance mode)
+    //
+    // Any authenticated user can READ (announcements are shown to all users).
+    // Only the admin can WRITE.
+    match /admin_config/{doc} {
+      allow read:  if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ── Users collection ──────────────────────────────────────
+    // Each user can read/write their own document.
+    // Admin can read/write ANY user document (required for users panel).
     match /users/{uid} {
       allow read:  if request.auth != null
-                   && (request.auth.uid == uid
-                       || request.auth.token.email == 'Zingley9@gmail.com');
+                   && (request.auth.uid == uid || isAdmin());
       allow write: if request.auth != null
-                   && (request.auth.uid == uid
-                       || request.auth.token.email == 'Zingley9@gmail.com');
+                   && (request.auth.uid == uid || isAdmin());
 
+      // Trades sub-collection — same ownership rules
       match /trades/{tradeId} {
         allow read:  if request.auth != null
-                     && (request.auth.uid == uid
-                         || request.auth.token.email == 'Zingley9@gmail.com');
+                     && (request.auth.uid == uid || isAdmin());
         allow write: if request.auth != null
-                     && (request.auth.uid == uid
-                         || request.auth.token.email == 'Zingley9@gmail.com');
+                     && (request.auth.uid == uid || isAdmin());
       }
     }
   }

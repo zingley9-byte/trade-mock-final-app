@@ -102,6 +102,7 @@ interface AdminContextType {
   role: UserRole | null;
   adminEmail: string | null;
   users: AdminUser[];
+  usersError: string | null;
   announcements: Announcement[];
   blockedUids: string[];
   appConfig: AppConfig;
@@ -134,6 +135,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole]               = useState<UserRole | null>(null);
   const [adminEmail, setAdminEmail]   = useState<string | null>(null);
   const [users, setUsers]             = useState<AdminUser[]>([]);
+  const [usersError, setUsersError]   = useState<string | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [appConfig, setAppConfig]     = useState<AppConfig>(DEFAULT_CONFIG);
   const [customCoins, setCustomCoins] = useState<CustomCoin[]>([]);
@@ -144,8 +146,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const configUnsubRef        = useRef<(() => void) | null>(null);
   const coinsUnsubRef         = useRef<(() => void) | null>(null);
 
+  // Auth state + users subscription — kept together so users subscription
+  // is (re-)set up with a valid auth token, never before login.
   useEffect(() => {
     const auth = getFirebaseAuth();
+    const db   = getFirebaseDb();
+
     const unsub = onAuthStateChanged(auth, (user) => {
       const email = user?.email ?? null;
       const admin = isAdminEmail(email);
@@ -153,23 +159,40 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       setIsAdmin(admin);
       setRole(email ? (admin ? "admin" : "user") : null);
       setLoading(false);
+
+      // Tear down any existing users subscription then re-establish with fresh token
+      usersUnsubRef.current?.();
+      setUsersError(null);
+      if (user) {
+        usersUnsubRef.current = onSnapshot(
+          query(collection(db, "users"), orderBy("createdAt", "desc")),
+          (snap) => {
+            const list: AdminUser[] = [];
+            snap.forEach((d) => list.push(d.data() as AdminUser));
+            setUsers(list);
+            setUsersError(null);
+          },
+          (err) => {
+            setUsersError(
+              err.code === "permission-denied"
+                ? "Firestore permission denied — apply the updated rules in FIRESTORE_RULES.txt via Firebase Console."
+                : err.message
+            );
+          }
+        );
+      } else {
+        setUsers([]);
+      }
     });
-    return unsub;
+
+    return () => {
+      unsub();
+      usersUnsubRef.current?.();
+    };
   }, []);
 
   useEffect(() => {
     const db = getFirebaseDb();
-
-    usersUnsubRef.current?.();
-    usersUnsubRef.current = onSnapshot(
-      query(collection(db, "users"), orderBy("createdAt", "desc")),
-      (snap) => {
-        const list: AdminUser[] = [];
-        snap.forEach((d) => list.push(d.data() as AdminUser));
-        setUsers(list);
-      },
-      () => {}
-    );
 
     // Announcements stored in admin_config/announcements doc (same collection as app/coins)
     announcementsUnsubRef.current?.();
@@ -209,7 +232,6 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => {
-      usersUnsubRef.current?.();
       announcementsUnsubRef.current?.();
       configUnsubRef.current?.();
       coinsUnsubRef.current?.();
@@ -382,7 +404,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AdminContext.Provider value={{
-      isAdmin, role, adminEmail, users, announcements, appConfig, customCoins, blockedUids, loading,
+      isAdmin, role, adminEmail, users, usersError, announcements, appConfig, customCoins, blockedUids, loading,
       refreshUsers, blockUser, unblockUser, addFakeBalance, resetUserFund,
       addAnnouncement, updateAnnouncement, deleteAnnouncement, updateAppConfig,
       addCustomCoin, removeCustomCoin,

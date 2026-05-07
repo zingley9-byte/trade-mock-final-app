@@ -36,7 +36,7 @@ function calcPosPnl(pos: PositionSnapshot, price: number): number {
 
 export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
-  const { isAdmin, loading, users, announcements, blockedUids, refreshUsers, appConfig, customCoins } = useAdmin();
+  const { isAdmin, loading, users, usersError, announcements, blockedUids, refreshUsers, appConfig, customCoins } = useAdmin();
   const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
 
   useEffect(() => { refreshUsers(); }, []);
@@ -152,6 +152,13 @@ export default function AdminDashboard() {
           <View style={s.maintenanceBanner}>
             <SvgIcon name="warning-outline" size={16} color="#fbbf24" />
             <Text style={s.maintenanceText}>Maintenance Mode is ON — app is disabled for users</Text>
+          </View>
+        )}
+
+        {!!usersError && (
+          <View style={s.permErrBanner}>
+            <SvgIcon name="alert-circle-outline" size={15} color={BEAR} />
+            <Text style={s.permErrText}>{usersError}</Text>
           </View>
         )}
 
@@ -297,4 +304,10 @@ const s = StyleSheet.create({
   emptyUsers: { alignItems: "center", paddingVertical: 32, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: "600", color: MUTED },
   emptySub: { fontSize: 12, color: MUTED, textAlign: "center", maxWidth: 260, lineHeight: 18 },
+  permErrBanner: {
+    flexDirection: "row", alignItems: "flex-start", gap: 10,
+    margin: 14, backgroundColor: "#ff4d4d18", borderRadius: 12,
+    borderWidth: 1, borderColor: "#ff4d4d44", padding: 12,
+  },
+  permErrText: { flex: 1, color: BEAR, fontSize: 12, lineHeight: 17 },
 });

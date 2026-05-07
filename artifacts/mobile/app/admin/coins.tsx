@@ -206,11 +206,13 @@ export default function AdminCoins() {
 
       {/* Add Coin Modal */}
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={() => setAddModal(false)}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <Pressable style={{ flex: 1 }} onPress={() => setAddModal(false)} />
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          {/* Backdrop — absolutely fills screen behind the sheet */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setAddModal(false)} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ zIndex: 1 }}
+          >
           <View style={s.sheet}>
             <ScrollView
               keyboardShouldPersistTaps="handled"
@@ -270,7 +272,8 @@ export default function AdminCoins() {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
