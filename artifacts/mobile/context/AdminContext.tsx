@@ -23,6 +23,12 @@ export interface PositionSnapshot {
   leverage:    number;
 }
 
+export interface CustomCoin {
+  id:    string;
+  name:  string;
+  label: string;
+}
+
 export interface AdminTradeRecord {
   id: string;
   symbolId: string;
@@ -116,6 +122,9 @@ interface AdminContextType {
   checkAndApplyAdminReset: (uid: string, applyReset: () => void) => Promise<void>;
   checkAndApplyAdminFundAdd: (uid: string, applyFundAdd: (amount: number) => void) => Promise<void>;
   getUserTrades: (uid: string) => Promise<AdminTradeRecord[]>;
+  customCoins: CustomCoin[];
+  addCustomCoin: (coin: CustomCoin) => Promise<void>;
+  removeCustomCoin: (id: string) => Promise<void>;
 }
 
 const AdminContext = createContext<AdminContextType | null>(null);
@@ -127,11 +136,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers]             = useState<AdminUser[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [appConfig, setAppConfig]     = useState<AppConfig>(DEFAULT_CONFIG);
+  const [customCoins, setCustomCoins] = useState<CustomCoin[]>([]);
   const [loading, setLoading]         = useState(true);
 
-  const usersUnsubRef = useRef<(() => void) | null>(null);
+  const usersUnsubRef         = useRef<(() => void) | null>(null);
   const announcementsUnsubRef = useRef<(() => void) | null>(null);
-  const configUnsubRef = useRef<(() => void) | null>(null);
+  const configUnsubRef        = useRef<(() => void) | null>(null);
+  const coinsUnsubRef         = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -160,17 +171,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       () => {}
     );
 
-    // Announcements stored in admin_config collection as ann_{id} docs
+    // Announcements stored in dedicated `announcements` collection
     announcementsUnsubRef.current?.();
     announcementsUnsubRef.current = onSnapshot(
-      collection(db, "admin_config"),
+      query(collection(db, "announcements"), orderBy("createdAt", "desc")),
       (snap) => {
         const list: Announcement[] = [];
-        snap.forEach((d) => {
-          const data = d.data();
-          if (data._type === "announcement") list.push(data as Announcement);
-        });
-        list.sort((a, b) => b.createdAt - a.createdAt);
+        snap.forEach((d) => list.push(d.data() as Announcement));
         setAnnouncements(list);
       },
       () => {}
@@ -187,10 +194,22 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       () => {}
     );
 
+    // Custom coins stored in admin_config/coins doc as items array
+    coinsUnsubRef.current?.();
+    coinsUnsubRef.current = onSnapshot(
+      doc(db, "admin_config", "coins"),
+      (snap) => {
+        if (snap.exists()) setCustomCoins((snap.data()?.items as CustomCoin[]) ?? []);
+        else setCustomCoins([]);
+      },
+      () => {}
+    );
+
     return () => {
       usersUnsubRef.current?.();
       announcementsUnsubRef.current?.();
       configUnsubRef.current?.();
+      coinsUnsubRef.current?.();
     };
   }, []);
 
@@ -280,21 +299,37 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }
 
+  // Announcements use dedicated `announcements` collection — errors propagate to caller
   async function addAnnouncement(a: Omit<Announcement, "id" | "createdAt">) {
     const db = getFirebaseDb();
     const id = Date.now().toString();
     const item: Announcement = { ...a, id, createdAt: Date.now() };
-    await setDoc(doc(db, "admin_config", "ann_" + id), { ...item, _type: "announcement" });
+    await setDoc(doc(db, "announcements", id), item);
   }
 
   async function updateAnnouncement(id: string, updates: Partial<Announcement>) {
     const db = getFirebaseDb();
-    await updateDoc(doc(db, "admin_config", "ann_" + id), updates as Record<string, unknown>);
+    await updateDoc(doc(db, "announcements", id), updates as Record<string, unknown>);
   }
 
   async function deleteAnnouncement(id: string) {
     const db = getFirebaseDb();
-    await deleteDoc(doc(db, "admin_config", "ann_" + id));
+    await deleteDoc(doc(db, "announcements", id));
+  }
+
+  async function addCustomCoin(coin: CustomCoin) {
+    const db = getFirebaseDb();
+    const snap = await getDoc(doc(db, "admin_config", "coins"));
+    const items: CustomCoin[] = snap.exists() ? ((snap.data()?.items as CustomCoin[]) ?? []) : [];
+    if (items.find((c) => c.id === coin.id)) throw new Error("Coin already listed");
+    await setDoc(doc(db, "admin_config", "coins"), { items: [...items, coin] });
+  }
+
+  async function removeCustomCoin(id: string) {
+    const db = getFirebaseDb();
+    const snap = await getDoc(doc(db, "admin_config", "coins"));
+    const items: CustomCoin[] = snap.exists() ? ((snap.data()?.items as CustomCoin[]) ?? []) : [];
+    await setDoc(doc(db, "admin_config", "coins"), { items: items.filter((c) => c.id !== id) });
   }
 
   async function updateAppConfig(updates: Partial<AppConfig>) {
@@ -335,9 +370,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AdminContext.Provider value={{
-      isAdmin, role, adminEmail, users, announcements, appConfig, blockedUids, loading,
+      isAdmin, role, adminEmail, users, announcements, appConfig, customCoins, blockedUids, loading,
       refreshUsers, blockUser, unblockUser, addFakeBalance, resetUserFund,
       addAnnouncement, updateAnnouncement, deleteAnnouncement, updateAppConfig,
+      addCustomCoin, removeCustomCoin,
       registerUserActivity, checkAndApplyAdminReset, checkAndApplyAdminFundAdd, getUserTrades,
     }}>
       {children}

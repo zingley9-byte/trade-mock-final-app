@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PositionSnapshot, useAdmin } from "@/context/AdminContext";
 import { SYMBOLS } from "@/context/TradingContext";
 
+
 const ADMIN_BG = "#0a0e1a";
 const SURFACE  = "#111827";
 const BORDER   = "#1e293b";
@@ -35,7 +36,7 @@ function calcPosPnl(pos: PositionSnapshot, price: number): number {
 
 export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
-  const { isAdmin, loading, users, announcements, blockedUids, refreshUsers, appConfig } = useAdmin();
+  const { isAdmin, loading, users, announcements, blockedUids, refreshUsers, appConfig, customCoins } = useAdmin();
   const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
 
   useEffect(() => { refreshUsers(); }, []);
@@ -80,7 +81,8 @@ export default function AdminDashboard() {
     );
   }
 
-  const activeUsers       = users.filter((u) => !u.blocked).length;
+  // Active = users who have actually traded (open or closed), not just registered
+  const activeUsers       = users.filter((u) => u.tradeCount > 0 || (u.openPositions?.length ?? 0) > 0).length;
   const blockedCount      = blockedUids.length;
   const totalClosedTrades = users.reduce((s, u) => s + u.tradeCount, 0);
   const totalOpenTrades   = users.reduce((s, u) => s + (u.openPositions?.length ?? 0), 0);
@@ -117,7 +119,7 @@ export default function AdminDashboard() {
     { label: "Profit Users",   value: profitUsers.toString(),           icon: "arrow-up-circle-outline",   color: BULL,      route: null },
     { label: "Loss Users",     value: lossUsers.toString(),             icon: "arrow-down-circle-outline", color: BEAR,      route: null },
     { label: "Announcements",  value: announcements.filter((a) => a.active).length.toString(), icon: "notifications-outline", color: "#8b5cf6", route: "/admin/announcements" },
-    { label: "Coins Listed",   value: SYMBOLS.length.toString(),        icon: "layers-outline",            color: GOLD,      route: "/admin/coins" },
+    { label: "Coins Listed",   value: (SYMBOLS.length + customCoins.length).toString(), icon: "layers-outline", color: GOLD, route: "/admin/coins" },
   ];
 
   const menuItems = [

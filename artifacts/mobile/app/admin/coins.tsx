@@ -4,8 +4,11 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,7 +18,7 @@ import {
 import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SYMBOLS } from "@/context/TradingContext";
-import { useAdmin } from "@/context/AdminContext";
+import { CustomCoin, useAdmin } from "@/context/AdminContext";
 import CoinLogo from "@/components/CoinLogo";
 
 const ADMIN_BG = "#0a0e1a";
@@ -28,12 +31,12 @@ const BEAR     = "#ff4d4d";
 
 export default function AdminCoins() {
   const insets = useSafeAreaInsets();
-  const { isAdmin, loading: authLoading } = useAdmin();
-  const [query, setQuery] = useState("");
+  const { isAdmin, loading: authLoading, customCoins, addCustomCoin, removeCustomCoin } = useAdmin();
+  const [query, setQuery]       = useState("");
   const [addModal, setAddModal] = useState(false);
   const [newSymbol, setNewSymbol] = useState("");
-  const [newName, setNewName] = useState("");
-  const [customCoins, setCustomCoins] = useState<{ id: string; name: string; label: string }[]>([]);
+  const [newName, setNewName]   = useState("");
+  const [adding, setAdding]     = useState(false);
 
   if (authLoading) {
     return (
@@ -47,7 +50,7 @@ export default function AdminCoins() {
 
   const allCoins = [
     ...SYMBOLS.map((s) => ({ ...s, isDefault: true })),
-    ...customCoins.map((c) => ({ ...c, type: "crypto" as const, isDefault: false })),
+    ...(customCoins as CustomCoin[]).map((c) => ({ ...c, type: "crypto" as const, isDefault: false })),
   ];
 
   const filtered = query.trim()
@@ -58,28 +61,49 @@ export default function AdminCoins() {
       )
     : allCoins;
 
-  function handleAdd() {
-    const sym = newSymbol.trim().toUpperCase();
-    const nm  = newName.trim();
-    if (!sym || !nm) { Alert.alert("Error", "Fill both fields"); return; }
-    const id = sym.endsWith("USDT") ? sym : sym + "USDT";
-    if (allCoins.find((c) => c.id === id)) { Alert.alert("Exists", "This coin is already listed"); return; }
-    setCustomCoins((prev) => [...prev, { id, name: nm, label: sym.replace("USDT", "") + "/USDT" }]);
-    setAddModal(false);
-    setNewSymbol("");
-    setNewName("");
-    Alert.alert("Added", `${nm} (${sym}) added successfully.`);
+  async function handleAdd() {
+    const rawSym = newSymbol.trim().toUpperCase().replace(/\//g, "").replace(/\s/g, "");
+    const nm     = newName.trim();
+    if (!rawSym || !nm) { Alert.alert("Error", "Fill both fields"); return; }
+    // Normalize: strip USDT suffix for display, always use XXXUSDT as id
+    const base  = rawSym.endsWith("USDT") ? rawSym.slice(0, -4) : rawSym;
+    const id    = base + "USDT";
+    const label = base + "/USDT";
+
+    if (allCoins.find((c) => c.id === id)) {
+      Alert.alert("Already Listed", `${label} is already in the coin list.`);
+      return;
+    }
+
+    setAdding(true);
+    try {
+      // Validate symbol exists on Binance via our API proxy
+      const res = await fetch(`/api/market/ticker24hr?symbol=${id}`);
+      if (!res.ok) throw new Error(`Symbol ${label} not found on Binance (HTTP ${res.status})`);
+      const data = await res.json();
+      if (!data?.lastPrice && !data?.symbol) throw new Error(`Symbol ${label} not supported`);
+
+      await addCustomCoin({ id, name: nm, label });
+      setAddModal(false);
+      setNewSymbol("");
+      setNewName("");
+      Alert.alert("Added", `${nm} (${label}) added successfully.\nLive market data will be used automatically.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      Alert.alert("Cannot Add Coin", msg);
+    } finally {
+      setAdding(false);
+    }
   }
 
   function handleRemove(id: string, name: string) {
-    const isDefault = SYMBOLS.find((s) => s.id === id);
-    if (isDefault) {
-      Alert.alert("Cannot Remove", "Default coins cannot be removed from this panel.\nThey are hardcoded in the app.");
+    if (SYMBOLS.find((s) => s.id === id)) {
+      Alert.alert("Cannot Remove", "Built-in coins cannot be removed from this panel.\nThey are part of the core app.");
       return;
     }
     Alert.alert("Remove Coin", `Remove ${name}?`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: () => setCustomCoins((prev) => prev.filter((c) => c.id !== id)) },
+      { text: "Remove", style: "destructive", onPress: () => removeCustomCoin(id).catch(() => Alert.alert("Error", "Could not remove coin.")) },
     ]);
   }
 
@@ -147,34 +171,59 @@ export default function AdminCoins() {
 
       {/* Add Coin Modal */}
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={() => setAddModal(false)}>
-        <Pressable style={s.backdrop} onPress={() => setAddModal(false)} />
-        <View style={s.sheet}>
-          <View style={s.handle} />
-          <Text style={s.sheetTitle}>Add New Coin</Text>
-          <Text style={s.fieldLabel}>SYMBOL (e.g. BTC or BTCUSDT)</Text>
-          <TextInput
-            style={s.input}
-            placeholder="Symbol"
-            placeholderTextColor={MUTED}
-            value={newSymbol}
-            onChangeText={setNewSymbol}
-            autoCapitalize="characters"
-            autoCorrect={false}
-          />
-          <Text style={s.fieldLabel}>COIN NAME</Text>
-          <TextInput
-            style={s.input}
-            placeholder="e.g. Bitcoin"
-            placeholderTextColor={MUTED}
-            value={newName}
-            onChangeText={setNewName}
-            autoCapitalize="words"
-          />
-          <TouchableOpacity style={s.confirmBtn} onPress={handleAdd} activeOpacity={0.85}>
-            <SvgIcon name="add-outline" size={16} color="#fff" />
-            <Text style={s.confirmText}>Add Coin</Text>
-          </TouchableOpacity>
-        </View>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable style={{ flex: 1 }} onPress={() => setAddModal(false)} />
+          <View style={s.sheet}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 8 }}
+            >
+              <View style={s.handle} />
+              <Text style={s.sheetTitle}>Add New Coin</Text>
+              <Text style={s.fieldLabel}>SYMBOL (e.g. BTC or BTCUSDT)</Text>
+              <TextInput
+                style={s.input}
+                placeholder="Symbol"
+                placeholderTextColor={MUTED}
+                value={newSymbol}
+                onChangeText={setNewSymbol}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                returnKeyType="next"
+              />
+              <Text style={s.fieldLabel}>COIN NAME</Text>
+              <TextInput
+                style={s.input}
+                placeholder="e.g. Bitcoin"
+                placeholderTextColor={MUTED}
+                value={newName}
+                onChangeText={setNewName}
+                autoCapitalize="words"
+                returnKeyType="done"
+                onSubmitEditing={handleAdd}
+              />
+              <View style={s.validationNote}>
+                <SvgIcon name="information-circle-outline" size={13} color={MUTED} />
+                <Text style={s.noteText}>Symbol will be validated against Binance before adding</Text>
+              </View>
+              <TouchableOpacity
+                style={[s.confirmBtn, adding && { opacity: 0.7 }]}
+                onPress={handleAdd}
+                activeOpacity={0.85}
+                disabled={adding}
+              >
+                {adding
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <><SvgIcon name="add-outline" size={16} color="#fff" /><Text style={s.confirmText}>Add Coin</Text></>
+                }
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -203,12 +252,13 @@ const s = StyleSheet.create({
   removeBtn: { padding: 8 },
   customBadge: { backgroundColor: "#f59e0b22", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   customText: { fontSize: 9, fontWeight: "700", color: "#f59e0b", letterSpacing: 0.5 },
-  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)" },
   sheet: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
+    maxHeight: "90%",
     backgroundColor: SURFACE, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     borderWidth: 1, borderColor: BORDER, paddingHorizontal: 20, paddingBottom: 40,
   },
+  validationNote: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 14, opacity: 0.7 },
+  noteText: { fontSize: 11, color: MUTED, flex: 1 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: "center", marginTop: 10, marginBottom: 16 },
   sheetTitle: { fontSize: 18, fontWeight: "700", color: FG, marginBottom: 16 },
   fieldLabel: { fontSize: 11, fontWeight: "700", color: MUTED, letterSpacing: 0.5, marginBottom: 6 },

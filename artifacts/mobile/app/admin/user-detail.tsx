@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,17 @@ import {
 } from "react-native";
 import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAdmin } from "@/context/AdminContext";
+import { PositionSnapshot, useAdmin } from "@/context/AdminContext";
+
+const USD_TO_INR = 95;
+
+function calcPosPnl(pos: PositionSnapshot, price: number): number {
+  if (!price || price <= 0) return 0;
+  const entry = parseFloat(String(pos.entryPrice));
+  const qty   = parseFloat(String(pos.quantity));
+  if (!entry || !qty) return 0;
+  return pos.side === "buy" ? (price - entry) * qty : (entry - price) * qty;
+}
 
 const ADMIN_BG = "#0a0e1a";
 const SURFACE  = "#111827";
@@ -35,8 +45,27 @@ export default function UserDetail() {
     isAdmin, loading: authLoading,
   } = useAdmin();
   const [balanceModal, setBalanceModal] = useState(false);
-  const [amountInput, setAmountInput] = useState("");
+  const [amountInput, setAmountInput]   = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [symbolPrices, setSymbolPrices]   = useState<Record<string, number>>({});
+
+  // Fetch live prices every 5 s for unrealized PNL of this user's open positions
+  useEffect(() => {
+    async function fetchPrices() {
+      try {
+        const res  = await fetch("/api/market/prices");
+        const map: Record<string, { price: number }> = await res.json();
+        const next: Record<string, number> = {};
+        for (const [k, v] of Object.entries(map)) {
+          if (v?.price > 0) next[k] = v.price;
+        }
+        setSymbolPrices(next);
+      } catch {}
+    }
+    fetchPrices();
+    const iv = setInterval(fetchPrices, 5000);
+    return () => clearInterval(iv);
+  }, []);
 
   if (authLoading) {
     return (
@@ -62,8 +91,19 @@ export default function UserDetail() {
   }
 
   const isBlocked = blockedUids.includes(user.uid);
-  const pnlColor  = user.totalPnl >= 0 ? BULL : BEAR;
   const lastSeen  = user.lastSeen ? new Date(user.lastSeen).toLocaleString("en-IN") : "N/A";
+
+  // Live PNL calculation
+  const openPositions   = user.openPositions ?? [];
+  const unrealizedPnlUsd = openPositions.reduce(
+    (s, pos) => s + calcPosPnl(pos, symbolPrices[pos.symbolId] ?? 0), 0
+  );
+  const openMarginTotal = openPositions.reduce((s, pos) => s + pos.margin, 0);
+  const totalPnlUsd     = user.totalPnl + unrealizedPnlUsd;
+  const totalPnlInr     = totalPnlUsd * USD_TO_INR;
+  // True current value = stored balance + margin held in open positions + unrealized gain/loss
+  const currentValueInr = (user.balance + openMarginTotal + unrealizedPnlUsd) * USD_TO_INR;
+  const pnlColor        = totalPnlInr >= 0 ? BULL : BEAR;
 
   function handleBlock() {
     Alert.alert(
@@ -132,9 +172,11 @@ export default function UserDetail() {
   }
 
   const stats = [
-    { label: "Current Balance",  value: `₹${user.balance.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`, color: PRIMARY },
-    { label: "Total Trades",     value: user.tradeCount.toString(),   color: FG },
-    { label: "Total P&L",        value: `${user.totalPnl >= 0 ? "+" : ""}₹${Math.abs(user.totalPnl).toFixed(0)}`, color: pnlColor },
+    { label: "Current Value",    value: `₹${Math.abs(currentValueInr).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`, color: PRIMARY },
+    { label: "Closed Trades",    value: user.tradeCount.toString(),                           color: FG },
+    { label: "Open Positions",   value: openPositions.length.toString(),                      color: openPositions.length > 0 ? GOLD : MUTED },
+    { label: "Total P&L",        value: `${totalPnlInr >= 0 ? "+" : ""}₹${Math.abs(totalPnlInr / 1000).toFixed(1)}K`, color: pnlColor },
+    { label: "Realized P&L",     value: `${user.totalPnl >= 0 ? "+" : ""}₹${Math.abs(user.totalPnl * USD_TO_INR / 1000).toFixed(1)}K`, color: user.totalPnl >= 0 ? BULL : BEAR },
     { label: "Joined",           value: new Date(user.createdAt).toLocaleDateString("en-IN"), color: MUTED },
   ];
 

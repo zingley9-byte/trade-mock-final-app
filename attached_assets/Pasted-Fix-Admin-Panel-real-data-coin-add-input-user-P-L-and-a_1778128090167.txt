@@ -1,0 +1,88 @@
+Fix Admin Panel real data, coin add input, user P&L, and announcements.
+
+Do not change chart candles, trading chart UI, login flow, bottom navigation, or Expo Go working behavior.
+
+ISSUE 1 — Active Users count is wrong
+Current:
+Total Users = 7
+Active = 7
+
+But only users who actually traded should be counted active.
+
+Fix:
+- Total Users = all registered users
+- Active Users = users who have at least 1 open trade OR at least 1 closed trade
+- Blocked = blocked users only
+- If 7 users exist but only 3 traded, Active must show 3
+
+ISSUE 2 — Add Coin input keyboard not opening
+Problem:
+Admin Coins → Add New Coin modal input does not focus / keyboard does not open on mobile browser.
+
+Fix:
+- TextInput/input must be editable
+- Tap on Symbol input should open keyboard
+- Tap on Coin Name input should open keyboard
+- Modal overlay must not block input touches
+- Use proper zIndex/pointerEvents
+- On web/mobile browser use autoFocus false but allow manual focus
+- Add keyboardAvoiding behavior so inputs stay visible
+
+ISSUE 3 — Coin add should auto-connect market data
+When admin adds coin:
+Example:
+Symbol: BTC or BTCUSDT
+Name: Bitcoin
+
+Fix:
+- Normalize symbol to BTC/USDT display
+- Use websocket/rest market data automatically for supported symbols
+- Add to coin list with live price and 24h%
+- Store coin in persistent storage/database
+- Do not add duplicate coin
+- Show error if symbol is unsupported
+- Coin list must update on Web, Mobile Browser, Expo Go
+
+ISSUE 4 — User P&L in Admin User Detail
+Admin user detail must show correct P&L for that user only.
+
+Use same shared PNL function:
+LONG:
+pnlUsd = (currentPrice - entryPrice) * quantity
+
+SHORT:
+pnlUsd = (entryPrice - currentPrice) * quantity
+
+User Total P&L =
+realizedPnlUsd + unrealizedPnlUsd
+
+Current Balance =
+50000 + realizedPnlUsd + unrealizedPnlUsd
+
+Convert to INR only for display when INR selected.
+
+Do not use fake/cached values.
+
+ISSUE 5 — Announcement not working
+Problem:
+Creating announcement shows FirebaseError and announcement count stays 0.
+
+Fix:
+- Connect announcements to Firebase Firestore properly
+- Add missing Firestore rules/collection handling if needed
+- Save announcement with:
+  type
+  title
+  message
+  createdAt
+  createdBy
+  isActive
+- Announcement count should update live
+- New announcement should appear in app for users
+- Handle Firebase errors with readable toast
+- Modal inputs must open keyboard on mobile browser
+
+Important:
+- Remove fake/static admin values
+- Admin dashboard must use real stored data
+- Must work on Web, Mobile Browser, Expo Go, Android/iOS

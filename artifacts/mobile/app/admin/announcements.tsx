@@ -4,7 +4,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -47,6 +49,7 @@ export default function AdminAnnouncements() {
   const [title, setTitle]   = useState("");
   const [message, setMsg]   = useState("");
   const [aType, setAType]   = useState<AType>("info");
+  const [saving, setSaving] = useState(false);
 
   if (authLoading) {
     return (
@@ -60,11 +63,19 @@ export default function AdminAnnouncements() {
 
   async function handleCreate() {
     if (!title.trim() || !message.trim()) { Alert.alert("Error", "Fill in title and message"); return; }
-    await addAnnouncement({ title: title.trim(), message: message.trim(), type: aType, active: true });
-    setAddModal(false);
-    setTitle("");
-    setMsg("");
-    setAType("info");
+    setSaving(true);
+    try {
+      await addAnnouncement({ title: title.trim(), message: message.trim(), type: aType, active: true });
+      setAddModal(false);
+      setTitle("");
+      setMsg("");
+      setAType("info");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      Alert.alert("Save Failed", `Firebase error: ${msg}\n\nCheck Firestore security rules allow writes to the "announcements" collection.`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleDelete(a: Announcement) {
@@ -140,53 +151,70 @@ export default function AdminAnnouncements() {
 
       {/* Add Modal */}
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={() => setAddModal(false)}>
-        <Pressable style={s.backdrop} onPress={() => setAddModal(false)} />
-        <View style={s.sheet}>
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            <View style={s.handle} />
-            <Text style={s.sheetTitle}>New Announcement</Text>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable style={{ flex: 1 }} onPress={() => setAddModal(false)} />
+          <View style={s.sheet}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 8 }}
+            >
+              <View style={s.handle} />
+              <Text style={s.sheetTitle}>New Announcement</Text>
 
-            <Text style={s.fieldLabel}>TYPE</Text>
-            <View style={s.typeRow}>
-              {(["info", "warning", "success"] as AType[]).map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  style={[s.typeBtn, aType === t && { backgroundColor: TYPE_COLORS[t] + "33", borderColor: TYPE_COLORS[t] }]}
-                  onPress={() => setAType(t)}
-                >
-                  <SvgIcon name={TYPE_ICONS[t] as any} size={14} color={aType === t ? TYPE_COLORS[t] : MUTED} />
-                  <Text style={[s.typeBtnText, { color: aType === t ? TYPE_COLORS[t] : MUTED }]}>
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+              <Text style={s.fieldLabel}>TYPE</Text>
+              <View style={s.typeRow}>
+                {(["info", "warning", "success"] as AType[]).map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[s.typeBtn, aType === t && { backgroundColor: TYPE_COLORS[t] + "33", borderColor: TYPE_COLORS[t] }]}
+                    onPress={() => setAType(t)}
+                  >
+                    <SvgIcon name={TYPE_ICONS[t] as any} size={14} color={aType === t ? TYPE_COLORS[t] : MUTED} />
+                    <Text style={[s.typeBtnText, { color: aType === t ? TYPE_COLORS[t] : MUTED }]}>
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-            <Text style={s.fieldLabel}>TITLE</Text>
-            <TextInput
-              style={s.input}
-              placeholder="Announcement title"
-              placeholderTextColor={MUTED}
-              value={title}
-              onChangeText={setTitle}
-            />
+              <Text style={s.fieldLabel}>TITLE</Text>
+              <TextInput
+                style={s.input}
+                placeholder="Announcement title"
+                placeholderTextColor={MUTED}
+                value={title}
+                onChangeText={setTitle}
+                returnKeyType="next"
+              />
 
-            <Text style={s.fieldLabel}>MESSAGE</Text>
-            <TextInput
-              style={[s.input, { height: 100, textAlignVertical: "top", paddingTop: 12 }]}
-              placeholder="Write your announcement…"
-              placeholderTextColor={MUTED}
-              value={message}
-              onChangeText={setMsg}
-              multiline
-            />
+              <Text style={s.fieldLabel}>MESSAGE</Text>
+              <TextInput
+                style={[s.input, { height: 100, textAlignVertical: "top", paddingTop: 12 }]}
+                placeholder="Write your announcement…"
+                placeholderTextColor={MUTED}
+                value={message}
+                onChangeText={setMsg}
+                multiline
+              />
 
-            <TouchableOpacity style={s.confirmBtn} onPress={handleCreate} activeOpacity={0.85}>
-              <SvgIcon name="send-outline" size={16} color="#fff" />
-              <Text style={s.confirmText}>Publish Announcement</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
+              <TouchableOpacity
+                style={[s.confirmBtn, saving && { opacity: 0.7 }]}
+                onPress={handleCreate}
+                activeOpacity={0.85}
+                disabled={saving}
+              >
+                {saving
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <><SvgIcon name="send-outline" size={16} color="#fff" /><Text style={s.confirmText}>Publish Announcement</Text></>
+                }
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -219,9 +247,8 @@ const s = StyleSheet.create({
   emptyBtn: { marginTop: 4, backgroundColor: PRIMARY, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
   emptyBtnText: { color: "#fff", fontWeight: "700" },
 
-  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)" },
   sheet: {
-    position: "absolute", bottom: 0, left: 0, right: 0, maxHeight: "90%",
+    maxHeight: "90%",
     backgroundColor: SURFACE, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     borderWidth: 1, borderColor: BORDER, paddingHorizontal: 20, paddingBottom: 40,
   },
