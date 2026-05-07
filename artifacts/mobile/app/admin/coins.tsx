@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -32,11 +33,14 @@ const BEAR     = "#ff4d4d";
 export default function AdminCoins() {
   const insets = useSafeAreaInsets();
   const { isAdmin, loading: authLoading, customCoins, addCustomCoin, removeCustomCoin } = useAdmin();
-  const [query, setQuery]       = useState("");
-  const [addModal, setAddModal] = useState(false);
+  const [query, setQuery]         = useState("");
+  const [addModal, setAddModal]   = useState(false);
   const [newSymbol, setNewSymbol] = useState("");
-  const [newName, setNewName]   = useState("");
-  const [adding, setAdding]     = useState(false);
+  const [newName, setNewName]     = useState("");
+  const [adding, setAdding]       = useState(false);
+  const [symErr, setSymErr]       = useState("");
+  const [nameErr, setNameErr]     = useState("");
+  const [addErr, setAddErr]       = useState("");
 
   if (authLoading) {
     return (
@@ -61,36 +65,55 @@ export default function AdminCoins() {
       )
     : allCoins;
 
+  function openModal() {
+    setNewSymbol(""); setNewName("");
+    setSymErr(""); setNameErr(""); setAddErr("");
+    setAddModal(true);
+  }
+
+  function validateForm(rawSym: string, nm: string): boolean {
+    let ok = true;
+    if (!rawSym) { setSymErr("Symbol is required"); ok = false; }
+    else if (!/^[A-Z0-9]+$/.test(rawSym)) { setSymErr("Only letters and numbers allowed"); ok = false; }
+    else setSymErr("");
+    if (!nm) { setNameErr("Coin name is required"); ok = false; }
+    else if (nm.length < 2) { setNameErr("Name must be at least 2 characters"); ok = false; }
+    else setNameErr("");
+    return ok;
+  }
+
   async function handleAdd() {
-    const rawSym = newSymbol.trim().toUpperCase().replace(/\//g, "").replace(/\s/g, "");
+    const rawSym = newSymbol.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     const nm     = newName.trim();
-    if (!rawSym || !nm) { Alert.alert("Error", "Fill both fields"); return; }
+    if (!validateForm(rawSym, nm)) return;
+
     // Normalize: strip USDT suffix for display, always use XXXUSDT as id
     const base  = rawSym.endsWith("USDT") ? rawSym.slice(0, -4) : rawSym;
     const id    = base + "USDT";
     const label = base + "/USDT";
 
     if (allCoins.find((c) => c.id === id)) {
-      Alert.alert("Already Listed", `${label} is already in the coin list.`);
+      setSymErr(`${label} is already listed`);
       return;
     }
 
     setAdding(true);
+    setAddErr("");
     try {
-      // Validate symbol exists on Binance via our API proxy
+      // Validate symbol exists on MEXC via our API proxy
       const res = await fetch(`/api/market/ticker24hr?symbol=${id}`);
-      if (!res.ok) throw new Error(`Symbol ${label} not found on Binance (HTTP ${res.status})`);
-      const data = await res.json();
-      if (!data?.lastPrice && !data?.symbol) throw new Error(`Symbol ${label} not supported`);
+      if (!res.ok) throw new Error(`Invalid Binance Symbol — ${label} not found on exchange`);
+      const data = await res.json() as Record<string, unknown>;
+      if (data?.code && !data?.lastPrice) throw new Error(`Invalid Binance Symbol — ${label} not supported`);
 
       await addCustomCoin({ id, name: nm, label });
+      Keyboard.dismiss();
       setAddModal(false);
-      setNewSymbol("");
-      setNewName("");
-      Alert.alert("Added", `${nm} (${label}) added successfully.\nLive market data will be used automatically.`);
+      setNewSymbol(""); setNewName("");
+      Alert.alert("Coin Added Successfully", `${nm} (${label}) has been added.\nLive market data will be used automatically.`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      Alert.alert("Cannot Add Coin", msg);
+      setAddErr(msg);
     } finally {
       setAdding(false);
     }
@@ -116,7 +139,7 @@ export default function AdminCoins() {
         <Text style={s.headerTitle}>Coins ({allCoins.length})</Text>
         <TouchableOpacity
           style={s.addBtn}
-          onPress={() => setAddModal(true)}
+          onPress={openModal}
         >
           <SvgIcon name="add-outline" size={16} color="#fff" />
           <Text style={s.addBtnText}>Add</Text>
@@ -186,30 +209,42 @@ export default function AdminCoins() {
               <Text style={s.sheetTitle}>Add New Coin</Text>
               <Text style={s.fieldLabel}>SYMBOL (e.g. BTC or BTCUSDT)</Text>
               <TextInput
-                style={s.input}
-                placeholder="Symbol"
+                style={[s.input, !!symErr && s.inputErr]}
+                placeholder="e.g. BTC or BTCUSDT"
                 placeholderTextColor={MUTED}
                 value={newSymbol}
-                onChangeText={setNewSymbol}
+                onChangeText={(t) => { setNewSymbol(t.toUpperCase().replace(/[^A-Z0-9]/g, "")); if (symErr) setSymErr(""); }}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 returnKeyType="next"
               />
+              {!!symErr && <Text style={s.errText}>{symErr}</Text>}
+
               <Text style={s.fieldLabel}>COIN NAME</Text>
               <TextInput
-                style={s.input}
+                style={[s.input, !!nameErr && s.inputErr]}
                 placeholder="e.g. Bitcoin"
                 placeholderTextColor={MUTED}
                 value={newName}
-                onChangeText={setNewName}
+                onChangeText={(t) => { setNewName(t); if (nameErr) setNameErr(""); }}
                 autoCapitalize="words"
                 returnKeyType="done"
                 onSubmitEditing={handleAdd}
               />
+              {!!nameErr && <Text style={s.errText}>{nameErr}</Text>}
+
               <View style={s.validationNote}>
                 <SvgIcon name="information-circle-outline" size={13} color={MUTED} />
-                <Text style={s.noteText}>Symbol will be validated against Binance before adding</Text>
+                <Text style={s.noteText}>Symbol is validated against exchange before adding</Text>
               </View>
+
+              {!!addErr && (
+                <View style={s.saveErrBox}>
+                  <SvgIcon name="warning-outline" size={14} color={BEAR} />
+                  <Text style={s.saveErrText}>{addErr}</Text>
+                </View>
+              )}
+
               <TouchableOpacity
                 style={[s.confirmBtn, adding && { opacity: 0.7 }]}
                 onPress={handleAdd}
@@ -217,7 +252,7 @@ export default function AdminCoins() {
                 disabled={adding}
               >
                 {adding
-                  ? <ActivityIndicator color="#fff" size="small" />
+                  ? <><ActivityIndicator color="#fff" size="small" /><Text style={s.confirmText}>Validating…</Text></>
                   : <><SvgIcon name="add-outline" size={16} color="#fff" /><Text style={s.confirmText}>Add Coin</Text></>
                 }
               </TouchableOpacity>
@@ -268,4 +303,8 @@ const s = StyleSheet.create({
   },
   confirmBtn: { backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
   confirmText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  inputErr: { borderColor: BEAR },
+  errText: { color: BEAR, fontSize: 11, marginTop: -10, marginBottom: 10, marginLeft: 4 },
+  saveErrBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#ff4d4d18", borderRadius: 10, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: "#ff4d4d44" },
+  saveErrText: { color: BEAR, fontSize: 12, flex: 1, lineHeight: 17 },
 });

@@ -1,0 +1,138 @@
+Fix Admin Panel completely.
+
+Current issues:
+1. Add Coin sometimes does not work
+2. Announcement publish not working
+3. iPhone keyboard overlap issue
+4. No proper loading/success/error states
+5. Form validation weak
+6. Mobile UX not smooth
+7. Duplicate coins allowed
+8. Some buttons do nothing
+
+==================================
+ADD COIN SYSTEM FIX
+==================================
+
+Make Add Coin fully functional.
+
+Requirements:
+- Symbol input auto uppercase
+  Example:
+  btcusdt -> BTCUSDT
+
+- Validate symbol with Binance API before saving
+
+Use:
+https://api.binance.com/api/v3/exchangeInfo?symbol=BTCUSDT
+
+If invalid:
+Show:
+"Invalid Binance Symbol"
+
+If valid:
+Save coin successfully.
+
+Prevent:
+- Empty fields
+- Duplicate coins
+- Spaces
+- Invalid characters
+
+Add proper states:
+- Loading spinner
+- Success toast
+- Error toast
+
+Success message:
+"Coin Added Successfully"
+
+Error message examples:
+- Coin already exists
+- Invalid symbol
+- Network error
+
+After successful add:
+- Clear inputs
+- Auto refresh coin list
+- Close keyboard automatically
+
+==================================
+ANNOUNCEMENT SYSTEM FIX
+==================================
+
+Make Publish Announcement fully working.
+
+Requirements:
+- Save announcements properly
+- Show instantly to all users
+- Real-time refresh
+- Add publish timestamp
+- Add delete announcement option
+- Add loading/error/success states
+
+Validation:
+- Cannot publish empty announcement
+- Minimum 3 characters
+
+Success:
+"Announcement Published"
+
+==================================
+IOS KEYBOARD FIX
+==================================
+
+Fix iPhone Safari keyboard overlap.
+
+Requirements:
+- Modal scrollable
+- Button always visible
+- Use:
+height: 100dvh;
+
+- Add:
+overflow-y: auto;
+-webkit-overflow-scrolling: touch;
+
+- Use visualViewport API
+- Auto scroll focused input into view
+
+==================================
+UI/UX IMPROVEMENTS
+==================================
+
+Make admin panel feel professional.
+
+Add:
+- Smooth animations
+- Better spacing
+- Proper shadows
+- Responsive layout
+- Disable button while loading
+- Haptic feel style interactions
+- Better toast notifications
+
+Buttons:
+- Add hover/press effects
+- No double click bugs
+
+==================================
+PERFORMANCE
+==================================
+
+- No page freeze
+- No unnecessary re-renders
+- Fast mobile performance
+- Works on:
+  - iPhone Safari
+  - Android Chrome
+  - Expo App
+  - PWA
+  - Desktop
+
+==================================
+EXPECTED RESULT
+==================================
+
+Admin panel should behave like a real production crypto app admin system.
+All buttons and forms must fully work with proper validation and live updates.

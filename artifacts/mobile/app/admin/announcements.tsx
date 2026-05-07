@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -45,11 +46,14 @@ const TYPE_ICONS: Record<AType, string> = {
 export default function AdminAnnouncements() {
   const insets = useSafeAreaInsets();
   const { announcements, addAnnouncement, updateAnnouncement, deleteAnnouncement, isAdmin, loading: authLoading } = useAdmin();
-  const [addModal, setAddModal] = useState(false);
-  const [title, setTitle]   = useState("");
-  const [message, setMsg]   = useState("");
-  const [aType, setAType]   = useState<AType>("info");
-  const [saving, setSaving] = useState(false);
+  const [addModal, setAddModal]   = useState(false);
+  const [title, setTitle]         = useState("");
+  const [message, setMsg]         = useState("");
+  const [aType, setAType]         = useState<AType>("info");
+  const [saving, setSaving]       = useState(false);
+  const [titleErr, setTitleErr]   = useState("");
+  const [msgErr, setMsgErr]       = useState("");
+  const [saveErr, setSaveErr]     = useState("");
 
   if (authLoading) {
     return (
@@ -61,18 +65,33 @@ export default function AdminAnnouncements() {
 
   if (!isAdmin) { router.replace("/admin"); return null; }
 
+  function openModal() {
+    setTitle(""); setMsg(""); setAType("info");
+    setTitleErr(""); setMsgErr(""); setSaveErr("");
+    setAddModal(true);
+  }
+
+  function validate(): boolean {
+    let ok = true;
+    if (title.trim().length < 3) { setTitleErr("Title must be at least 3 characters"); ok = false; }
+    else setTitleErr("");
+    if (message.trim().length < 3) { setMsgErr("Message must be at least 3 characters"); ok = false; }
+    else setMsgErr("");
+    return ok;
+  }
+
   async function handleCreate() {
-    if (!title.trim() || !message.trim()) { Alert.alert("Error", "Fill in title and message"); return; }
+    if (!validate()) return;
     setSaving(true);
+    setSaveErr("");
     try {
       await addAnnouncement({ title: title.trim(), message: message.trim(), type: aType, active: true });
+      Keyboard.dismiss();
       setAddModal(false);
-      setTitle("");
-      setMsg("");
-      setAType("info");
+      setTitle(""); setMsg(""); setAType("info");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      Alert.alert("Save Failed", `Firebase error: ${msg}\n\nCheck Firestore security rules allow writes to the "announcements" collection.`);
+      setSaveErr(`Save failed: ${msg}`);
     } finally {
       setSaving(false);
     }
@@ -81,7 +100,7 @@ export default function AdminAnnouncements() {
   function handleDelete(a: Announcement) {
     Alert.alert("Delete", `Delete "${a.title}"?`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteAnnouncement(a.id) },
+      { text: "Delete", style: "destructive", onPress: () => deleteAnnouncement(a.id).catch(() => {}) },
     ]);
   }
 
@@ -125,7 +144,7 @@ export default function AdminAnnouncements() {
           <SvgIcon name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Announcements ({announcements.length})</Text>
-        <TouchableOpacity style={s.addBtn} onPress={() => setAddModal(true)}>
+        <TouchableOpacity style={s.addBtn} onPress={openModal}>
           <SvgIcon name="add-outline" size={16} color="#fff" />
           <Text style={s.addBtnText}>New</Text>
         </TouchableOpacity>
@@ -135,7 +154,7 @@ export default function AdminAnnouncements() {
         <View style={s.center}>
           <SvgIcon name="notifications-off-outline" size={40} color={MUTED} />
           <Text style={s.emptyText}>No announcements yet</Text>
-          <TouchableOpacity style={s.emptyBtn} onPress={() => setAddModal(true)}>
+          <TouchableOpacity style={s.emptyBtn} onPress={openModal}>
             <Text style={s.emptyBtnText}>Create First Announcement</Text>
           </TouchableOpacity>
         </View>
@@ -183,23 +202,32 @@ export default function AdminAnnouncements() {
 
               <Text style={s.fieldLabel}>TITLE</Text>
               <TextInput
-                style={s.input}
-                placeholder="Announcement title"
+                style={[s.input, !!titleErr && s.inputErr]}
+                placeholder="Announcement title (min 3 chars)"
                 placeholderTextColor={MUTED}
                 value={title}
-                onChangeText={setTitle}
+                onChangeText={(t) => { setTitle(t); if (titleErr) setTitleErr(""); }}
                 returnKeyType="next"
               />
+              {!!titleErr && <Text style={s.errText}>{titleErr}</Text>}
 
               <Text style={s.fieldLabel}>MESSAGE</Text>
               <TextInput
-                style={[s.input, { height: 100, textAlignVertical: "top", paddingTop: 12 }]}
-                placeholder="Write your announcement…"
+                style={[s.input, { height: 100, textAlignVertical: "top", paddingTop: 12 }, !!msgErr && s.inputErr]}
+                placeholder="Write your announcement… (min 3 chars)"
                 placeholderTextColor={MUTED}
                 value={message}
-                onChangeText={setMsg}
+                onChangeText={(t) => { setMsg(t); if (msgErr) setMsgErr(""); }}
                 multiline
               />
+              {!!msgErr && <Text style={s.errText}>{msgErr}</Text>}
+
+              {!!saveErr && (
+                <View style={s.saveErrBox}>
+                  <SvgIcon name="warning-outline" size={14} color={BEAR} />
+                  <Text style={s.saveErrText}>{saveErr}</Text>
+                </View>
+              )}
 
               <TouchableOpacity
                 style={[s.confirmBtn, saving && { opacity: 0.7 }]}
@@ -264,4 +292,8 @@ const s = StyleSheet.create({
   },
   confirmBtn: { backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   confirmText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  inputErr: { borderColor: BEAR },
+  errText: { color: BEAR, fontSize: 11, marginTop: -10, marginBottom: 10, marginLeft: 4 },
+  saveErrBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#ff4d4d18", borderRadius: 10, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: "#ff4d4d44" },
+  saveErrText: { color: BEAR, fontSize: 12, flex: 1, lineHeight: 17 },
 });

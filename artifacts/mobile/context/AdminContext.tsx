@@ -171,14 +171,17 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       () => {}
     );
 
-    // Announcements stored in dedicated `announcements` collection
+    // Announcements stored in admin_config/announcements doc (same collection as app/coins)
     announcementsUnsubRef.current?.();
     announcementsUnsubRef.current = onSnapshot(
-      query(collection(db, "announcements"), orderBy("createdAt", "desc")),
+      doc(db, "admin_config", "announcements"),
       (snap) => {
-        const list: Announcement[] = [];
-        snap.forEach((d) => list.push(d.data() as Announcement));
-        setAnnouncements(list);
+        if (snap.exists()) {
+          const items = (snap.data()?.items as Announcement[]) ?? [];
+          setAnnouncements([...items].sort((a, b) => b.createdAt - a.createdAt));
+        } else {
+          setAnnouncements([]);
+        }
       },
       () => {}
     );
@@ -299,22 +302,31 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }
 
-  // Announcements use dedicated `announcements` collection — errors propagate to caller
+  // Announcements stored in admin_config/announcements doc — errors propagate to caller
   async function addAnnouncement(a: Omit<Announcement, "id" | "createdAt">) {
-    const db = getFirebaseDb();
-    const id = Date.now().toString();
-    const item: Announcement = { ...a, id, createdAt: Date.now() };
-    await setDoc(doc(db, "announcements", id), item);
+    const db   = getFirebaseDb();
+    const ref  = doc(db, "admin_config", "announcements");
+    const snap = await getDoc(ref);
+    const existing: Announcement[] = snap.exists() ? ((snap.data()?.items as Announcement[]) ?? []) : [];
+    const newItem: Announcement = { ...a, id: Date.now().toString(), createdAt: Date.now() };
+    await setDoc(ref, { items: [...existing, newItem] });
   }
 
   async function updateAnnouncement(id: string, updates: Partial<Announcement>) {
-    const db = getFirebaseDb();
-    await updateDoc(doc(db, "announcements", id), updates as Record<string, unknown>);
+    const db   = getFirebaseDb();
+    const ref  = doc(db, "admin_config", "announcements");
+    const snap = await getDoc(ref);
+    const items: Announcement[] = snap.exists() ? ((snap.data()?.items as Announcement[]) ?? []) : [];
+    const updated = items.map((a) => (a.id === id ? { ...a, ...updates } : a));
+    await setDoc(ref, { items: updated });
   }
 
   async function deleteAnnouncement(id: string) {
-    const db = getFirebaseDb();
-    await deleteDoc(doc(db, "announcements", id));
+    const db   = getFirebaseDb();
+    const ref  = doc(db, "admin_config", "announcements");
+    const snap = await getDoc(ref);
+    const items: Announcement[] = snap.exists() ? ((snap.data()?.items as Announcement[]) ?? []) : [];
+    await setDoc(ref, { items: items.filter((a) => a.id !== id) });
   }
 
   async function addCustomCoin(coin: CustomCoin) {
