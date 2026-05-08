@@ -303,13 +303,19 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       setOhlcv({ o: d.open, h: d.high, l: d.low, c: d.close, v: vd?.value ?? 0, ch, chp });
     });
 
-    // ResizeObserver — update width and height on resize
+    // ResizeObserver — debounced 50ms to prevent jank on rapid resize / rotation
+    let roDebounce: ReturnType<typeof setTimeout> | null = null;
     const ro = new ResizeObserver(() => {
-      if (containerRef.current && chartRef.current) {
-        const w = containerRef.current.offsetWidth;
-        const h = containerRef.current.offsetHeight || (height - TOP - BOTTOM);
-        chartRef.current.applyOptions({ width: w, height: h });
-      }
+      if (roDebounce) clearTimeout(roDebounce);
+      roDebounce = setTimeout(() => {
+        try {
+          if (containerRef.current && chartRef.current) {
+            const w = containerRef.current.offsetWidth;
+            const h = containerRef.current.offsetHeight || (height - TOP - BOTTOM);
+            chartRef.current.applyOptions({ width: w, height: h });
+          }
+        } catch {}
+      }, 50);
     });
     ro.observe(el);
 
