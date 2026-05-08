@@ -39,6 +39,9 @@ export interface Props {
   clearDrawingsKey?: number;
 }
 
+const MAX_DRAWINGS = 100;
+const MAX_CANDLES  = 1000;
+
 function buildInterval(tf: string): string {
   const m: Record<string, string> = { "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1h": "1h", "1D": "1d" };
   return m[tf] ?? "15m";
@@ -140,40 +143,56 @@ interface ChartState {
   drawings: DrawingEntry[];
 }
 
+const EMPTY_STATE = (): ChartState => ({
+  chart: null, lc: null,
+  series: {
+    candle: null, vol: null, ema9: null, ema20: null, sma20: null,
+    bbMid: null, bbUp: null, bbLow: null, rsi: null, macdL: null, macdS: null, macdH: null,
+  },
+  data: [],
+  drawings: [],
+});
+
 function WebChart({
   symbol, symbolType, timeframe = "15m", isDark = true, height = 320,
   onPriceUpdate, chartType = "candle", indicators,
   isFullscreen = false, onFullscreenToggle,
   drawingTool, onDrawingComplete, clearDrawingsKey,
 }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const st = useRef<ChartState>({
-    chart: null, lc: null,
-    series: { candle: null, vol: null, ema9: null, ema20: null, sma20: null, bbMid: null, bbUp: null, bbLow: null, rsi: null, macdL: null, macdS: null, macdH: null },
-    data: [],
-    drawings: [],
-  });
-  const wsRef = useRef<WebSocket | null>(null);
-  const ivRef = useRef<any>(null);
-  const indicatorsRef = useRef(indicators);
-  const drawingToolRef = useRef(drawingTool);
-  const drawingClicksRef = useRef<{ time: any; price: number }[]>([]);
+  const containerRef         = useRef<HTMLDivElement>(null);
+  const st                   = useRef<ChartState>(EMPTY_STATE());
+  const wsRef                = useRef<WebSocket | null>(null);
+  const ivRef                = useRef<any>(null);
+  const roRef                = useRef<any>(null);
+  const clickHandlerRef      = useRef<any>(null);
+  const crosshairHandlerRef  = useRef<any>(null);
+  const retryTimeoutRef      = useRef<any>(null);
+  const indicatorsRef        = useRef(indicators);
+  const drawingToolRef       = useRef(drawingTool);
+  const drawingClicksRef     = useRef<{ time: any; price: number }[]>([]);
   const onDrawingCompleteRef = useRef(onDrawingComplete);
-  const [legend, setLegend] = useState<{ o?: string; h?: string; l?: string; c?: string } | null>(null);
+
+  const [legend, setLegend]         = useState<{ o?: string; h?: string; l?: string; c?: string } | null>(null);
+  const [chartStatus, setChartStatus] = useState<"loading" | "loaded" | "error">("loading");
+  const [reinitKey, setReinitKey]   = useState(0);
 
   useEffect(() => { indicatorsRef.current = indicators; }, [indicators]);
-  useEffect(() => { drawingToolRef.current = drawingTool; drawingClicksRef.current = []; }, [drawingTool]);
+  useEffect(() => {
+    drawingToolRef.current = drawingTool;
+    drawingClicksRef.current = [];
+  }, [drawingTool]);
 
-  // Disable chart pan/scale while a drawing tool is active (prevents accidental scroll during drawing)
+  // Disable chart pan/scale while a drawing tool is active (prevents accidental scroll)
   useEffect(() => {
     if (!st.current.chart) return;
     try {
       st.current.chart.applyOptions({
         handleScroll: !drawingTool,
-        handleScale: !drawingTool,
+        handleScale:  !drawingTool,
       });
     } catch {}
   }, [drawingTool]);
+
   useEffect(() => { onDrawingCompleteRef.current = onDrawingComplete; }, [onDrawingComplete]);
 
   const bg = isDark ? "#0b0e17" : "#ffffff";
@@ -181,152 +200,158 @@ function WebChart({
   const gc = isDark ? "#1e293b" : "#e2e8f0";
   const up = "#00c896", dn = "#ff4d4d";
 
+  // ── Drawing limit enforcement ─────────────────────────────────────────────
+  function enforceDrawingLimit(chart: any) {
+    while (st.current.drawings.length > MAX_DRAWINGS) {
+      const oldest = st.current.drawings.shift();
+      if (!oldest) break;
+      try {
+        if (oldest.type === "priceline") {
+          if (oldest.seriesRef && oldest.line) oldest.seriesRef.removePriceLine(oldest.line);
+        } else {
+          if (oldest.series) chart.removeSeries(oldest.series);
+        }
+      } catch {}
+    }
+  }
+
+  // ── Safe drawing removal ──────────────────────────────────────────────────
   const clearDrawings = useCallback(() => {
     const s = st.current;
     if (!s.chart) return;
     for (const d of s.drawings) {
       try {
-        if (d.type === "priceline") d.seriesRef.removePriceLine(d.line);
-        else s.chart.removeSeries(d.series);
+        if (!d || typeof d.type !== "string") continue;
+        if (d.type === "priceline") {
+          if (d.seriesRef && d.line) d.seriesRef.removePriceLine(d.line);
+        } else if (d.type === "series") {
+          if (d.series) s.chart.removeSeries(d.series);
+        }
       } catch {}
     }
     s.drawings = [];
   }, []);
 
-  useEffect(() => {
-    clearDrawings();
-  }, [clearDrawingsKey, clearDrawings]);
+  useEffect(() => { clearDrawings(); }, [clearDrawingsKey, clearDrawings]);
 
+  // ── Indicator management ──────────────────────────────────────────────────
   const removeAllIndicators = useCallback(() => {
     const s = st.current;
     if (!s.chart) return;
     (["ema9", "ema20", "sma20", "bbMid", "bbUp", "bbLow", "rsi", "macdL", "macdS", "macdH", "vol"] as const).forEach((k) => {
-      if (s.series[k]) { try { s.chart.removeSeries(s.series[k]); } catch {} s.series[k] = null; }
+      if (s.series[k]) {
+        try { s.chart.removeSeries(s.series[k]); } catch {}
+        s.series[k] = null;
+      }
     });
   }, []);
 
   const syncIndicators = useCallback(() => {
     const s = st.current;
     if (!s.chart || !s.lc || !s.data.length) return;
-    const ind = indicatorsRef.current;
-    const { LineSeries, HistogramSeries } = s.lc;
-    const closes = s.data.map((c: any) => c.close);
-    const times  = s.data.map((c: any) => c.time);
+    try {
+      const ind = indicatorsRef.current;
+      const { LineSeries, HistogramSeries } = s.lc;
+      const closes = s.data.map((c: any) => c.close);
+      const times  = s.data.map((c: any) => c.time);
 
-    removeAllIndicators();
+      removeAllIndicators();
 
-    const hasVolume = ind?.volume ?? true;
-    s.chart.priceScale("right").applyOptions({
-      scaleMargins: { top: 0.06, bottom: hasVolume ? 0.22 : 0.04 },
-    });
-
-    if (hasVolume) {
-      const volSeries = s.chart.addSeries(HistogramSeries, {
-        color: "#26a69a50", priceScaleId: "vol",
-        priceFormat: { type: "volume" },
+      const hasVolume = ind?.volume ?? true;
+      s.chart.priceScale("right").applyOptions({
+        scaleMargins: { top: 0.06, bottom: hasVolume ? 0.22 : 0.04 },
       });
-      s.chart.priceScale("vol").applyOptions({
-        scaleMargins: { top: 0.82, bottom: 0 }, visible: false,
-      });
-      volSeries.setData(s.data.map((c: any) => ({
-        time: c.time, value: c.volume,
-        color: c.close >= c.open ? "#26a69a50" : "#ef444450",
-      })));
-      s.series.vol = volSeries;
-    }
 
-    if (ind?.ema9) {
-      const series = s.chart.addSeries(LineSeries, {
-        color: "#f59e0b", lineWidth: 1, title: "EMA9",
-        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-      });
-      series.setData(calcEMA(closes, 9).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
-      s.series.ema9 = series;
-    }
+      if (hasVolume) {
+        const volSeries = s.chart.addSeries(HistogramSeries, {
+          color: "#26a69a50", priceScaleId: "vol", priceFormat: { type: "volume" },
+        });
+        s.chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 }, visible: false });
+        volSeries.setData(s.data.map((c: any) => ({
+          time: c.time, value: c.volume,
+          color: c.close >= c.open ? "#26a69a50" : "#ef444450",
+        })));
+        s.series.vol = volSeries;
+      }
 
-    if (ind?.ema20) {
-      const series = s.chart.addSeries(LineSeries, {
-        color: "#a78bfa", lineWidth: 1, title: "EMA20",
-        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-      });
-      series.setData(calcEMA(closes, 20).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
-      s.series.ema20 = series;
-    }
+      if (ind?.ema9) {
+        const series = s.chart.addSeries(LineSeries, {
+          color: "#f59e0b", lineWidth: 1, title: "EMA9",
+          priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+        });
+        series.setData(calcEMA(closes, 9).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+        s.series.ema9 = series;
+      }
+      if (ind?.ema20) {
+        const series = s.chart.addSeries(LineSeries, {
+          color: "#a78bfa", lineWidth: 1, title: "EMA20",
+          priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+        });
+        series.setData(calcEMA(closes, 20).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+        s.series.ema20 = series;
+      }
+      if (ind?.sma20) {
+        const series = s.chart.addSeries(LineSeries, {
+          color: "#38bdf8", lineWidth: 1, title: "SMA20",
+          priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+        });
+        series.setData(calcSMA(closes, 20).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+        s.series.sma20 = series;
+      }
+      if (ind?.bb) {
+        const { mid, upper, lower } = calcBB(closes, 20, 2);
+        const bbMid = s.chart.addSeries(LineSeries, { color: "#94a3b8", lineWidth: 1, title: "BB Mid", priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+        bbMid.setData(mid.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+        s.series.bbMid = bbMid;
+        const bbUp = s.chart.addSeries(LineSeries, { color: "#3b82f660", lineWidth: 1, title: "BB Upper", priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+        bbUp.setData(upper.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+        s.series.bbUp = bbUp;
+        const bbLow = s.chart.addSeries(LineSeries, { color: "#3b82f660", lineWidth: 1, title: "BB Lower", priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+        bbLow.setData(lower.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+        s.series.bbLow = bbLow;
+      }
 
-    if (ind?.sma20) {
-      const series = s.chart.addSeries(LineSeries, {
-        color: "#38bdf8", lineWidth: 1, title: "SMA20",
-        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-      });
-      series.setData(calcSMA(closes, 20).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
-      s.series.sma20 = series;
-    }
-
-    if (ind?.bb) {
-      const { mid, upper, lower } = calcBB(closes, 20, 2);
-      const bbMid = s.chart.addSeries(LineSeries, {
-        color: "#94a3b8", lineWidth: 1, title: "BB Mid",
-        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-      });
-      bbMid.setData(mid.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
-      s.series.bbMid = bbMid;
-      const bbUp = s.chart.addSeries(LineSeries, {
-        color: "#3b82f660", lineWidth: 1, title: "BB Upper",
-        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-      });
-      bbUp.setData(upper.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
-      s.series.bbUp = bbUp;
-      const bbLow = s.chart.addSeries(LineSeries, {
-        color: "#3b82f660", lineWidth: 1, title: "BB Lower",
-        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-      });
-      bbLow.setData(lower.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
-      s.series.bbLow = bbLow;
-    }
-
-    let nextPane = 1;
-
-    if (ind?.rsi) {
-      const series = s.chart.addSeries(LineSeries, {
-        color: "#3b82f6", lineWidth: 1.5, title: "RSI(14)",
-        priceLineVisible: false, lastValueVisible: true,
-      }, nextPane++);
-      series.setData(calcRSI(closes, 14).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
-      series.applyOptions({ priceFormat: { type: "custom", formatter: (p: number) => p.toFixed(1) } });
-      s.series.rsi = series;
-    }
-
-    if (ind?.macd) {
-      const { macdLine, signalLine, histogram } = calcMACD(closes);
-      const pane = nextPane++;
-      const macdL = s.chart.addSeries(LineSeries, {
-        color: "#3b82f6", lineWidth: 1.5, title: "MACD",
-        priceLineVisible: false, lastValueVisible: false,
-      }, pane);
-      macdL.setData(macdLine.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
-      s.series.macdL = macdL;
-      const macdS = s.chart.addSeries(LineSeries, {
-        color: "#f59e0b", lineWidth: 1, title: "Signal",
-        priceLineVisible: false, lastValueVisible: false,
-      }, pane);
-      macdS.setData(signalLine.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
-      s.series.macdS = macdS;
-      const macdH = s.chart.addSeries(HistogramSeries, {
-        title: "Histogram", priceLineVisible: false, lastValueVisible: false,
-      }, pane);
-      macdH.setData(
-        histogram.map((v, i) => ({
-          time: times[i], value: v,
-          color: v !== null ? (v >= 0 ? "#26a69a70" : "#ef444470") : "transparent",
-        })).filter((d: any) => d.value !== null)
-      );
-      s.series.macdH = macdH;
+      let nextPane = 1;
+      if (ind?.rsi) {
+        const series = s.chart.addSeries(LineSeries, {
+          color: "#3b82f6", lineWidth: 1.5, title: "RSI(14)",
+          priceLineVisible: false, lastValueVisible: true,
+        }, nextPane++);
+        series.setData(calcRSI(closes, 14).map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+        series.applyOptions({ priceFormat: { type: "custom", formatter: (p: number) => p.toFixed(1) } });
+        s.series.rsi = series;
+      }
+      if (ind?.macd) {
+        const { macdLine, signalLine, histogram } = calcMACD(closes);
+        const pane = nextPane++;
+        const macdL = s.chart.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 1.5, title: "MACD", priceLineVisible: false, lastValueVisible: false }, pane);
+        macdL.setData(macdLine.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+        s.series.macdL = macdL;
+        const macdS = s.chart.addSeries(LineSeries, { color: "#f59e0b", lineWidth: 1, title: "Signal", priceLineVisible: false, lastValueVisible: false }, pane);
+        macdS.setData(signalLine.map((v, i) => ({ time: times[i], value: v })).filter((d: any) => d.value !== null));
+        s.series.macdS = macdS;
+        const macdH = s.chart.addSeries(HistogramSeries, { title: "Histogram", priceLineVisible: false, lastValueVisible: false }, pane);
+        macdH.setData(histogram.map((v, i) => ({ time: times[i], value: v, color: v !== null ? (v >= 0 ? "#26a69a70" : "#ef444470") : "transparent" })).filter((d: any) => d.value !== null));
+        s.series.macdH = macdH;
+      }
+    } catch (e) {
+      console.error("[LightweightChart] syncIndicators error:", e);
     }
   }, [removeAllIndicators]);
 
+  // ── Main chart init/teardown ──────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
     let destroyed = false;
+
+    // Cancel any pending auto-retry
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
+    setChartStatus("loading");
+    setLegend(null);
 
     async function init() {
       const lc = await import("lightweight-charts");
@@ -348,6 +373,7 @@ function WebChart({
       st.current.chart = chart;
       st.current.lc = lc;
 
+      // ── Main series ───────────────────────────────────────────────────────
       let mainSeries: any;
       if (chartType === "candle") {
         mainSeries = chart.addSeries(CandlestickSeries, {
@@ -366,18 +392,24 @@ function WebChart({
       }
       st.current.series.candle = mainSeries;
 
-      chart.subscribeCrosshairMove((param: any) => {
-        if (!param?.time || !param?.seriesData) { setLegend(null); return; }
-        const d = param.seriesData.get(mainSeries);
-        if (!d) return;
-        if (chartType === "candle") {
-          setLegend({ o: d.open?.toFixed(2), h: d.high?.toFixed(2), l: d.low?.toFixed(2), c: d.close?.toFixed(2) });
-        } else {
-          setLegend({ c: d.value?.toFixed(2) });
-        }
-      });
+      // ── Crosshair handler — tracked for cleanup ───────────────────────────
+      const crosshairHandler = (param: any) => {
+        try {
+          if (!param?.time || !param?.seriesData) { setLegend(null); return; }
+          const d = param.seriesData.get(mainSeries);
+          if (!d) return;
+          if (chartType === "candle") {
+            setLegend({ o: d.open?.toFixed(2), h: d.high?.toFixed(2), l: d.low?.toFixed(2), c: d.close?.toFixed(2) });
+          } else {
+            setLegend({ c: d.value?.toFixed(2) });
+          }
+        } catch {}
+      };
+      chart.subscribeCrosshairMove(crosshairHandler);
+      crosshairHandlerRef.current = crosshairHandler;
 
-      chart.subscribeClick((param: any) => {
+      // ── Click handler — tracked for cleanup ───────────────────────────────
+      const clickHandler = (param: any) => {
         try {
           const tool = drawingToolRef.current;
           if (!tool || !param?.point || !param?.time || !mainSeries) return;
@@ -394,7 +426,9 @@ function WebChart({
               title: label, axisLabelVisible: true,
             });
             st.current.drawings.push({ type: "priceline", seriesRef: mainSeries, line: pl });
+            enforceDrawingLimit(chart);
             onDrawingCompleteRef.current?.();
+
           } else if (tool === "trendline") {
             drawingClicksRef.current.push({ time, price });
             if (drawingClicksRef.current.length === 2) {
@@ -410,9 +444,11 @@ function WebChart({
                   { time: p2.time, value: p2.price },
                 ]);
                 st.current.drawings.push({ type: "series", series: trendSeries });
+                enforceDrawingLimit(chart);
               }
               onDrawingCompleteRef.current?.();
             }
+
           } else if (tool === "fib") {
             drawingClicksRef.current.push({ time, price });
             if (drawingClicksRef.current.length === 2) {
@@ -423,104 +459,183 @@ function WebChart({
                 const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
                 const fibColors = ["#94a3b8", "#f59e0b", "#10b981", "#3b82f6", "#10b981", "#f59e0b", "#94a3b8"];
                 levels.forEach((level, i) => {
-                  const fibPrice = p1.price + diff * level;
-                  if (!Number.isFinite(fibPrice)) return;
-                  const pl = mainSeries.createPriceLine({
-                    price: fibPrice,
-                    color: fibColors[i],
-                    lineWidth: 1,
-                    lineStyle: LineStyle.Dotted,
-                    title: `Fib ${(level * 100).toFixed(1)}%`,
-                    axisLabelVisible: true,
-                  });
-                  st.current.drawings.push({ type: "priceline", seriesRef: mainSeries, line: pl });
+                  try {
+                    const fibPrice = p1.price + diff * level;
+                    if (!Number.isFinite(fibPrice)) return;
+                    const pl = mainSeries.createPriceLine({
+                      price: fibPrice, color: fibColors[i], lineWidth: 1,
+                      lineStyle: LineStyle.Dotted,
+                      title: `Fib ${(level * 100).toFixed(1)}%`,
+                      axisLabelVisible: true,
+                    });
+                    st.current.drawings.push({ type: "priceline", seriesRef: mainSeries, line: pl });
+                  } catch {}
                 });
+                enforceDrawingLimit(chart);
               }
               onDrawingCompleteRef.current?.();
             }
           }
         } catch (e) {
-          console.error("[LightweightChart] Drawing click handler error:", e);
+          console.error("[LightweightChart] Drawing click error:", e);
           drawingClicksRef.current = [];
         }
-      });
+      };
+      chart.subscribeClick(clickHandler);
+      clickHandlerRef.current = clickHandler;
 
+      // ── ResizeObserver with debounce ──────────────────────────────────────
       try {
+        let resizeDebounce: any = null;
         const ro = new ResizeObserver(() => {
-          try {
-            if (containerRef.current && chart) {
-              chart.applyOptions({ width: containerRef.current.offsetWidth });
-            }
-          } catch {}
+          if (resizeDebounce) clearTimeout(resizeDebounce);
+          resizeDebounce = setTimeout(() => {
+            try {
+              if (containerRef.current && chart && !destroyed) {
+                chart.applyOptions({ width: containerRef.current.offsetWidth });
+              }
+            } catch {}
+          }, 50);
         });
         if (containerRef.current) ro.observe(containerRef.current);
+        roRef.current = ro;
       } catch (e) {
         console.error("[LightweightChart] ResizeObserver unavailable:", e);
       }
 
-      {
-        const sym = symbol.replace("/", "").toUpperCase();
-        const final = sym.endsWith("USDT") ? sym : sym + "USDT";
-        const interval = buildInterval(timeframe);
-        try {
-          const res = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${final}&interval=${interval}&limit=500`);
-          const data = await res.json();
-          if (Array.isArray(data) && !destroyed) {
-            const candles = data.map((d: any[]) => ({
+      // ── Fetch initial candle data ─────────────────────────────────────────
+      const sym      = symbol.replace("/", "").toUpperCase();
+      const final    = sym.endsWith("USDT") ? sym : sym + "USDT";
+      const interval = buildInterval(timeframe);
+      let dataLoaded = false;
+
+      try {
+        const res  = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${final}&interval=${interval}&limit=500`);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0 && !destroyed) {
+          const candles = data
+            .map((d: any[]) => ({
               time: Math.floor(d[0] / 1000) as any,
               open: +d[1], high: +d[2], low: +d[3], close: +d[4], volume: +d[5],
-            }));
-            if (chartType === "candle") mainSeries.setData(candles);
-            else mainSeries.setData(candles.map((c: any) => ({ time: c.time, value: c.close })));
-            st.current.data = candles;
-            const last = candles[candles.length - 1];
-            if (last && onPriceUpdate) onPriceUpdate(last.close);
-            if (!destroyed) syncIndicators();
-          }
-        } catch {}
+            }))
+            .filter((c: any) =>
+              Number.isFinite(c.open) && Number.isFinite(c.high) &&
+              Number.isFinite(c.low)  && Number.isFinite(c.close)
+            )
+            .slice(-MAX_CANDLES);
 
-        if (!destroyed) {
-          const ws = new WebSocket(`wss://data-stream.binance.vision/ws/${final.toLowerCase()}@kline_${interval}`);
-          wsRef.current = ws;
-          ws.onmessage = (evt) => {
-            if (destroyed) return;
+          if (chartType === "candle") mainSeries.setData(candles);
+          else mainSeries.setData(candles.map((c: any) => ({ time: c.time, value: c.close })));
+          st.current.data = candles;
+          const last = candles[candles.length - 1];
+          if (last && onPriceUpdate) onPriceUpdate(last.close);
+          if (!destroyed) syncIndicators();
+          dataLoaded = true;
+        }
+      } catch (e) {
+        console.error("[LightweightChart] Candle fetch failed:", e);
+      }
+
+      if (!destroyed) {
+        setChartStatus(dataLoaded ? "loaded" : "error");
+        if (!dataLoaded) {
+          // Auto-reinit after 3 seconds
+          retryTimeoutRef.current = setTimeout(() => {
+            if (!destroyed) setReinitKey((k) => k + 1);
+          }, 3000);
+        }
+      }
+
+      // ── WebSocket live updates ────────────────────────────────────────────
+      if (!destroyed) {
+        const ws = new WebSocket(`wss://data-stream.binance.vision/ws/${final.toLowerCase()}@kline_${interval}`);
+        wsRef.current = ws;
+        ws.onmessage = (evt) => {
+          if (destroyed) return;
+          try {
             const k = JSON.parse(evt.data).k;
-            const c = { time: Math.floor(k.t / 1000) as any, open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
+            if (!k) return;
+            const c = {
+              time: Math.floor(k.t / 1000) as any,
+              open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v,
+            };
+            if (!Number.isFinite(c.open) || !Number.isFinite(c.close)) return;
             if (chartType === "candle") st.current.series.candle?.update(c);
             else st.current.series.candle?.update({ time: c.time, value: c.close });
             if (st.current.series.vol) {
-              st.current.series.vol.update({ time: c.time, value: c.volume, color: c.close >= c.open ? "#26a69a50" : "#ef444450" });
+              st.current.series.vol.update({
+                time: c.time, value: c.volume,
+                color: c.close >= c.open ? "#26a69a50" : "#ef444450",
+              });
             }
             if (onPriceUpdate) onPriceUpdate(+k.c);
-          };
-        }
+            if (!dataLoaded) { setChartStatus("loaded"); dataLoaded = true; }
+          } catch {}
+        };
+        ws.onerror = () => {};
       }
     }
 
-    init();
+    init().catch((e) => {
+      console.error("[LightweightChart] Chart init failed:", e);
+      if (!destroyed) {
+        setChartStatus("error");
+        retryTimeoutRef.current = setTimeout(() => {
+          if (!destroyed) setReinitKey((k) => k + 1);
+        }, 3000);
+      }
+    });
 
     return () => {
       destroyed = true;
-      wsRef.current?.close();
-      if (ivRef.current) clearInterval(ivRef.current);
-      try { st.current.chart?.remove(); } catch {}
-      st.current = {
-        chart: null, lc: null,
-        series: { candle: null, vol: null, ema9: null, ema20: null, sma20: null, bbMid: null, bbUp: null, bbLow: null, rsi: null, macdL: null, macdS: null, macdH: null },
-        data: [],
-        drawings: [],
-      };
-    };
-  }, [symbol, timeframe, symbolType, chartType, height]);
 
+      // Unsubscribe chart event listeners — prevents duplicate subscriptions
+      try {
+        if (st.current.chart && clickHandlerRef.current) {
+          st.current.chart.unsubscribeClick(clickHandlerRef.current);
+        }
+      } catch {}
+      try {
+        if (st.current.chart && crosshairHandlerRef.current) {
+          st.current.chart.unsubscribeCrosshairMove(crosshairHandlerRef.current);
+        }
+      } catch {}
+      clickHandlerRef.current     = null;
+      crosshairHandlerRef.current = null;
+      drawingClicksRef.current    = [];
+
+      // Disconnect ResizeObserver
+      try { roRef.current?.disconnect(); } catch {}
+      roRef.current = null;
+
+      // Close WebSocket
+      try { wsRef.current?.close(); } catch {}
+      wsRef.current = null;
+
+      // Clear intervals and timers
+      if (ivRef.current) clearInterval(ivRef.current);
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+
+      // Destroy chart
+      try { st.current.chart?.remove(); } catch {}
+
+      // Reset all state to prevent stale-ref crashes after unmount
+      st.current = EMPTY_STATE();
+    };
+  }, [symbol, timeframe, symbolType, chartType, height, reinitKey]);  // reinitKey triggers auto-recovery
+
+  // ── Theme update ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!st.current.chart) return;
-    st.current.chart.applyOptions({
-      layout: { background: { type: "solid", color: bg }, textColor: tc },
-      grid: { vertLines: { color: gc }, horzLines: { color: gc } },
-    });
+    try {
+      st.current.chart.applyOptions({
+        layout: { background: { type: "solid", color: bg }, textColor: tc },
+        grid: { vertLines: { color: gc }, horzLines: { color: gc } },
+      });
+    } catch {}
   }, [isDark]);
 
+  // ── Indicator sync ────────────────────────────────────────────────────────
   useEffect(() => {
     if (st.current.chart && st.current.data.length) syncIndicators();
   }, [
@@ -529,18 +644,44 @@ function WebChart({
     syncIndicators,
   ]);
 
+  // ── Render ────────────────────────────────────────────────────────────────
   const cursorStyle = drawingTool ? "crosshair" : "default";
+  // touch-action: "none" when drawing prevents Android Chrome from freezing while
+  // the chart's internal touch listeners run. "pan-x pan-y" when idle lets the
+  // browser optimise scrolling normally.
+  const touchAction = drawingTool ? "none" : "pan-x pan-y";
 
   const containerStyle: React.CSSProperties = isFullscreen
     ? { position: "fixed", inset: 0, zIndex: 9999, background: bg, display: "flex", flexDirection: "column" }
     : { width: "100%", height, overflow: "hidden", background: bg, position: "relative" };
 
   const innerStyle: React.CSSProperties = isFullscreen
-    ? { flex: 1, width: "100%", cursor: cursorStyle }
-    : { width: "100%", height: "100%", cursor: cursorStyle };
+    ? { flex: 1, width: "100%", cursor: cursorStyle, touchAction, userSelect: "none" }
+    : { width: "100%", height: "100%", cursor: cursorStyle, touchAction, userSelect: "none" };
 
   return (
     <div style={containerStyle}>
+      {/* Status overlays — pointer-events: none so chart remains interactive */}
+      {chartStatus === "loading" && (
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 5, pointerEvents: "none",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: tc, fontSize: 13,
+        }}>
+          Loading chart…
+        </div>
+      )}
+      {chartStatus === "error" && (
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 5, pointerEvents: "none",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "#f59e0b", fontSize: 13,
+        }}>
+          Reconnecting chart…
+        </div>
+      )}
+
+      {/* OHLC legend */}
       {legend && (
         <div style={{
           position: "absolute", top: 6, left: 8, zIndex: 10,
@@ -553,9 +694,11 @@ function WebChart({
           {legend.c && <span>C <b>{legend.c}</b></span>}
         </div>
       )}
+
+      {/* Drawing tool indicator */}
       {drawingTool && (
         <div style={{
-          position: "absolute", top: 6, right: 8, zIndex: 10,
+          position: "absolute", top: 6, right: isFullscreen ? 56 : 8, zIndex: 10,
           background: "#f59e0b22", border: "1px solid #f59e0b60",
           borderRadius: 6, padding: "3px 8px", fontSize: 11, color: "#f59e0b",
           pointerEvents: "none", userSelect: "none",
@@ -565,6 +708,8 @@ function WebChart({
             : `${drawingTool.toUpperCase()} — click to place`}
         </div>
       )}
+
+      {/* Fullscreen exit button */}
       {isFullscreen && onFullscreenToggle && (
         <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
           <button
@@ -573,6 +718,7 @@ function WebChart({
           >✕ Exit</button>
         </div>
       )}
+
       <div ref={containerRef} style={innerStyle} />
     </div>
   );
