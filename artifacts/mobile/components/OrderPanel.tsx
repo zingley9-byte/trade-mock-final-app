@@ -250,29 +250,61 @@ export default function OrderPanel() {
 
       {/* ── Quantity ─────────────────────────────────────────────────────── */}
       <View style={styles.inputSection}>
-        <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Quantity</Text>
-        <View style={[styles.inputBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-          <Text style={[styles.inputPrefix, { color: colors.mutedForeground }]}>$</Text>
+        <View style={styles.labelRow}>
+          <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Quantity (Lots)</Text>
+          {qty > 0 && effectivePrice > 0 && (
+            <Text style={[styles.lotHint, { color: colors.mutedForeground }]}>
+              {selectedSymbol.label.replace("/USDT", "")} = ${(qty * effectivePrice).toFixed(2)}
+            </Text>
+          )}
+        </View>
+        <View style={[styles.qtyRow, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          <TouchableOpacity
+            style={[styles.qtyStepBtn, { borderRightColor: colors.border }]}
+            onPress={() => {
+              const current = parseFloat(quantity) || 0;
+              const step = current >= 1 ? 1 : current >= 0.1 ? 0.01 : 0.001;
+              const next = Math.max(0.001, parseFloat((current - step).toFixed(6)));
+              setQuantity(String(next));
+              Haptics.selectionAsync();
+            }}
+          >
+            <Text style={[styles.qtyStepText, { color: colors.foreground }]}>−</Text>
+          </TouchableOpacity>
           <TextInput
             value={quantity}
-            onChangeText={setQuantity}
+            onChangeText={(v) => {
+              setQuantity(v);
+            }}
             keyboardType="decimal-pad"
-            style={[styles.input, { color: colors.foreground }]}
+            style={[styles.qtyInput, { color: colors.foreground }]}
             placeholder="0.01"
             placeholderTextColor={colors.mutedForeground}
             selectTextOnFocus
           />
-          <View style={styles.qtyBtns}>
-            {["0.01", "0.1", "1"].map((q) => (
-              <TouchableOpacity
-                key={q}
-                style={[styles.qtyBtn, { backgroundColor: colors.secondary, borderRadius: 6 }]}
-                onPress={() => setQuantity(q)}
-              >
-                <Text style={[styles.qtyBtnText, { color: colors.foreground }]}>{q}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <TouchableOpacity
+            style={[styles.qtyStepBtn, { borderLeftColor: colors.border }]}
+            onPress={() => {
+              const current = parseFloat(quantity) || 0;
+              const step = current >= 1 ? 1 : current >= 0.1 ? 0.01 : 0.001;
+              const next = Math.min(9999, parseFloat((current + step).toFixed(6)));
+              setQuantity(String(next));
+              Haptics.selectionAsync();
+            }}
+          >
+            <Text style={[styles.qtyStepText, { color: colors.foreground }]}>+</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.qtyBtns}>
+          {["0.01", "0.1", "1", "10"].map((q) => (
+            <TouchableOpacity
+              key={q}
+              style={[styles.qtyBtn, { backgroundColor: colors.secondary, borderRadius: 6 }]}
+              onPress={() => { setQuantity(q); Haptics.selectionAsync(); }}
+            >
+              <Text style={[styles.qtyBtnText, { color: colors.foreground }]}>{q}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
@@ -394,6 +426,11 @@ const styles = StyleSheet.create({
   inputValue:  { fontSize: 15, flex: 1 },
   inputPrefix: { fontSize: 15, fontWeight: "600" as const, marginRight: 2 },
   input:       { flex: 1, fontSize: 15, padding: 0 },
+  qtyRow:     { flexDirection: "row", alignItems: "center", borderRadius: 8, borderWidth: 1, marginBottom: 6, overflow: "hidden" },
+  qtyStepBtn: { paddingHorizontal: 18, paddingVertical: 10, alignItems: "center", justifyContent: "center", borderWidth: 0, borderRightWidth: 1, borderLeftWidth: 1 },
+  qtyStepText:{ fontSize: 20, fontWeight: "600" as const, lineHeight: 24 },
+  qtyInput:   { flex: 1, fontSize: 16, padding: 0, textAlign: "center" as const, fontWeight: "600" as const },
+  lotHint:    { fontSize: 11 },
   qtyBtns:    { flexDirection: "row", gap: 4 },
   qtyBtn:     { paddingHorizontal: 8, paddingVertical: 4 },
   qtyBtnText: { fontSize: 11, fontWeight: "600" as const },

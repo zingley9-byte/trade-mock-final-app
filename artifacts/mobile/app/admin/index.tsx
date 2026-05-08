@@ -34,10 +34,28 @@ function calcPosPnl(pos: PositionSnapshot, price: number): number {
   return pos.side === "buy" ? (price - entry) * qty : (entry - price) * qty;
 }
 
+function fmtCompact(usdValue: number, cur: "usd" | "inr"): string {
+  const sign = usdValue >= 0 ? "+" : "-";
+  if (cur === "usd") {
+    const abs = Math.abs(usdValue);
+    if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
+    if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
+    if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+    return `${sign}$${abs.toFixed(0)}`;
+  } else {
+    const inr = Math.abs(usdValue) * USD_TO_INR;
+    if (inr >= 1e7) return `${sign}₹${(inr / 1e7).toFixed(2)}Cr`;
+    if (inr >= 1e5) return `${sign}₹${(inr / 1e5).toFixed(2)}L`;
+    if (inr >= 1e3) return `${sign}₹${(inr / 1e3).toFixed(1)}K`;
+    return `${sign}₹${inr.toFixed(0)}`;
+  }
+}
+
 export default function AdminDashboard() {
   const insets = useSafeAreaInsets();
   const { isAdmin, loading, users, usersError, announcements, blockedUids, refreshUsers, appConfig, customCoins } = useAdmin();
   const [symbolPrices, setSymbolPrices] = useState<Record<string, number>>({});
+  const [adminCurrency, setAdminCurrency] = useState<"usd" | "inr">("inr");
 
   useEffect(() => { refreshUsers(); }, []);
 
@@ -107,15 +125,16 @@ export default function AdminDashboard() {
     return (u.totalPnl + unreal) < 0;
   }).length;
 
-  const pnlStr = `${totalPnlInr >= 0 ? "+" : ""}₹${Math.abs(totalPnlInr / 1000).toFixed(1)}K`;
+  const totalPnlUsd = realizedPnlUsd + unrealizedPnlUsd;
+  const pnlStr = fmtCompact(totalPnlUsd, adminCurrency);
 
   const stats = [
     { label: "Total Users",    value: users.length.toString(),         icon: "people-outline",            color: "#3b82f6", route: "/admin/users" },
-    { label: "Active",         value: activeUsers.toString(),           icon: "person-add-outline",        color: BULL,      route: "/admin/users?filter=active" },
+    { label: "Active",         value: users.filter((u) => !u.blocked).length.toString(), icon: "person-add-outline", color: BULL, route: "/admin/users?filter=active" },
     { label: "Blocked",        value: blockedCount.toString(),          icon: "person-remove-outline",     color: BEAR,      route: "/admin/users?filter=blocked" },
     { label: "Open Trades",    value: totalOpenTrades.toString(),       icon: "pulse-outline",             color: "#3b82f6", route: "/admin/trades" },
     { label: "Closed Trades",  value: totalClosedTrades.toString(),     icon: "swap-horizontal-outline",   color: GOLD,      route: "/admin/trades" },
-    { label: "Total P&L",      value: pnlStr,                           icon: "trending-up-outline",       color: totalPnlInr >= 0 ? BULL : BEAR, route: null },
+    { label: "Total P&L",      value: pnlStr,                           icon: "trending-up-outline",       color: totalPnlUsd >= 0 ? BULL : BEAR, route: null },
     { label: "Profit Users",   value: profitUsers.toString(),           icon: "arrow-up-circle-outline",   color: BULL,      route: null },
     { label: "Loss Users",     value: lossUsers.toString(),             icon: "arrow-down-circle-outline", color: BEAR,      route: null },
     { label: "Announcements",  value: announcements.filter((a) => a.active).length.toString(), icon: "notifications-outline", color: "#8b5cf6", route: "/admin/announcements" },
@@ -140,6 +159,12 @@ export default function AdminDashboard() {
           <Text style={s.headerTitle}>Admin Panel</Text>
           <Text style={s.headerSub}>Trade Mock Pro Control Center</Text>
         </View>
+        <TouchableOpacity
+          style={s.currencyToggle}
+          onPress={() => setAdminCurrency((c) => c === "usd" ? "inr" : "usd")}
+        >
+          <Text style={s.currencyToggleText}>{adminCurrency === "usd" ? "USD" : "INR"}</Text>
+        </TouchableOpacity>
         <View style={s.adminBadge}>
           <SvgIcon name="shield-checkmark-outline" size={12} color={PRIMARY} />
           <Text style={s.adminBadgeText}>ADMIN</Text>
@@ -174,7 +199,7 @@ export default function AdminDashboard() {
               <View style={[s.statIcon, { backgroundColor: st.color + "22" }]}>
                 <SvgIcon name={st.icon as any} size={16} color={st.color} />
               </View>
-              <Text style={[s.statValue, { color: st.color }]}>{st.value}</Text>
+              <Text style={[s.statValue, { color: st.color }]} numberOfLines={1} adjustsFontSizeToFit>{st.value}</Text>
               <Text style={s.statLabel}>{st.label}</Text>
               {!!st.route && (
                 <SvgIcon name="chevron-forward-outline" size={11} color={st.color + "99"} />
@@ -284,7 +309,12 @@ const s = StyleSheet.create({
     padding: 14, alignItems: "center", gap: 6,
   },
   statIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  statValue: { fontSize: 20, fontWeight: "700" },
+  statValue: { fontSize: 16, fontWeight: "700", textAlign: "center", minWidth: 0 },
+  currencyToggle: {
+    backgroundColor: PRIMARY + "22", paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 8, borderWidth: 1, borderColor: PRIMARY + "55",
+  },
+  currencyToggleText: { fontSize: 11, fontWeight: "700", color: PRIMARY },
   statLabel: { fontSize: 10, color: MUTED, textAlign: "center", fontWeight: "500" },
   menuList: { marginHorizontal: 14, backgroundColor: SURFACE, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: "hidden" },
   menuRow: {

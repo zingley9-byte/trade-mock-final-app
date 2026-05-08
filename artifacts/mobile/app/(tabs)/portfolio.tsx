@@ -158,18 +158,27 @@ export default function PortfolioScreen() {
   }
 
   function handleReset() {
+    const doReset = () => {
+      resetAccount();
+      showToast("Account reset — balance restored to $50,000");
+    };
+    if (Platform.OS === "web") {
+      if (
+        typeof window !== "undefined" &&
+        window.confirm(
+          "Reset Fund?\n\nBalance will be restored to $50,000. All open positions and trade history will be cleared."
+        )
+      ) {
+        doReset();
+      }
+      return;
+    }
     Alert.alert(
       "Reset Fund",
       "Balance will be restored to $50,000 and all positions & trade history will be cleared.",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: () => {
-            resetAccount();
-          },
-        },
+        { text: "Reset", style: "destructive", onPress: doReset },
       ]
     );
   }

@@ -13,6 +13,29 @@ import SvgIcon from "@/components/SvgIcon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AdminUser, useAdmin } from "@/context/AdminContext";
 
+const USD_TO_INR = 95;
+
+function fmtPnl(usdValue: number, cur: "usd" | "inr"): string {
+  const sign = usdValue >= 0 ? "+" : "-";
+  if (cur === "usd") {
+    const abs = Math.abs(usdValue);
+    if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+    return `${sign}$${abs.toFixed(2)}`;
+  } else {
+    const inr = Math.abs(usdValue) * USD_TO_INR;
+    if (inr >= 1e7) return `${sign}₹${(inr / 1e7).toFixed(2)}Cr`;
+    if (inr >= 1e5) return `${sign}₹${(inr / 1e5).toFixed(2)}L`;
+    if (inr >= 1e3) return `${sign}₹${(inr / 1e3).toFixed(1)}K`;
+    return `${sign}₹${inr.toFixed(0)}`;
+  }
+}
+
+function fmtBalance(usdValue: number, cur: "usd" | "inr"): string {
+  if (cur === "usd") return `$${usdValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  const inr = usdValue * USD_TO_INR;
+  return `₹${inr.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
 const ADMIN_BG = "#0a0e1a";
 const SURFACE  = "#111827";
 const BORDER   = "#1e293b";
@@ -30,6 +53,8 @@ export default function AdminUsers() {
   const { users, refreshUsers, isAdmin, loading: authLoading } = useAdmin();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [adminCurrency, setAdminCurrency] = useState<"usd" | "inr">("inr");
   const [filterMode, setFilterMode] = useState<FilterMode>(
     filterParam === "active" ? "active" : filterParam === "blocked" ? "blocked" : "all"
   );
@@ -39,6 +64,11 @@ export default function AdminUsers() {
       refreshUsers().finally(() => setLoading(false));
     }
   }, [authLoading]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try { await refreshUsers(); } finally { setRefreshing(false); }
+  }
 
   if (authLoading) {
     return (
@@ -95,11 +125,11 @@ export default function AdminUsers() {
           <Text style={s.email}>{u.email}</Text>
           <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
             <Text style={s.stat}>Trades: <Text style={{ color: FG }}>{u.tradeCount}</Text></Text>
-            <Text style={s.stat}>P&L: <Text style={{ color: pnlColor }}>{u.totalPnl >= 0 ? "+" : ""}₹{Math.abs(u.totalPnl).toFixed(0)}</Text></Text>
+            <Text style={s.stat}>P&L: <Text style={{ color: pnlColor }}>{fmtPnl(u.totalPnl, adminCurrency)}</Text></Text>
           </View>
         </View>
         <View style={{ alignItems: "flex-end", gap: 4 }}>
-          <Text style={s.balance}>₹{u.balance.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</Text>
+          <Text style={s.balance}>{fmtBalance(u.balance, adminCurrency)}</Text>
           <SvgIcon name="chevron-forward-outline" size={15} color={MUTED} />
         </View>
       </TouchableOpacity>
@@ -113,6 +143,15 @@ export default function AdminUsers() {
           <SvgIcon name="arrow-back-outline" size={20} color={FG} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Users ({filtered.length})</Text>
+        <TouchableOpacity
+          style={s.currencyToggle}
+          onPress={() => setAdminCurrency((c) => c === "usd" ? "inr" : "usd")}
+        >
+          <Text style={s.currencyToggleText}>{adminCurrency === "usd" ? "USD" : "INR"}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleRefresh} style={{ padding: 4 }}>
+          <SvgIcon name="refresh-outline" size={18} color={refreshing ? PRIMARY : MUTED} />
+        </TouchableOpacity>
       </View>
 
       {/* Filter tabs */}
@@ -168,6 +207,8 @@ export default function AdminUsers() {
           renderItem={renderUser}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 32 }}
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
           ItemSeparatorComponent={() => <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginLeft: 70 }} />}
         />
       )}
@@ -217,4 +258,9 @@ const s = StyleSheet.create({
   blockedBadge: { backgroundColor: BEAR + "22", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   blockedText: { fontSize: 9, fontWeight: "700", color: BEAR, letterSpacing: 0.5 },
   emptyText: { fontSize: 14, color: MUTED },
+  currencyToggle: {
+    backgroundColor: PRIMARY + "22", paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 8, borderWidth: 1, borderColor: PRIMARY + "55",
+  },
+  currencyToggleText: { fontSize: 11, fontWeight: "700" as const, color: PRIMARY },
 });

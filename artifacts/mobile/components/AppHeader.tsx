@@ -280,7 +280,7 @@ export default function AppHeader() {
             value={searchQuery}
             onChangeText={setSearchQuery}
             onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 180)}
             returnKeyType="search"
           />
           {searchQuery.length > 0 && (
