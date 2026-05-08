@@ -44,6 +44,11 @@ export default function OrderPanel() {
     : 0;
   const symbol = "$";
 
+  // Max lots the user can open given current balance, leverage, and price
+  const maxLots = effectivePrice > 0 && balance > 0 && leverage > 0
+    ? (balance * leverage) / effectivePrice
+    : 0;
+
   // ── Formatters ───────────────────────────────────────────────────────────
   function formatBalance(amount: number): string {
     if (currencyMode === "usd") {
@@ -252,9 +257,10 @@ export default function OrderPanel() {
       <View style={styles.inputSection}>
         <View style={styles.labelRow}>
           <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Quantity (Lots)</Text>
-          {qty > 0 && effectivePrice > 0 && (
+          {effectivePrice > 0 && (
             <Text style={[styles.lotHint, { color: colors.mutedForeground }]}>
-              {selectedSymbol.label.replace("/USDT", "")} = ${(qty * effectivePrice).toFixed(2)}
+              {qty > 0 ? `≈ $${(qty * effectivePrice).toFixed(0)}  ·  ` : ""}
+              {`max ${maxLots >= 1 ? maxLots.toFixed(2) : maxLots.toFixed(4)}`}
             </Text>
           )}
         </View>
@@ -287,7 +293,8 @@ export default function OrderPanel() {
             onPress={() => {
               const current = parseFloat(quantity) || 0;
               const step = current >= 1 ? 1 : current >= 0.1 ? 0.01 : 0.001;
-              const next = Math.min(9999, parseFloat((current + step).toFixed(6)));
+              const cap = maxLots > 0 ? maxLots : 9999;
+              const next = Math.min(cap, parseFloat((current + step).toFixed(6)));
               setQuantity(String(next));
               Haptics.selectionAsync();
             }}

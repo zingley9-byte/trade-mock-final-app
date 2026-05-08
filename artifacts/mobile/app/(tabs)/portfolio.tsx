@@ -128,23 +128,26 @@ export default function PortfolioScreen() {
     const entry = modifyTarget.entryPrice;
     const isBuy = modifyTarget.side === "buy";
 
+    const livePriceForMsg = modifyTarget ? getBestPrice(modifyTarget) : 0;
+    const curStr = livePriceForMsg > 0 ? `, current ${fmtPrice(livePriceForMsg)}` : "";
+
     if (sl !== undefined && !isNaN(sl)) {
       if (isBuy && sl >= entry) {
-        setModifyErr(`Stop Loss must be BELOW entry (${fmtPrice(entry)}) for LONG`);
+        setModifyErr(`SL must be BELOW entry ${fmtPrice(entry)}${curStr} for LONG`);
         return;
       }
       if (!isBuy && sl <= entry) {
-        setModifyErr(`Stop Loss must be ABOVE entry (${fmtPrice(entry)}) for SHORT`);
+        setModifyErr(`SL must be ABOVE entry ${fmtPrice(entry)}${curStr} for SHORT`);
         return;
       }
     }
     if (tp !== undefined && !isNaN(tp)) {
       if (isBuy && tp <= entry) {
-        setModifyErr(`Take Profit must be ABOVE entry (${fmtPrice(entry)}) for LONG`);
+        setModifyErr(`TP must be ABOVE entry ${fmtPrice(entry)}${curStr} for LONG`);
         return;
       }
       if (!isBuy && tp >= entry) {
-        setModifyErr(`Take Profit must be BELOW entry (${fmtPrice(entry)}) for SHORT`);
+        setModifyErr(`TP must be BELOW entry ${fmtPrice(entry)}${curStr} for SHORT`);
         return;
       }
     }
@@ -414,8 +417,10 @@ export default function PortfolioScreen() {
               <View>
                 <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Modify Position</Text>
                 {modifyTarget && (
-                  <Text style={[styles.sheetSub, { color: colors.mutedForeground }]}>
-                    {modifyTarget.symbol.label}  ·  {modifyTarget.side === "buy" ? "LONG" : "SHORT"}  ·  Entry {fmtPrice(modifyTarget.entryPrice)}
+                  <Text style={[styles.sheetSub, { color: colors.mutedForeground }]} numberOfLines={2}>
+                    {modifyTarget.symbol.label}{"  ·  "}{modifyTarget.side === "buy" ? "LONG" : "SHORT"}
+                    {"\n"}{"Entry "}{fmtPrice(modifyTarget.entryPrice)}
+                    {"  ·  Current "}{getBestPrice(modifyTarget) > 0 ? fmtPrice(getBestPrice(modifyTarget)) : "—"}
                   </Text>
                 )}
               </View>
@@ -430,7 +435,10 @@ export default function PortfolioScreen() {
                 Stop Loss
                 {modifyTarget && (
                   <Text style={{ color: colors.bear, fontSize: 10 }}>
-                    {"  "}({modifyTarget.side === "buy" ? "must be below entry" : "must be above entry"})
+                    {"  "}
+                    {modifyTarget.side === "buy"
+                      ? `↓ below ${fmtPrice(modifyTarget.entryPrice)}`
+                      : `↑ above ${fmtPrice(modifyTarget.entryPrice)}`}
                   </Text>
                 )}
               </Text>
@@ -457,7 +465,10 @@ export default function PortfolioScreen() {
                 Take Profit
                 {modifyTarget && (
                   <Text style={{ color: colors.bull, fontSize: 10 }}>
-                    {"  "}({modifyTarget.side === "buy" ? "must be above entry" : "must be below entry"})
+                    {"  "}
+                    {modifyTarget.side === "buy"
+                      ? `↑ above ${fmtPrice(modifyTarget.entryPrice)}`
+                      : `↓ below ${fmtPrice(modifyTarget.entryPrice)}`}
                   </Text>
                 )}
               </Text>

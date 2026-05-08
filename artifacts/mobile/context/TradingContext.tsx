@@ -242,6 +242,11 @@ export function useTradingContext() {
   return ctx;
 }
 
+/** Returns n if it is a safe finite number, otherwise returns fallback (default 0). */
+function safeNum(n: number, fallback = 0): number {
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function calcLiquidationPrice(
   side: "buy" | "sell",
   entryPrice: number,
@@ -259,9 +264,10 @@ export function calcPnL(pos: Position, price: number): number {
   if (!price || price <= 0) return 0;
   const entry = parseFloat(String(pos.entryPrice));
   const qty   = parseFloat(String(pos.quantity));
-  if (!entry || !qty) return 0;
+  if (!entry || !qty || !Number.isFinite(entry) || !Number.isFinite(qty)) return 0;
   const priceDiff = pos.side === "buy" ? price - entry : entry - price;
-  return priceDiff * qty;
+  const result = priceDiff * qty;
+  return Number.isFinite(result) ? result : 0;
 }
 
 /**
@@ -274,10 +280,11 @@ export function getLivePositionPnl(pos: Position, currentPrice: number): number 
   if (!currentPrice || currentPrice <= 0) return 0;
   const entry = parseFloat(String(pos.entryPrice));
   const qty   = parseFloat(String(pos.quantity));
-  if (!entry || !qty) return 0;
-  return pos.side === "buy"
+  if (!entry || !qty || !Number.isFinite(entry) || !Number.isFinite(qty)) return 0;
+  const raw = pos.side === "buy"
     ? (currentPrice - entry) * qty
     : (entry - currentPrice) * qty;
+  return Number.isFinite(raw) ? raw : 0;
 }
 
 /** Returns the live price for a position's symbol, with fallback to currentPrice for the selected symbol. Returns 0 if unknown. */
@@ -447,8 +454,26 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
           loadedBalance = INITIAL_BALANCE;
         }
 
-        if (loadedBalance !== undefined) setBalance(loadedBalance);
-        if (saved.positions) setPositions(saved.positions);
+        // Clamp balance to a safe, finite range
+        if (loadedBalance !== undefined) {
+          setBalance(Math.min(Math.max(0, safeNum(loadedBalance, INITIAL_BALANCE)), INITIAL_BALANCE * 1000));
+        }
+        // Sanitize positions — discard any with corrupt or impossible numeric fields
+        if (saved.positions) {
+          const cleanPositions = (saved.positions as Position[]).filter((p) => {
+            const m   = Number(p.margin);
+            const e   = Number(p.entryPrice);
+            const q   = Number(p.quantity);
+            const liq = Number(p.liquidationPrice);
+            return (
+              Number.isFinite(m) && m > 0 && m <= INITIAL_BALANCE * 1000 &&
+              Number.isFinite(e) && e > 0 &&
+              Number.isFinite(q) && q > 0 && q < 1e9 &&
+              Number.isFinite(liq) && liq > 0
+            );
+          });
+          setPositions(cleanPositions);
+        }
         if (saved.tradeHistory) {
           const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
           setTradeHistory((saved.tradeHistory as TradeHistory[]).filter((t) => t.closedAt >= thirtyDaysAgo));
@@ -714,16 +739,40 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     }): { success: boolean; message: string } => {
       if (currentPrice === 0)
         return { success: false, message: "Price not loaded yet — please wait a moment" };
-      if (params.quantity <= 0)
-        return { success: false, message: "Invalid quantity" };
+
+      // Guard: account balance must be a valid positive number
+      const safeBalance = safeNum(balance, -1);
+      if (safeBalance <= 0) {
+        return { success: false, message: "Account error — please Reset Fund from Portfolio screen" };
+      }
+
+      // Guard: quantity must be a valid positive finite number
+      if (!Number.isFinite(params.quantity) || params.quantity < 0.001) {
+        return { success: false, message: "Minimum quantity is 0.001 lots" };
+      }
+      if (params.quantity > 1_000_000) {
+        return { success: false, message: "Maximum quantity is 1,000,000 lots" };
+      }
 
       const usePrice = params.entryPrice ?? currentPrice;
-      if (usePrice <= 0)
+      if (!usePrice || usePrice <= 0 || !Number.isFinite(usePrice))
         return { success: false, message: "Invalid entry price" };
 
-      const margin = (usePrice * params.quantity) / leverage;
-      if (margin > balance)
-        return { success: false, message: "Insufficient balance" };
+      const notional = usePrice * params.quantity;
+      if (!Number.isFinite(notional) || notional <= 0)
+        return { success: false, message: "Invalid position size" };
+
+      const margin = notional / leverage;
+      if (!Number.isFinite(margin) || margin <= 0)
+        return { success: false, message: "Invalid margin calculation" };
+
+      if (margin > safeBalance) {
+        const maxQty = (safeBalance * leverage) / usePrice;
+        return {
+          success: false,
+          message: `Insufficient balance — max ${maxQty >= 1 ? maxQty.toFixed(2) : maxQty.toFixed(4)} lots at x${leverage} leverage`,
+        };
+      }
 
       const liqPrice = calcLiquidationPrice(params.side, usePrice, leverage);
       const newPos: Position = {
@@ -743,7 +792,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       setPositions((prev) => {
         const updated = [...prev, newPos];
         setBalance((b) => {
-          const newB = b - margin;
+          const newB = Math.max(0, safeNum(b, 0) - margin);
           saveState(newB, updated, tradeHistory, theme, leverage);
           return newB;
         });
@@ -763,11 +812,12 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       const pos = positions.find((p) => p.id === positionId);
       if (!pos) return;
 
-      const exitPrice = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id) || pos.entryPrice;
-      const pnlRaw   = calcPnL(pos, exitPrice);
-      const clampedPnl = Math.max(-pos.margin, pnlRaw);
-      const exitValue  = pos.margin + clampedPnl;
-      const pnlPct     = (clampedPnl / pos.margin) * 100;
+      const exitPrice  = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id) || pos.entryPrice;
+      const pnlRaw    = calcPnL(pos, exitPrice);
+      const pnlSafe   = Number.isFinite(pnlRaw) ? pnlRaw : 0;
+      const clampedPnl = Math.max(-pos.margin, pnlSafe);
+      const exitValue  = safeNum(pos.margin + clampedPnl, 0);
+      const pnlPct     = pos.margin > 0 ? (clampedPnl / pos.margin) * 100 : 0;
 
       const histEntry: TradeHistory = {
         id: positionId,
@@ -814,7 +864,7 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
       setPositions(updatedPositions);
       setTradeHistory(newHistory);
       setBalance((b) => {
-        const newB = b + exitValue;
+        const newB = Math.max(0, Math.min(safeNum(b, 0) + exitValue, INITIAL_BALANCE * 1000));
         saveState(newB, updatedPositions, newHistory, theme, leverage);
         return newB;
       });
@@ -836,13 +886,15 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getRunningPnL = useCallback((): number => {
-    return positions.reduce((sum, pos) => {
+    const total = positions.reduce((sum, pos) => {
       const price = getPosPrice(pos, symbolPrices, currentPrice, selectedSymbol.id);
       if (!price) return sum;
       const pnlRaw = calcPnL(pos, price);
+      if (!Number.isFinite(pnlRaw)) return sum;
       const clampedPnl = Math.max(-pos.margin, pnlRaw);
       return sum + clampedPnl;
     }, 0);
+    return safeNum(total, 0);
   }, [positions, currentPrice, symbolPrices, selectedSymbol.id]);
 
   const getTotalPortfolioValue = useCallback((): number => {
