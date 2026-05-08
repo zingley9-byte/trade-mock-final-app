@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import SvgIcon from "@/components/SvgIcon";
 import { MarketSymbol, SYMBOLS, useTradingContext } from "@/context/TradingContext";
+import { useAdmin } from "@/context/AdminContext";
 import { useColors } from "@/hooks/useColors";
 import CoinLogo from "@/components/CoinLogo";
 
@@ -25,19 +26,28 @@ export default function SymbolSelector() {
     usdToInr,
   } = useTradingContext();
   const colors = useColors();
+  const { customCoins } = useAdmin();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
   const isPositive = priceChange24h >= 0;
   const isUSD = currencyMode === "usd";
 
+  const allSymbols = useMemo((): MarketSymbol[] => {
+    const existingIds = new Set(SYMBOLS.map((s) => s.id));
+    const extras: MarketSymbol[] = (customCoins ?? [])
+      .filter((c) => c.id && !existingIds.has(c.id))
+      .map((c) => ({ id: c.id, name: c.name, label: c.label, type: "crypto" as const }));
+    return [...SYMBOLS, ...extras];
+  }, [customCoins]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return SYMBOLS;
-    return SYMBOLS.filter(
+    if (!q) return allSymbols;
+    return allSymbols.filter(
       (s) => s.label.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
     );
-  }, [query]);
+  }, [query, allSymbols]);
 
   function fmtPrice(usdPrice: number): string {
     if (!usdPrice) return "—";
@@ -108,7 +118,7 @@ export default function SymbolSelector() {
           </View>
 
           <Text style={[styles.countLabel, { color: colors.mutedForeground }]}>
-            {filtered.length} coin{filtered.length !== 1 ? "s" : ""}
+            {filtered.length} coin{filtered.length !== 1 ? "s" : ""}{customCoins?.length ? ` (${customCoins.length} custom)` : ""}
           </Text>
 
           <FlatList

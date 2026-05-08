@@ -645,6 +645,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
   // ── SVG Pointer handlers — DRAG model ─────────────────────────────────────
 
   function onSvgPointerDown(e: React.PointerEvent<Element>) {
+    try {
     console.log("[DrawTools] pointerdown — tool:", activeTool, "pointerId:", e.pointerId);
     if (!activeTool || activeTool==="cursor") { setSelectedDrwId(null); setFloatMenu(null); return; }
     if (activeTool==="delete") return;
@@ -691,7 +692,9 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       return;
     }
     if (activeTool==="text"||activeTool==="note") {
-      const txt = window.prompt("Enter "+(activeTool==="text"?"text":"note")+":", activeTool==="text"?"Text":"Note");
+      let txt: string | null = null;
+      try { txt = window.prompt("Enter "+(activeTool==="text"?"text":"note")+":", activeTool==="text"?"Text":"Note"); }
+      catch(_) { txt = activeTool==="text" ? "Text" : "Note"; }
       if (txt==null) return;
       console.log("drawing started", activeTool);
       setWebDrawings(ds=>[...ds,{id:genDrwId(),type:activeTool,pts:[{price:pt.price,time:pt.time??0}],color:drwColor,width:drwWidth,text:txt,visible:true,locked:false}]);
@@ -705,9 +708,11 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     setWebCurrent({type:activeTool,pts:[pt,pt],preview:{x,y}});
     console.log("drawing started", activeTool);
     try { (e.currentTarget as any).setPointerCapture(e.pointerId); } catch(_){}
+    } catch (_) {}
   }
 
   function onSvgPointerMove(e: React.PointerEvent<Element>) {
+    try {
     e.preventDefault();
     const {x,y}=getSvgXY(e);
 
@@ -731,9 +736,11 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     if (!drwMDown.current && activeTool && THREE_PT_TOOLS.has(activeTool) && drwCurPts.current.length===2) {
       setWebCurrent((c:any)=>c?{...c,preview:{x,y}}:null);
     }
+    } catch (_) {}
   }
 
   function onSvgPointerUp(e: React.PointerEvent<Element>) {
+    try {
     if (!drwMDown.current) return;
     drwMDown.current=false;
     const {x,y}=getSvgXY(e);
@@ -773,6 +780,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         drwCurPts.current=[]; setWebCurrent(null);
       }
     }
+    } catch (_) {}
   }
 
   // Show the float/settings menu for a drawing at a given screen position.
@@ -870,6 +878,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
     function makeId() { return "drw_"+Date.now()+"_"+Math.random().toString(36).slice(2,6); }
 
     function onTouchStart(e: TouchEvent) {
+      try {
       const tool = activeToolRef.current;
       if (!tool || tool === "cursor") return;
       e.preventDefault();
@@ -907,9 +916,11 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
       drwCurPts.current = [pt, pt];
       setWebCurrent({ type: tool, pts: [pt, pt], preview: { x, y } });
       console.log("[DrawTools] drawing started —", tool, "(touch)");
+      } catch (_) {}
     }
 
     function onTouchMove(e: TouchEvent) {
+      try {
       const tool = activeToolRef.current;
       if (!tool || tool === "cursor") return;
       e.preventDefault();
@@ -925,9 +936,11 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
         if (pt.price != null) drwCurPts.current[1] = pt;
         setWebCurrent((c: any) => c ? { ...c, pts: [...drwCurPts.current], preview: { x, y } } : null);
       }
+      } catch (_) {}
     }
 
     function onTouchEnd(e: TouchEvent) {
+      try {
       const tool = activeToolRef.current;
       if (!tool || tool === "cursor") return;
       if (!drwMDown.current) return;
@@ -970,6 +983,7 @@ function WebChart({ symbol, height }: { symbol: string; height: number }) {
           drwCurPts.current = []; setWebCurrent(null);
         }
       }
+      } catch (_) {}
     }
 
     el.addEventListener("touchstart",  onTouchStart, { passive: false });

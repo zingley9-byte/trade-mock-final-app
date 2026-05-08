@@ -449,7 +449,10 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
 
         if (loadedBalance !== undefined) setBalance(loadedBalance);
         if (saved.positions) setPositions(saved.positions);
-        if (saved.tradeHistory) setTradeHistory(saved.tradeHistory);
+        if (saved.tradeHistory) {
+          const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+          setTradeHistory((saved.tradeHistory as TradeHistory[]).filter((t) => t.closedAt >= thirtyDaysAgo));
+        }
         if (saved.theme) { setTheme(saved.theme); Appearance.setColorScheme(saved.theme); }
         if (saved.leverage) setLeverage(saved.leverage);
         if (saved.marketFilter) setMarketFilterState(saved.marketFilter);
@@ -478,12 +481,14 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
     newResetTimestamps?: number[]
   ) {
     try {
+      const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const prunedHistory = newHistory.filter((t) => t.closedAt >= thirtyDaysAgo);
       await AsyncStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
           balance: newBalance,
           positions: newPositions,
-          tradeHistory: newHistory,
+          tradeHistory: prunedHistory,
           theme: newTheme,
           leverage: newLeverage,
           marketFilter: newMarketFilter,

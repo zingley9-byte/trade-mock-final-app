@@ -7,6 +7,7 @@ import {
   Animated,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -392,7 +393,13 @@ export default function AuthScreen() {
       )}
 
       {/* ── Forgot Password Modal ───────────────────────────────────────── */}
-      {forgotOpen && (
+      <Modal
+        visible={forgotOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={closeForgot}
+        statusBarTranslucent
+      >
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={StyleSheet.absoluteFill} onPress={closeForgot} activeOpacity={1} />
           <View style={styles.forgotCard}>
@@ -475,7 +482,7 @@ export default function AuthScreen() {
             )}
           </View>
         </View>
-      )}
+      </Modal>
     </LinearGradient>
   );
 }
