@@ -1,6 +1,7 @@
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -34,6 +35,8 @@ export default function OrderPanel() {
   const [manualPrice, setManualPrice] = useState("");
   const [orderError,  setOrderError]  = useState("");
 
+  const qtyInputRef = useRef<TextInput>(null);
+
   // ── Derived numbers ───────────────────────────────────────────────────────
   const qty           = parseFloat(quantity) || 0;
   const effectivePrice = priceMode === "manual" && manualPrice
@@ -63,6 +66,33 @@ export default function OrderPanel() {
     if (n >= 1000) return n.toFixed(2);
     if (n >= 1)    return n.toFixed(4);
     return n.toFixed(6);
+  }
+
+  // ── Quantity input handlers ───────────────────────────────────────────────
+  function handleQtyChange(v: string) {
+    // Allow digits and a single decimal point; strip anything else
+    const cleaned = v
+      .replace(/[^0-9.]/g, "")
+      .replace(/^\.+/, "0.")
+      .replace(/(\..*)\./g, "$1");
+    setQuantity(cleaned);
+  }
+
+  function handleQtyBlur() {
+    const n = parseFloat(quantity);
+    if (!Number.isFinite(n) || n <= 0) {
+      setQuantity("0.001");
+      return;
+    }
+    const max = maxLots > 0 ? maxLots : 9999;
+    const clamped = Math.min(max, Math.max(0.001, n));
+    // Format with reasonable precision
+    let formatted: string;
+    if (clamped >= 100)  formatted = clamped.toFixed(0);
+    else if (clamped >= 1)   formatted = clamped.toFixed(3);
+    else if (clamped >= 0.1) formatted = clamped.toFixed(4);
+    else                     formatted = clamped.toFixed(6);
+    setQuantity(formatted);
   }
 
   // ── Order handler ─────────────────────────────────────────────────────────
@@ -268,8 +298,8 @@ export default function OrderPanel() {
           <TouchableOpacity
             style={[styles.qtyStepBtn, { borderRightColor: colors.border }]}
             onPress={() => {
-              const current = parseFloat(quantity) || 0;
-              const step = current >= 1 ? 1 : current >= 0.1 ? 0.01 : 0.001;
+              const current = Math.max(0.001, parseFloat(quantity) || 0.001);
+              const step = current > 1 ? 1 : current > 0.1 ? 0.01 : 0.001;
               const next = Math.max(0.001, parseFloat((current - step).toFixed(6)));
               setQuantity(String(next));
               Haptics.selectionAsync();
@@ -278,15 +308,21 @@ export default function OrderPanel() {
             <Text style={[styles.qtyStepText, { color: colors.foreground }]}>−</Text>
           </TouchableOpacity>
           <TextInput
+            ref={qtyInputRef}
             value={quantity}
-            onChangeText={(v) => {
-              setQuantity(v);
+            onChangeText={handleQtyChange}
+            onBlur={handleQtyBlur}
+            onFocus={(e: any) => {
+              // Select all text on focus without triggering the copy/paste popup
+              if (Platform.OS === "web") {
+                try { e?.nativeEvent?.target?.select?.(); } catch {}
+              }
             }}
             keyboardType="decimal-pad"
             style={[styles.qtyInput, { color: colors.foreground }]}
-            placeholder="0.01"
+            placeholder="0.001"
             placeholderTextColor={colors.mutedForeground}
-            selectTextOnFocus
+            returnKeyType="done"
           />
           <TouchableOpacity
             style={[styles.qtyStepBtn, { borderLeftColor: colors.border }]}
