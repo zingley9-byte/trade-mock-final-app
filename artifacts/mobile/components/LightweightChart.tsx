@@ -163,6 +163,17 @@ function WebChart({
 
   useEffect(() => { indicatorsRef.current = indicators; }, [indicators]);
   useEffect(() => { drawingToolRef.current = drawingTool; drawingClicksRef.current = []; }, [drawingTool]);
+
+  // Disable chart pan/scale while a drawing tool is active (prevents accidental scroll during drawing)
+  useEffect(() => {
+    if (!st.current.chart) return;
+    try {
+      st.current.chart.applyOptions({
+        handleScroll: !drawingTool,
+        handleScale: !drawingTool,
+      });
+    } catch {}
+  }, [drawingTool]);
   useEffect(() => { onDrawingCompleteRef.current = onDrawingComplete; }, [onDrawingComplete]);
 
   const bg = isDark ? "#0b0e17" : "#ffffff";
@@ -367,67 +378,85 @@ function WebChart({
       });
 
       chart.subscribeClick((param: any) => {
-        const tool = drawingToolRef.current;
-        if (!tool || !param?.point || !param?.time) return;
-        const price = mainSeries.coordinateToPrice(param.point.y);
-        if (price == null) return;
-        const time = param.time;
+        try {
+          const tool = drawingToolRef.current;
+          if (!tool || !param?.point || !param?.time || !mainSeries) return;
+          const price = mainSeries.coordinateToPrice(param.point.y);
+          if (price == null || !Number.isFinite(price)) return;
+          const time = param.time;
 
-        if (tool === "hline" || tool === "support" || tool === "resistance") {
-          const color = tool === "support" ? "#00c896" : tool === "resistance" ? "#ff4d4d" : "#f59e0b";
-          const label = tool === "support" ? "S" : tool === "resistance" ? "R" : "HL";
-          const pl = mainSeries.createPriceLine({
-            price, color, lineWidth: 1,
-            lineStyle: LineStyle.Dashed,
-            title: label, axisLabelVisible: true,
-          });
-          st.current.drawings.push({ type: "priceline", seriesRef: mainSeries, line: pl });
-          onDrawingCompleteRef.current?.();
-        } else if (tool === "trendline") {
-          drawingClicksRef.current.push({ time, price });
-          if (drawingClicksRef.current.length === 2) {
-            const [p1, p2] = drawingClicksRef.current;
-            const trendSeries = chart.addSeries(LineSeries, {
-              color: "#f59e0b", lineWidth: 1.5,
-              priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+          if (tool === "hline" || tool === "support" || tool === "resistance") {
+            const color = tool === "support" ? "#00c896" : tool === "resistance" ? "#ff4d4d" : "#f59e0b";
+            const label = tool === "support" ? "S" : tool === "resistance" ? "R" : "HL";
+            const pl = mainSeries.createPriceLine({
+              price, color, lineWidth: 1,
+              lineStyle: LineStyle.Dashed,
+              title: label, axisLabelVisible: true,
             });
-            trendSeries.setData([
-              { time: p1.time, value: p1.price },
-              { time: p2.time, value: p2.price },
-            ]);
-            st.current.drawings.push({ type: "series", series: trendSeries });
-            drawingClicksRef.current = [];
+            st.current.drawings.push({ type: "priceline", seriesRef: mainSeries, line: pl });
             onDrawingCompleteRef.current?.();
+          } else if (tool === "trendline") {
+            drawingClicksRef.current.push({ time, price });
+            if (drawingClicksRef.current.length === 2) {
+              const [p1, p2] = drawingClicksRef.current;
+              drawingClicksRef.current = [];
+              if (String(p1.time) !== String(p2.time)) {
+                const trendSeries = chart.addSeries(LineSeries, {
+                  color: "#f59e0b", lineWidth: 1.5,
+                  priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+                });
+                trendSeries.setData([
+                  { time: p1.time, value: p1.price },
+                  { time: p2.time, value: p2.price },
+                ]);
+                st.current.drawings.push({ type: "series", series: trendSeries });
+              }
+              onDrawingCompleteRef.current?.();
+            }
+          } else if (tool === "fib") {
+            drawingClicksRef.current.push({ time, price });
+            if (drawingClicksRef.current.length === 2) {
+              const [p1, p2] = drawingClicksRef.current;
+              drawingClicksRef.current = [];
+              const diff = p2.price - p1.price;
+              if (Number.isFinite(diff) && diff !== 0) {
+                const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+                const fibColors = ["#94a3b8", "#f59e0b", "#10b981", "#3b82f6", "#10b981", "#f59e0b", "#94a3b8"];
+                levels.forEach((level, i) => {
+                  const fibPrice = p1.price + diff * level;
+                  if (!Number.isFinite(fibPrice)) return;
+                  const pl = mainSeries.createPriceLine({
+                    price: fibPrice,
+                    color: fibColors[i],
+                    lineWidth: 1,
+                    lineStyle: LineStyle.Dotted,
+                    title: `Fib ${(level * 100).toFixed(1)}%`,
+                    axisLabelVisible: true,
+                  });
+                  st.current.drawings.push({ type: "priceline", seriesRef: mainSeries, line: pl });
+                });
+              }
+              onDrawingCompleteRef.current?.();
+            }
           }
-        } else if (tool === "fib") {
-          drawingClicksRef.current.push({ time, price });
-          if (drawingClicksRef.current.length === 2) {
-            const [p1, p2] = drawingClicksRef.current;
-            const diff = p2.price - p1.price;
-            const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
-            const fibColors = ["#94a3b8", "#f59e0b", "#10b981", "#3b82f6", "#10b981", "#f59e0b", "#94a3b8"];
-            levels.forEach((level, i) => {
-              const fibPrice = p1.price + diff * level;
-              const pl = mainSeries.createPriceLine({
-                price: fibPrice,
-                color: fibColors[i],
-                lineWidth: 1,
-                lineStyle: LineStyle.Dotted,
-                title: `Fib ${(level * 100).toFixed(1)}%`,
-                axisLabelVisible: true,
-              });
-              st.current.drawings.push({ type: "priceline", seriesRef: mainSeries, line: pl });
-            });
-            drawingClicksRef.current = [];
-            onDrawingCompleteRef.current?.();
-          }
+        } catch (e) {
+          console.error("[LightweightChart] Drawing click handler error:", e);
+          drawingClicksRef.current = [];
         }
       });
 
-      const ro = new ResizeObserver(() => {
-        if (containerRef.current && chart) chart.applyOptions({ width: containerRef.current.offsetWidth });
-      });
-      ro.observe(containerRef.current);
+      try {
+        const ro = new ResizeObserver(() => {
+          try {
+            if (containerRef.current && chart) {
+              chart.applyOptions({ width: containerRef.current.offsetWidth });
+            }
+          } catch {}
+        });
+        if (containerRef.current) ro.observe(containerRef.current);
+      } catch (e) {
+        console.error("[LightweightChart] ResizeObserver unavailable:", e);
+      }
 
       {
         const sym = symbol.replace("/", "").toUpperCase();

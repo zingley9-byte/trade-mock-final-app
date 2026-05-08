@@ -438,61 +438,145 @@ export function TradingProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function loadState() {
+    // ── Step 1: Clean up legacy keys ──────────────────────────────────────────
     try {
-      // Remove stale keys from old demo versions (browser localStorage leftovers)
       for (const key of LEGACY_KEYS) {
         await AsyncStorage.removeItem(key).catch(() => {});
       }
+    } catch (e) {
+      console.error("[TradingContext] Legacy key cleanup failed:", e);
+    }
 
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw);
+    // ── Step 2: Read raw storage ───────────────────────────────────────────────
+    let raw: string | null = null;
+    try {
+      raw = await AsyncStorage.getItem(STORAGE_KEY);
+    } catch (e) {
+      console.error("[TradingContext] AsyncStorage read error:", e);
+      return;
+    }
+    if (!raw) return;
 
-        // Migrate: clamp any old demo balance (1,000,000) back to 50,000
-        let loadedBalance: number | undefined = saved.balance;
-        if (loadedBalance !== undefined && loadedBalance >= 1_000_000) {
-          loadedBalance = INITIAL_BALANCE;
-        }
-
-        // Clamp balance to a safe, finite range
-        if (loadedBalance !== undefined) {
-          setBalance(Math.min(Math.max(0, safeNum(loadedBalance, INITIAL_BALANCE)), INITIAL_BALANCE * 1000));
-        }
-        // Sanitize positions — discard any with corrupt or impossible numeric fields
-        if (saved.positions) {
-          const cleanPositions = (saved.positions as Position[]).filter((p) => {
-            const m   = Number(p.margin);
-            const e   = Number(p.entryPrice);
-            const q   = Number(p.quantity);
-            const liq = Number(p.liquidationPrice);
-            return (
-              Number.isFinite(m) && m > 0 && m <= INITIAL_BALANCE * 1000 &&
-              Number.isFinite(e) && e > 0 &&
-              Number.isFinite(q) && q > 0 && q < 1e9 &&
-              Number.isFinite(liq) && liq > 0
-            );
-          });
-          setPositions(cleanPositions);
-        }
-        if (saved.tradeHistory) {
-          const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-          setTradeHistory((saved.tradeHistory as TradeHistory[]).filter((t) => t.closedAt >= thirtyDaysAgo));
-        }
-        if (saved.theme) { setTheme(saved.theme); Appearance.setColorScheme(saved.theme); }
-        if (saved.leverage) setLeverage(saved.leverage);
-        if (saved.marketFilter) setMarketFilterState(saved.marketFilter);
-        if (saved.currencyMode) setCurrencyModeState(saved.currencyMode);
-        if (Array.isArray(saved.resetTimestamps)) setResetTimestamps(saved.resetTimestamps);
-
-        // Persist the corrected balance immediately so next load is clean
-        if (saved.balance !== undefined && saved.balance >= 1_000_000) {
-          await AsyncStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({ ...saved, balance: INITIAL_BALANCE })
-          ).catch(() => {});
-        }
+    // ── Step 3: Parse JSON — clear key if corrupt ────────────────────────────
+    let saved: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Invalid JSON structure");
       }
-    } catch {}
+      saved = parsed as Record<string, unknown>;
+    } catch (e) {
+      console.error("[TradingContext] Corrupt saved state — clearing storage:", e);
+      await AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+      return;
+    }
+
+    // ── Step 4: Load balance ───────────────────────────────────────────────────
+    try {
+      let loadedBalance: number | undefined =
+        typeof saved.balance === "number" ? saved.balance : undefined;
+      if (loadedBalance !== undefined && loadedBalance >= 1_000_000) {
+        loadedBalance = INITIAL_BALANCE;
+      }
+      if (loadedBalance !== undefined) {
+        setBalance(Math.min(Math.max(0, safeNum(loadedBalance, INITIAL_BALANCE)), INITIAL_BALANCE * 1000));
+      }
+    } catch (e) {
+      console.error("[TradingContext] Failed to restore balance:", e);
+    }
+
+    // ── Step 5: Load and sanitize positions ───────────────────────────────────
+    try {
+      if (Array.isArray(saved.positions)) {
+        const cleanPositions = (saved.positions as unknown[]).filter((p): p is Position => {
+          if (!p || typeof p !== "object") {
+            console.error("[TradingContext] Skipping non-object position:", p);
+            return false;
+          }
+          const pos = p as Partial<Position>;
+          const m   = Number(pos.margin);
+          const e   = Number(pos.entryPrice);
+          const q   = Number(pos.quantity);
+          const liq = Number(pos.liquidationPrice);
+          const valid =
+            Number.isFinite(m) && m > 0 && m <= INITIAL_BALANCE * 1000 &&
+            Number.isFinite(e) && e > 0 &&
+            Number.isFinite(q) && q > 0 && q < 1e9 &&
+            Number.isFinite(liq) && liq > 0 &&
+            typeof pos.id === "string" && pos.id.length > 0 &&
+            (pos.side === "buy" || pos.side === "sell");
+          if (!valid) {
+            console.error("[TradingContext] Skipping invalid position:", pos.id, "margin:", m, "entry:", e, "qty:", q);
+          }
+          return valid;
+        });
+        setPositions(cleanPositions);
+      }
+    } catch (e) {
+      console.error("[TradingContext] Failed to restore positions:", e);
+    }
+
+    // ── Step 6: Load and sanitize trade history ───────────────────────────────
+    try {
+      if (Array.isArray(saved.tradeHistory)) {
+        const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        const cleanHistory = (saved.tradeHistory as unknown[]).filter((t): t is TradeHistory => {
+          if (!t || typeof t !== "object") return false;
+          const trade = t as Partial<TradeHistory>;
+          const valid =
+            typeof trade.id === "string" && trade.id.length > 0 &&
+            (trade.side === "buy" || trade.side === "sell") &&
+            Number.isFinite(Number(trade.pnl)) &&
+            Number.isFinite(Number(trade.entryPrice)) && Number(trade.entryPrice) > 0 &&
+            Number.isFinite(Number(trade.exitPrice))  && Number(trade.exitPrice)  > 0 &&
+            Number.isFinite(Number(trade.quantity))   && Number(trade.quantity)   > 0 &&
+            typeof trade.closedAt === "number" && trade.closedAt >= thirtyDaysAgo;
+          if (!valid) {
+            console.error("[TradingContext] Skipping invalid history entry:", trade.id, "pnl:", trade.pnl);
+          }
+          return valid;
+        });
+        setTradeHistory(cleanHistory);
+      }
+    } catch (e) {
+      console.error("[TradingContext] Failed to restore trade history:", e);
+    }
+
+    // ── Step 7: Load settings with individual guards ──────────────────────────
+    try {
+      const t = saved.theme;
+      if (t === "dark" || t === "light") { setTheme(t); Appearance.setColorScheme(t); }
+    } catch (e) { console.error("[TradingContext] Failed to restore theme:", e); }
+
+    try {
+      const lev = saved.leverage;
+      if (typeof lev === "number" && lev > 0) setLeverage(lev);
+    } catch (e) { console.error("[TradingContext] Failed to restore leverage:", e); }
+
+    try {
+      if (saved.marketFilter) setMarketFilterState(saved.marketFilter as "crypto");
+    } catch (e) { console.error("[TradingContext] Failed to restore marketFilter:", e); }
+
+    try {
+      const cm = saved.currencyMode;
+      if (cm === "usd" || cm === "inr") setCurrencyModeState(cm);
+    } catch (e) { console.error("[TradingContext] Failed to restore currencyMode:", e); }
+
+    try {
+      if (Array.isArray(saved.resetTimestamps)) setResetTimestamps(saved.resetTimestamps as number[]);
+    } catch (e) { console.error("[TradingContext] Failed to restore resetTimestamps:", e); }
+
+    // ── Step 8: Persist migrated balance ──────────────────────────────────────
+    try {
+      if (typeof saved.balance === "number" && saved.balance >= 1_000_000) {
+        await AsyncStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ ...saved, balance: INITIAL_BALANCE })
+        ).catch(() => {});
+      }
+    } catch (e) {
+      console.error("[TradingContext] Failed to persist migrated balance:", e);
+    }
   }
 
   async function saveState(

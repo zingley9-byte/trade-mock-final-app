@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import SvgIcon from "@/components/SvgIcon";
 import { reloadAppAsync } from "expo";
 import React, { useState } from "react";
@@ -24,13 +25,40 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
   const insets = useSafeAreaInsets();
 
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const handleRestart = async () => {
     try {
       await reloadAppAsync();
     } catch (restartError) {
-      console.error("Failed to restart app:", restartError);
+      console.error("[ErrorFallback] Failed to restart app:", restartError);
       resetError();
+    }
+  };
+
+  const handleResetData = async () => {
+    setClearing(true);
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      if (keys.length > 0) await AsyncStorage.multiRemove([...keys]);
+    } catch (e) {
+      console.error("[ErrorFallback] AsyncStorage clear failed:", e);
+    }
+    try {
+      if (typeof localStorage !== "undefined") localStorage.clear();
+    } catch {}
+    try {
+      if (typeof sessionStorage !== "undefined") sessionStorage.clear();
+    } catch {}
+    setClearing(false);
+    try {
+      await reloadAppAsync();
+    } catch {
+      try {
+        if (typeof window !== "undefined") window.location.reload();
+      } catch {
+        resetError();
+      }
     }
   };
 
@@ -74,7 +102,8 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
         </Text>
 
         <Text style={[styles.message, { color: colors.mutedForeground }]}>
-          Please reload the app to continue.
+          Please reload the app to continue.{"\n"}
+          If the problem persists, reset all app data below.
         </Text>
 
         <Pressable
@@ -88,15 +117,30 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
             },
           ]}
         >
-          <Text
-            style={[
-              styles.buttonText,
-              { color: colors.primaryForeground },
-            ]}
-          >
+          <Text style={[styles.buttonText, { color: colors.primaryForeground }]}>
             Try Again
           </Text>
         </Pressable>
+
+        <Pressable
+          onPress={handleResetData}
+          disabled={clearing}
+          style={({ pressed }) => [
+            styles.resetDataBtn,
+            {
+              borderColor: "#ef4444",
+              opacity: clearing ? 0.6 : pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          <Text style={styles.resetDataBtnText}>
+            {clearing ? "Clearing…" : "Reset App Data"}
+          </Text>
+        </Pressable>
+
+        <Text style={[styles.resetWarning, { color: colors.mutedForeground }]}>
+          ⚠ Reset App Data will clear all trades, positions, and settings.
+        </Text>
       </View>
 
       {__DEV__ ? (
@@ -194,9 +238,9 @@ const styles = StyleSheet.create({
     lineHeight: 40,
   },
   message: {
-    fontSize: 16,
+    fontSize: 15,
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: 22,
   },
   topButton: {
     position: "absolute",
@@ -215,10 +259,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     minWidth: 200,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -227,6 +268,25 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
     fontSize: 16,
+  },
+  resetDataBtn: {
+    paddingVertical: 13,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    minWidth: 200,
+    alignItems: "center",
+  },
+  resetDataBtnText: {
+    color: "#ef4444",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  resetWarning: {
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
+    maxWidth: 320,
   },
   modalOverlay: {
     flex: 1,
