@@ -61,4 +61,4 @@ localPort = 19100
 externalPort = 5173
 
 [nix]
-packages = ["zip"]
+packages = ["zip", "nano"]
